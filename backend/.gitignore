@@ -1,0 +1,19 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Build output
+/dist
+/build
+
+# OS files (macOS)
+.DS_Store
+
+# Temporary files
+*.tmp
+
