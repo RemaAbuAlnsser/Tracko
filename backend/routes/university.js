@@ -223,4 +223,76 @@ router.get("/search/:term", async (req, res) => {
   }
 });
 
+// Get university statistics
+router.get("/:id/statistics", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if university exists
+    const university = await University.findById(id);
+    if (!university) {
+      return res.status(404).json({
+        success: false,
+        message: "University not found"
+      });
+    }
+    
+    // Get students count
+    const studentsCountQuery = `
+      SELECT COUNT(*) as count 
+      FROM Students 
+      WHERE university_id = ?
+    `;
+    
+    const studentsCount = await new Promise((resolve, reject) => {
+      db.query(studentsCountQuery, [id], (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    });
+    
+    // Get active partnerships count
+    const activePartnershipsQuery = `
+      SELECT COUNT(*) as count 
+      FROM University_Company_Partnerships 
+      WHERE university_id = ? AND status = 'active'
+    `;
+    
+    const activePartnershipsCount = await new Promise((resolve, reject) => {
+      db.query(activePartnershipsQuery, [id], (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    });
+    
+    // Get total internships count (all internships from all companies)
+    const internshipsCountQuery = `
+      SELECT COUNT(*) as count 
+      FROM Internships
+    `;
+    
+    const internshipsCount = await new Promise((resolve, reject) => {
+      db.query(internshipsCountQuery, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        studentsCount,
+        activePartnershipsCount,
+        internshipsCount
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching university statistics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch university statistics"
+    });
+  }
+});
+
 export default router;
