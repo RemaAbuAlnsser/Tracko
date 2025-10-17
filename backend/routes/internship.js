@@ -42,17 +42,7 @@ router.post("/", async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Internship created successfully",
-      internshipId: result.insertId,
-      internship: {
-        id: result.insertId,
-        company_id: company.id,
-        title,
-        description,
-        requirements,
-        specialization,
-        capacity: capacity || 1,
-        status: status || 'open'
-      }
+      internshipId: result.insertId
     });
 
   } catch (error) {

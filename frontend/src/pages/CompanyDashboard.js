@@ -26,14 +26,11 @@ function CompanyDashboard() {
     requirements: '',
     specialization: '',
     capacity: 1,
-    status: 'open',
-    trainer_id: ''
+    status: 'open'
   });
   const [internships, setInternships] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [trainers, setTrainers] = useState([]);
-  const [companyId, setCompanyId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,7 +59,6 @@ function CompanyDashboard() {
           const data = await response.json();
           console.log('📥 Loaded company data:', data);
           if (data.success && data.company) {
-            setCompanyId(data.company.id);
             setCompanyData({
               name: data.company.name || parsedUser.full_name,
               email: data.company.email || parsedUser.email,
@@ -77,8 +73,6 @@ function CompanyDashboard() {
               description: data.company.description || 'TechCorp is a leading software development company.',
               logo: data.company.logo || ''
             });
-            // Load trainers for this company
-            loadTrainers(data.company.id);
           } else {
             // Company not found in database, use user data
             console.log('⚠️ Company not found, using default values');
@@ -102,21 +96,6 @@ function CompanyDashboard() {
     
     loadCompanyData();
   }, [navigate]);
-
-  const loadTrainers = async (companyId) => {
-    try {
-      const response = await fetch(`http://localhost:5050/api/trainers/company/${companyId}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setTrainers(data.trainers || []);
-          console.log('📥 Loaded trainers:', data.trainers);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading trainers:', error);
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -269,28 +248,6 @@ function CompanyDashboard() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Internship posted successfully!' });
-        
-        // If a trainer was selected, update their internship_id
-        if (internshipData.trainer_id && data.internship && data.internship.id) {
-          try {
-            const trainerResponse = await fetch(`http://localhost:5050/api/trainers/${internshipData.trainer_id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                internship_id: data.internship.id
-              })
-            });
-            
-            if (trainerResponse.ok) {
-              console.log('✅ Trainer assigned to internship successfully');
-            }
-          } catch (trainerError) {
-            console.error('Error assigning trainer:', trainerError);
-          }
-        }
-        
         // Reset form
         setInternshipData({
           title: '',
@@ -298,8 +255,7 @@ function CompanyDashboard() {
           requirements: '',
           specialization: '',
           capacity: 1,
-          status: 'open',
-          trainer_id: ''
+          status: 'open'
         });
         // Reload internships
         loadInternships();
@@ -836,27 +792,6 @@ function CompanyDashboard() {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Assign Trainer (Optional)</label>
-                  <select 
-                    name="trainer_id"
-                    value={internshipData.trainer_id} 
-                    onChange={handleInternshipInputChange}
-                  >
-                    <option value="">No Trainer</option>
-                    {trainers.map(trainer => (
-                      <option key={trainer.id} value={trainer.id}>
-                        {trainer.full_name} - {trainer.specialization || 'No specialization'}
-                      </option>
-                    ))}
-                  </select>
-                  {trainers.length === 0 && (
-                    <small style={{ color: '#6b7280', marginTop: '0.5rem', display: 'block' }}>
-                      No trainers available for this company
-                    </small>
-                  )}
-                </div>
-
                 <div className="form-actions">
                   <button 
                     type="button"
@@ -956,7 +891,6 @@ function CompanyDashboard() {
                         <th>Specialization</th>
                         <th>Capacity</th>
                         <th>Status</th>
-                        <th>Trainer</th>
                         <th>Posted</th>
                         <th>Actions</th>
                       </tr>
@@ -976,15 +910,6 @@ function CompanyDashboard() {
                             <span className={`status-badge status-${internship.status}`}>
                               {internship.status}
                             </span>
-                          </td>
-                          <td>
-                            <div className="trainer-cell">
-                              {internship.trainer_name ? (
-                                <span className="trainer-name">{internship.trainer_name}</span>
-                              ) : (
-                                <span className="no-trainer">No Trainer</span>
-                              )}
-                            </div>
                           </td>
                           <td>
                             <div className="date-cell">

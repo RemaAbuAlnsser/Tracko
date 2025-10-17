@@ -1,29 +1,28 @@
 import db from "../config/database.js";
 
-class Company {
-  // Create a new company
-  static create(companyData) {
+class University {
+  // Create a new university
+  static create(universityData) {
     const { 
       name, 
       email, 
       phone, 
-      industry, 
       address, 
-      description, 
       website, 
       logo, 
-      status = 'pending' 
-    } = companyData;
+      coordinator_name, 
+      coordinator_phone
+    } = universityData;
     
     const query = `
-      INSERT INTO Company (name, email, phone, industry, address, description, website, logo, status) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Universities (name, email, phone, address, website, logo, coordinator_name, coordinator_phone) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [name, email, phone, industry, address, description, website, logo, status], 
+        [name, email, phone, address, website, logo, coordinator_name, coordinator_phone], 
         (err, result) => {
           if (err) {
             reject(err);
@@ -35,9 +34,9 @@ class Company {
     });
   }
 
-  // Find company by ID
+  // Find university by ID
   static findById(id) {
-    const query = "SELECT * FROM Company WHERE id = ?";
+    const query = "SELECT * FROM Universities WHERE id = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [id], (err, results) => {
@@ -50,9 +49,9 @@ class Company {
     });
   }
 
-  // Find company by email
+  // Find university by email
   static findByEmail(email) {
-    const query = "SELECT * FROM Company WHERE email = ?";
+    const query = "SELECT * FROM Universities WHERE email = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [email], (err, results) => {
@@ -65,21 +64,12 @@ class Company {
     });
   }
 
-  // Get all companies
-  static getAll(filters = {}) {
-    let query = "SELECT * FROM Company";
-    const params = [];
-    
-    // Add status filter if provided
-    if (filters.status) {
-      query += " WHERE status = ?";
-      params.push(filters.status);
-    }
-    
-    query += " ORDER BY created_at DESC";
+  // Get all universities
+  static getAll() {
+    const query = "SELECT * FROM Universities ORDER BY name ASC";
     
     return new Promise((resolve, reject) => {
-      db.query(query, params, (err, results) => {
+      db.query(query, (err, results) => {
         if (err) {
           reject(err);
         } else {
@@ -89,31 +79,30 @@ class Company {
     });
   }
 
-  // Update company
-  static update(id, companyData) {
+  // Update university
+  static update(id, universityData) {
     const { 
       name, 
       email, 
       phone, 
-      industry, 
       address, 
-      description, 
       website, 
       logo, 
-      status 
-    } = companyData;
+      coordinator_name, 
+      coordinator_phone
+    } = universityData;
     
     const query = `
-      UPDATE Company 
-      SET name = ?, email = ?, phone = ?, industry = ?, address = ?, 
-          description = ?, website = ?, logo = ?, status = ?
+      UPDATE Universities 
+      SET name = ?, email = ?, phone = ?, address = ?, 
+          website = ?, logo = ?, coordinator_name = ?, coordinator_phone = ?
       WHERE id = ?
     `;
     
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [name, email, phone, industry, address, description, website, logo, status, id], 
+        [name, email, phone, address, website, logo, coordinator_name, coordinator_phone, id], 
         (err, result) => {
           if (err) {
             reject(err);
@@ -125,9 +114,9 @@ class Company {
     });
   }
 
-  // Delete company
+  // Delete university
   static delete(id) {
-    const query = "DELETE FROM Company WHERE id = ?";
+    const query = "DELETE FROM Universities WHERE id = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [id], (err, result) => {
@@ -140,27 +129,12 @@ class Company {
     });
   }
 
-  // Update status only
-  static updateStatus(id, status) {
-    const query = "UPDATE Company SET status = ? WHERE id = ?";
-    
-    return new Promise((resolve, reject) => {
-      db.query(query, [status, id], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-  }
-
-  // Search companies by name or industry
+  // Search universities by name
   static search(searchTerm) {
     const query = `
-      SELECT * FROM Company 
-      WHERE name LIKE ? OR industry LIKE ? 
-      ORDER BY created_at DESC
+      SELECT * FROM Universities 
+      WHERE name LIKE ? OR address LIKE ? 
+      ORDER BY name ASC
     `;
     const searchPattern = `%${searchTerm}%`;
     
@@ -174,6 +148,7 @@ class Company {
       });
     });
   }
+
 }
 
-export default Company;
+export default University;

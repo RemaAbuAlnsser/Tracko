@@ -1,7 +1,7 @@
 import express from "express";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
-import Trainer from "../models/Trainer.js";
+import University from "../models/University.js";
 
 const router = express.Router();
 
@@ -54,55 +54,66 @@ router.post("/signup", async (req, res) => {
       }
     }
 
+    // If university type, also check University table
+    if (user_type === 'university') {
+      const existingUniversity = await University.findByEmail(email);
+      if (existingUniversity) {
+        return res.status(409).json({ 
+          success: false,
+          message: "University with this email already exists" 
+        });
+      }
+    }
+
     // Create new user
     console.log("💾 Creating user in database...");
     const result = await User.create({ full_name, email, password, user_type });
     console.log("✅ User created successfully with ID:", result.insertId);
 
-    // If user type is company, also create a Company record and check for Trainer
+    // If user type is company, also create a Company record
     if (user_type === 'company') {
       try {
-        console.log("🏢 Processing company user:", email);
+        console.log("🏢 Creating company record for:", email);
         
-        // Extract domain from email (e.g., ahmad@asal.com -> asal.com)
-        const emailDomain = email.split('@')[1];
-        console.log("🔍 Extracted domain:", emailDomain);
-        
-        // Check if there's a company with this domain
-        const companyByDomain = await Company.findByEmailDomain(emailDomain);
-        
-        if (companyByDomain) {
-          // Company exists with this domain - create Trainer record
-          console.log("✅ Found company with domain:", companyByDomain.name);
-          
-          try {
-            await Trainer.create({
-              company_id: companyByDomain.id,
-              user_id: result.insertId,
-              status: 'active'
-            });
-            console.log("✅ Trainer record created successfully for company:", companyByDomain.name);
-          } catch (trainerError) {
-            console.error("⚠️ Warning: Failed to create trainer record:", trainerError);
-          }
+        // Check if company already exists
+        const existingCompany = await Company.findByEmail(email);
+        if (existingCompany) {
+          console.log("ℹ️ Company record already exists");
         } else {
-          // No company with this domain - create new Company record
-          console.log("ℹ️ No company found with domain, creating new company record");
-          
-          const existingCompany = await Company.findByEmail(email);
-          if (!existingCompany) {
-            await Company.create({
-              name: full_name,
-              email: email,
-              status: 'pending'
-            });
-            console.log("✅ Company record created successfully");
-          }
+          await Company.create({
+            name: full_name,
+            email: email,
+            status: 'pending'
+          });
+          console.log("✅ Company record created successfully");
         }
       } catch (companyError) {
-        console.error("⚠️ Warning: Failed to process company/trainer:", companyError);
+        console.error("⚠️ Warning: Failed to create company record:", companyError);
         console.error("Error details:", companyError.message);
-        // Don't fail the signup if company/trainer creation fails
+        // Don't fail the signup if company creation fails
+      }
+    }
+
+    // If user type is university, also create a University record
+    if (user_type === 'university') {
+      try {
+        console.log("🎓 Creating university record for:", email);
+        
+        // Check if university already exists
+        const existingUniversity = await University.findByEmail(email);
+        if (existingUniversity) {
+          console.log("ℹ️ University record already exists");
+        } else {
+          await University.create({
+            name: full_name,
+            email: email
+          });
+          console.log("✅ University record created successfully");
+        }
+      } catch (universityError) {
+        console.error("⚠️ Warning: Failed to create university record:", universityError);
+        console.error("Error details:", universityError.message);
+        // Don't fail the signup if university creation fails
       }
     }
 

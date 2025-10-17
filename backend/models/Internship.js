@@ -43,12 +43,9 @@ class Internship {
   static findByCompanyId(companyId) {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT i.*, u.full_name as trainer_name
-        FROM Internships i
-        LEFT JOIN Trainers t ON i.id = t.internship_id
-        LEFT JOIN Users u ON t.user_id = u.id
-        WHERE i.company_id = ?
-        ORDER BY i.created_at DESC
+        SELECT * FROM Internships
+        WHERE company_id = ?
+        ORDER BY created_at DESC
       `;
       
       db.query(query, [companyId], (err, results) => {

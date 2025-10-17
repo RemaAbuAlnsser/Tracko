@@ -7,7 +7,8 @@ import authRoutes from "./routes/auth.js";
 import companyRoutes from "./routes/company.js";
 import uploadRoutes from "./routes/upload.js";
 import internshipRoutes from "./routes/internship.js";
-import trainerRoutes from "./routes/trainer.js";
+import universityRoutes from "./routes/university.js";
+import partnershipRoutes from "./routes/partnership.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +33,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/internships", internshipRoutes);
-app.use("/api/trainers", trainerRoutes);
+app.use("/api/universities", universityRoutes);
+app.use("/api/partnerships", partnershipRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 

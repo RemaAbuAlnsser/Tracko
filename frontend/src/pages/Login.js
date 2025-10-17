@@ -40,26 +40,7 @@ function Login() {
             navigate('/student-dashboard');
             break;
           case 'company':
-            // Check if user is a trainer
-            try {
-              const trainerResponse = await fetch(`http://localhost:5050/api/trainers/user/${data.user.id}`);
-              if (trainerResponse.ok) {
-                const trainerData = await trainerResponse.json();
-                if (trainerData.success && trainerData.trainer) {
-                  // User is a trainer, redirect to trainer dashboard
-                  navigate('/trainer-dashboard');
-                } else {
-                  // User is a company, redirect to company dashboard
-                  navigate('/company-dashboard');
-                }
-              } else {
-                // If API fails, default to company dashboard
-                navigate('/company-dashboard');
-              }
-            } catch (error) {
-              console.error('Error checking trainer status:', error);
-              navigate('/company-dashboard');
-            }
+            navigate('/company-dashboard');
             break;
           case 'university':
             navigate('/university-dashboard');
