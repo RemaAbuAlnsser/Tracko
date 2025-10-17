@@ -6,12 +6,77 @@ import '../styles/Login.css';
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add your login logic here
-    console.log('Login attempted with:', { email, password });
+    setError('');
+    setLoading(true);
+
+    try {
+      // Send login request to backend
+      const response = await fetch('http://localhost:5050/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Success - store user data and redirect based on user type
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Redirect based on user type
+        switch(data.user.user_type) {
+          case 'student':
+            navigate('/student-dashboard');
+            break;
+          case 'company':
+            // Check if user is a trainer
+            try {
+              const trainerResponse = await fetch(`http://localhost:5050/api/trainers/user/${data.user.id}`);
+              if (trainerResponse.ok) {
+                const trainerData = await trainerResponse.json();
+                if (trainerData.success && trainerData.trainer) {
+                  // User is a trainer, redirect to trainer dashboard
+                  navigate('/trainer-dashboard');
+                } else {
+                  // User is a company, redirect to company dashboard
+                  navigate('/company-dashboard');
+                }
+              } else {
+                // If API fails, default to company dashboard
+                navigate('/company-dashboard');
+              }
+            } catch (error) {
+              console.error('Error checking trainer status:', error);
+              navigate('/company-dashboard');
+            }
+            break;
+          case 'university':
+            navigate('/university-dashboard');
+            break;
+          default:
+            navigate('/');
+        }
+      } else {
+        // Show error message from server
+        setError(data.message || 'Login failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Network error. Please check if the server is running.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const scrollToSection = (sectionId) => {
@@ -41,7 +106,7 @@ function Login() {
           <button className="nav-link" onClick={() => scrollToSection('universities')}>University</button>
           <button className="nav-link" onClick={() => scrollToSection('about')}>About Us</button>
           <button className="nav-link" onClick={() => navigate('/login')}>Login</button>
-          <button className="nav-link nav-link-signup" onClick={() => navigate('/signup')}>Sign Up</button>
+          {/* <button className="nav-link nav-link-signup" onClick={() => navigate('/signup')}>Sign Up</button> */}
         </nav>
       </header>
 
@@ -55,15 +120,33 @@ function Login() {
             </div>
             
             <form className="login-form" onSubmit={handleSubmit}>
+              {error && (
+                <div style={{
+                  padding: '12px',
+                  marginBottom: '20px',
+                  backgroundColor: '#fee',
+                  border: '1px solid #fcc',
+                  borderRadius: '8px',
+                  color: '#c33',
+                  fontSize: '14px'
+                }}>
+                  {error}
+                </div>
+              )}
+              
               <div className="form-group">
                 <label htmlFor="email">Email Address</label>
                 <input
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (error) setError('');
+                  }}
                   placeholder="Enter your email"
                   required
+                  disabled={loading}
                 />
               </div>
               
@@ -73,21 +156,32 @@ function Login() {
                   type="password"
                   id="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError('');
+                  }}
                   placeholder="Enter your password"
                   required
+                  disabled={loading}
                 />
               </div>
               
               <div className="form-options">
                 <label className="remember-me">
-                  <input type="checkbox" />
+                  <input type="checkbox" disabled={loading} />
                   <span>Remember me</span>
                 </label>
                 <a href="#" className="forgot-password">Forgot password?</a>
               </div>
               
-              <button type="submit" className="login-button">Sign In</button>
+              <button 
+                type="submit" 
+                className="login-button"
+                disabled={loading}
+                style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+              >
+                {loading ? 'Signing In...' : 'Sign In'}
+              </button>
             </form>
             
             <div className="login-footer">
