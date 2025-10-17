@@ -64,6 +64,21 @@ class University {
     });
   }
 
+  // Find university by domain (e.g., najah.com)
+  static findByDomain(domain) {
+    const query = "SELECT * FROM Universities WHERE email LIKE ?";
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [`%@${domain}`], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0]);
+        }
+      });
+    });
+  }
+
   // Get all universities
   static getAll() {
     const query = "SELECT * FROM Universities ORDER BY name ASC";

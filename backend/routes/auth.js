@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import Company from "../models/Company.js";
 import University from "../models/University.js";
 import Trainer from "../models/Trainer.js";
+import Student from "../models/Student.js";
 
 const router = express.Router();
 
@@ -155,6 +156,40 @@ router.post("/signup", async (req, res) => {
           success: false,
           message: "Failed to create trainer record" 
         });
+      }
+    }
+
+    // If user type is student, create a Student record
+    if (user_type === 'student') {
+      try {
+        console.log("🎓 Creating student record for:", email);
+        
+        // Extract domain from email (e.g., rema@najah.com -> najah.com)
+        const domain = email.split('@')[1];
+        console.log("🔍 Looking for university with domain:", domain);
+        
+        // Find university by domain
+        const university = await University.findByDomain(domain);
+        
+        let universityId = null;
+        if (university) {
+          universityId = university.id;
+          console.log("✅ Found university:", university.name, "with ID:", universityId);
+        } else {
+          console.log("ℹ️ No university found with domain:", domain);
+        }
+        
+        await Student.create({
+          user_id: result.insertId,
+          university_id: universityId,
+          status: 'active'
+        });
+        
+        console.log("✅ Student record created successfully");
+      } catch (studentError) {
+        console.error("⚠️ Warning: Failed to create student record:", studentError);
+        console.error("Error details:", studentError.message);
+        // Don't fail the signup if student creation fails
       }
     }
 
