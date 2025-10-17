@@ -1,0 +1,51 @@
+### Test Signup Endpoint
+
+# Test 1: Register a student
+POST http://localhost:5050/api/auth/signup
+Content-Type: application/json
+
+{
+  "full_name": "John Doe",
+  "email": "john.doe@example.com",
+  "password": "securePassword123",
+  "user_type": "student"
+}
+
+###
+
+# Test 2: Register a company
+POST http://localhost:5050/api/auth/signup
+Content-Type: application/json
+
+{
+  "full_name": "Tech Corp",
+  "email": "contact@techcorp.com",
+  "password": "companyPass456",
+  "user_type": "company"
+}
+
+###
+
+# Test 3: Register a university
+POST http://localhost:5050/api/auth/signup
+Content-Type: application/json
+
+{
+  "full_name": "State University",
+  "email": "admin@stateuni.edu",
+  "password": "uniPass789",
+  "user_type": "university"
+}
+
+###
+
+# Test 4: Try duplicate email (should fail)
+POST http://localhost:5050/api/auth/signup
+Content-Type: application/json
+
+{
+  "full_name": "John Doe 2",
+  "email": "john.doe@example.com",
+  "password": "anotherPass",
+  "user_type": "student"
+}

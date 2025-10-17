@@ -11,6 +11,8 @@ function SignUp() {
     confirmPassword: '',
     userType: 'student'
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -18,16 +20,59 @@ function SignUp() {
       ...formData,
       [e.target.name]: e.target.value
     });
+    // Clear error when user starts typing
+    if (error) setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add your sign up logic here
+    setError('');
+    
+    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!');
+      setError('Passwords do not match!');
       return;
     }
-    console.log('Sign up attempted with:', formData);
+
+    // Validate password length
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Send signup request to backend
+      const response = await fetch('http://localhost:5050/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          full_name: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          user_type: formData.userType
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Success - show success message and redirect to login
+        alert('Account created successfully! Please login.');
+        navigate('/login');
+      } else {
+        // Show error message from server
+        setError(data.message || 'Failed to create account. Please try again.');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      setError('Network error. Please check if the server is running.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const scrollToSection = (sectionId) => {
@@ -57,7 +102,7 @@ function SignUp() {
           <button className="nav-link" onClick={() => scrollToSection('universities')}>University</button>
           <button className="nav-link" onClick={() => scrollToSection('about')}>About Us</button>
           <button className="nav-link" onClick={() => navigate('/login')}>Login</button>
-          <button className="nav-link nav-link-signup" onClick={() => navigate('/signup')}>Sign Up</button>
+          {/* <button className="nav-link nav-link-signup" onClick={() => navigate('/signup')}>Sign Up</button> */}
         </nav>
       </header>
 
@@ -71,6 +116,20 @@ function SignUp() {
             </div>
             
             <form className="signup-form" onSubmit={handleSubmit}>
+              {error && (
+                <div style={{
+                  padding: '12px',
+                  marginBottom: '20px',
+                  backgroundColor: '#fee',
+                  border: '1px solid #fcc',
+                  borderRadius: '8px',
+                  color: '#c33',
+                  fontSize: '14px'
+                }}>
+                  {error}
+                </div>
+              )}
+              
               <div className="form-group">
                 <label htmlFor="fullName">Full Name</label>
                 <input
@@ -81,6 +140,7 @@ function SignUp() {
                   onChange={handleChange}
                   placeholder="Enter your full name"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -94,6 +154,7 @@ function SignUp() {
                   onChange={handleChange}
                   placeholder="Enter your email"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -105,6 +166,7 @@ function SignUp() {
                   value={formData.userType}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 >
                   <option value="student">Student</option>
                   <option value="company">Company</option>
@@ -120,8 +182,9 @@ function SignUp() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="Create a password"
+                  placeholder="Create a password (min 6 characters)"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -135,17 +198,25 @@ function SignUp() {
                   onChange={handleChange}
                   placeholder="Confirm your password"
                   required
+                  disabled={loading}
                 />
               </div>
               
               <div className="form-options">
                 <label className="terms-agreement">
-                  <input type="checkbox" required />
+                  <input type="checkbox" required disabled={loading} />
                   <span>I agree to the <a href="#">Terms & Conditions</a></span>
                 </label>
               </div>
               
-              <button type="submit" className="signup-button">Create Account</button>
+              <button 
+                type="submit" 
+                className="signup-button"
+                disabled={loading}
+                style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+              >
+                {loading ? 'Creating Account...' : 'Create Account'}
+              </button>
             </form>
             
             <div className="signup-footer">
