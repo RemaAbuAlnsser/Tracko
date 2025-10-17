@@ -35,18 +35,38 @@ function Login() {
         localStorage.setItem('user', JSON.stringify(data.user));
         
         // Redirect based on user type
-        switch(data.user.user_type) {
-          case 'student':
-            navigate('/student-dashboard');
-            break;
-          case 'company':
-            navigate('/company-dashboard');
-            break;
-          case 'university':
-            navigate('/university-dashboard');
-            break;
-          default:
-            navigate('/');
+        const userType = data.user.user_type;
+        console.log('🔍 User type:', userType);
+        console.log('👤 User data:', data.user);
+        
+        if (userType === 'student') {
+          console.log('➡️ Navigating to student-dashboard');
+          navigate('/student-dashboard');
+        } else if (userType === 'trainer') {
+          console.log('➡️ Navigating to trainer-dashboard');
+          navigate('/trainer-dashboard');
+        } else if (userType === 'university') {
+          navigate('/university-dashboard');
+        } else if (userType === 'company') {
+          // Check if user is a trainer
+          try {
+            const trainerResponse = await fetch(`http://localhost:5050/api/trainers/user/${data.user.id}`);
+            if (trainerResponse.ok) {
+              const trainerData = await trainerResponse.json();
+              if (trainerData.success && trainerData.trainer) {
+                navigate('/trainer-dashboard'); // Trainer
+              } else {
+                navigate('/company-dashboard'); // Company
+              }
+            } else {
+              navigate('/company-dashboard'); // Default to company if check fails
+            }
+          } catch (error) {
+            console.error('Error checking trainer status:', error);
+            navigate('/company-dashboard'); // Default to company on error
+          }
+        } else {
+          navigate('/');
         }
       } else {
         // Show error message from server

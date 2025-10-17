@@ -9,6 +9,7 @@ import uploadRoutes from "./routes/upload.js";
 import internshipRoutes from "./routes/internship.js";
 import universityRoutes from "./routes/university.js";
 import partnershipRoutes from "./routes/partnership.js";
+import trainerRoutes from "./routes/trainer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +36,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/internships", internshipRoutes);
 app.use("/api/universities", universityRoutes);
 app.use("/api/partnerships", partnershipRoutes);
+app.use("/api/trainers", trainerRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -43,13 +45,16 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Serve static files from React build
+// Serve static files from React build (commented out for development)
+// Uncomment these lines when deploying to production
+/*
 app.use(express.static(path.join(__dirname, "../frontend/build")));
 
 // Serve React app for all other routes
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
 });
+*/
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

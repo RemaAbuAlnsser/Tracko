@@ -13,8 +13,11 @@ function TrainerDashboard() {
     github_url: '',
     hourly_rate: 0,
     max_trainees: 5,
-    status: 'active'
+    status: 'active',
+    profile_image: ''
   });
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [trainerId, setTrainerId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -30,8 +33,8 @@ function TrainerDashboard() {
     
     const parsedUser = JSON.parse(userData);
     
-    // Check if user is a company (trainer)
-    if (parsedUser.user_type !== 'company') {
+    // Check if user is a trainer or company (trainer)
+    if (parsedUser.user_type !== 'company' && parsedUser.user_type !== 'trainer') {
       navigate('/login');
       return;
     }
@@ -58,8 +61,12 @@ function TrainerDashboard() {
             github_url: data.trainer.github_url || '',
             hourly_rate: data.trainer.hourly_rate || 0,
             max_trainees: data.trainer.max_trainees || 5,
-            status: data.trainer.status || 'active'
+            status: data.trainer.status || 'active',
+            profile_image: data.trainer.profile_image || ''
           });
+          if (data.trainer.profile_image) {
+            setImagePreview(`http://localhost:5050${data.trainer.profile_image}`);
+          }
         }
       }
     } catch (error) {
@@ -87,6 +94,42 @@ function TrainerDashboard() {
       ...prev,
       [name]: type === 'number' ? (value === '' ? 0 : Number(value)) : value
     }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async () => {
+    if (!selectedImage) return null;
+
+    const formData = new FormData();
+    formData.append('logo', selectedImage);
+
+    try {
+      const response = await fetch('http://localhost:5050/api/upload/logo', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        return data.logoPath;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -117,12 +160,24 @@ function TrainerDashboard() {
     try {
       console.log('💾 Saving trainer data:', trainerData);
       
+      // Upload image if selected
+      let imagePath = trainerData.profile_image;
+      if (selectedImage) {
+        const uploadedPath = await uploadImage();
+        if (uploadedPath) {
+          imagePath = uploadedPath;
+        }
+      }
+      
       const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(trainerData)
+        body: JSON.stringify({
+          ...trainerData,
+          profile_image: imagePath
+        })
       });
 
       const data = await response.json();
@@ -130,6 +185,7 @@ function TrainerDashboard() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
+        setSelectedImage(null);
         // Reload trainer data
         await loadTrainerData(user.id);
         // Scroll to top to show success message
@@ -156,7 +212,11 @@ function TrainerDashboard() {
         {/* Trainer Profile Section */}
         <div className="trainer-profile-section">
           <div className="trainer-avatar">
-            {getInitials(user.full_name)}
+            {imagePreview ? (
+              <img src={imagePreview} alt={user.full_name} className="avatar-image" />
+            ) : (
+              <span className="avatar-initials">{getInitials(user.full_name)}</span>
+            )}
           </div>
           <div className="trainer-info">
             <h3>{user.full_name}</h3>
@@ -321,6 +381,34 @@ function TrainerDashboard() {
                 {message.text}
               </div>
             )}
+
+            {/* Profile Image Section */}
+            <div className="profile-image-section">
+              <div className="image-container">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Profile" className="profile-image" />
+                ) : (
+                  <div className="no-image">
+                    <span>No Profile Image</span>
+                  </div>
+                )}
+              </div>
+              <div className="image-upload">
+                <label htmlFor="profile-image" className="upload-label">
+                  Choose Profile Image
+                </label>
+                <input
+                  type="file"
+                  id="profile-image"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                />
+                {selectedImage && (
+                  <span className="file-name">{selectedImage.name}</span>
+                )}
+              </div>
+            </div>
 
             {/* Professional Information */}
             <div className="profile-forms-container">

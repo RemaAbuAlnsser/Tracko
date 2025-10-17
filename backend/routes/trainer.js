@@ -107,7 +107,7 @@ router.put("/:id", async (req, res) => {
       hourly_rate,
       max_trainees,
       status,
-      internship_id
+      profile_image
     } = req.body;
     
     // Check if trainer exists
@@ -129,7 +129,7 @@ router.put("/:id", async (req, res) => {
       hourly_rate: hourly_rate !== undefined ? hourly_rate : existingTrainer.hourly_rate,
       max_trainees: max_trainees !== undefined ? max_trainees : existingTrainer.max_trainees,
       status: status !== undefined ? status : existingTrainer.status,
-      internship_id: internship_id !== undefined ? internship_id : existingTrainer.internship_id
+      profile_image: profile_image !== undefined ? profile_image : existingTrainer.profile_image
     });
     
     res.json({

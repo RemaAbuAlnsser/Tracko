@@ -2,6 +2,7 @@ import express from "express";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
 import University from "../models/University.js";
+import Trainer from "../models/Trainer.js";
 
 const router = express.Router();
 
@@ -26,11 +27,11 @@ router.post("/signup", async (req, res) => {
     }
 
     // Validate user_type
-    const validUserTypes = ['university', 'company', 'student'];
+    const validUserTypes = ['university', 'company', 'student', 'trainer'];
     if (!validUserTypes.includes(user_type)) {
       return res.status(400).json({ 
         success: false,
-        message: "Invalid user type. Must be 'university', 'company', or 'student'" 
+        message: "Invalid user type. Must be 'university', 'company', 'student', or 'trainer'" 
       });
     }
 
@@ -114,6 +115,46 @@ router.post("/signup", async (req, res) => {
         console.error("⚠️ Warning: Failed to create university record:", universityError);
         console.error("Error details:", universityError.message);
         // Don't fail the signup if university creation fails
+      }
+    }
+
+    // If user type is trainer, find company by domain and create trainer record
+    if (user_type === 'trainer') {
+      try {
+        console.log("👨‍🏫 Processing trainer signup for:", email);
+        
+        // Extract domain from email (e.g., noor@ghadeer.com -> ghadeer.com)
+        const domain = email.split('@')[1];
+        console.log("🔍 Looking for company with domain:", domain);
+        
+        // Find company by domain
+        const company = await Company.findByDomain(domain);
+        
+        if (company) {
+          console.log("✅ Found company:", company.name, "with ID:", company.id);
+          
+          // Create trainer record
+          await Trainer.create({
+            company_id: company.id,
+            user_id: result.insertId,
+            status: 'active'
+          });
+          
+          console.log("✅ Trainer record created successfully");
+        } else {
+          console.log("❌ No company found with domain:", domain);
+          return res.status(400).json({ 
+            success: false,
+            message: `No company found with domain ${domain}. Please contact your company administrator.`
+          });
+        }
+      } catch (trainerError) {
+        console.error("❌ Error creating trainer record:", trainerError);
+        console.error("Error details:", trainerError.message);
+        return res.status(500).json({ 
+          success: false,
+          message: "Failed to create trainer record" 
+        });
       }
     }
 

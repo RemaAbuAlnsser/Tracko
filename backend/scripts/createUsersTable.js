@@ -7,7 +7,7 @@ const createUsersTable = () => {
       full_name VARCHAR(255) NOT NULL,
       email VARCHAR(255) NOT NULL UNIQUE,
       password VARCHAR(255) NOT NULL,
-      user_type ENUM('university', 'company', 'student') NOT NULL,
+      user_type ENUM('university', 'company', 'student', 'trainer') NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;

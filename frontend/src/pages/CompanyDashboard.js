@@ -31,6 +31,8 @@ function CompanyDashboard() {
   const [internships, setInternships] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [companyTrainers, setCompanyTrainers] = useState([]);
+  const [selectedTrainers, setSelectedTrainers] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -95,7 +97,31 @@ function CompanyDashboard() {
     };
     
     loadCompanyData();
+    loadCompanyTrainers();
   }, [navigate]);
+
+  const loadCompanyTrainers = async () => {
+    try {
+      // First get company data to get company_id
+      const companyResponse = await fetch(`http://localhost:5050/api/companies/email/${user?.email || JSON.parse(localStorage.getItem('user')).email}`);
+      if (companyResponse.ok) {
+        const companyData = await companyResponse.json();
+        if (companyData.success && companyData.company) {
+          // Now get trainers for this company
+          const trainersResponse = await fetch(`http://localhost:5050/api/trainers/company/${companyData.company.id}`);
+          if (trainersResponse.ok) {
+            const trainersData = await trainersResponse.json();
+            if (trainersData.success) {
+              setCompanyTrainers(trainersData.trainers || []);
+              console.log('📥 Loaded company trainers:', trainersData.trainers);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading company trainers:', error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -227,6 +253,16 @@ function CompanyDashboard() {
     }));
   };
 
+  const handleTrainerSelection = (trainerId) => {
+    setSelectedTrainers(prev => {
+      if (prev.includes(trainerId)) {
+        return prev.filter(id => id !== trainerId);
+      } else {
+        return [...prev, trainerId];
+      }
+    });
+  };
+
   const handlePostInternship = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -240,7 +276,8 @@ function CompanyDashboard() {
         },
         body: JSON.stringify({
           company_email: user.email,
-          ...internshipData
+          ...internshipData,
+          trainer_ids: selectedTrainers
         }),
       });
 
@@ -257,6 +294,7 @@ function CompanyDashboard() {
           capacity: 1,
           status: 'open'
         });
+        setSelectedTrainers([]);
         // Reload internships
         loadInternships();
         setTimeout(() => {
@@ -792,6 +830,44 @@ function CompanyDashboard() {
                   />
                 </div>
 
+                {/* Trainer Selection */}
+                <div className="form-group">
+                  <label>Assign Trainers (Optional)</label>
+                  <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+                    Select one or more trainers from your company to supervise this internship
+                  </p>
+                  {companyTrainers.length > 0 ? (
+                    <div className="trainers-selection">
+                      {companyTrainers.map(trainer => (
+                        <div key={trainer.id} className="trainer-checkbox">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={selectedTrainers.includes(trainer.id)}
+                              onChange={() => handleTrainerSelection(trainer.id)}
+                            />
+                            <span className="trainer-info">
+                              <strong>{trainer.full_name}</strong>
+                              {trainer.specialization && (
+                                <span className="trainer-spec"> - {trainer.specialization}</span>
+                              )}
+                            </span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="no-trainers-message">
+                      <p>No trainers available in your company yet.</p>
+                    </div>
+                  )}
+                  {selectedTrainers.length > 0 && (
+                    <div className="selected-count">
+                      {selectedTrainers.length} trainer(s) selected
+                    </div>
+                  )}
+                </div>
+
                 <div className="form-actions">
                   <button 
                     type="button"
@@ -890,6 +966,7 @@ function CompanyDashboard() {
                         <th>Position</th>
                         <th>Specialization</th>
                         <th>Capacity</th>
+                        <th>Trainers</th>
                         <th>Status</th>
                         <th>Posted</th>
                         <th>Actions</th>
@@ -906,6 +983,21 @@ function CompanyDashboard() {
                           </td>
                           <td>{internship.specialization || 'N/A'}</td>
                           <td>{internship.capacity}</td>
+                          <td>
+                            <div className="trainers-cell">
+                              {internship.trainers && internship.trainers.length > 0 ? (
+                                <div className="trainers-list">
+                                  {internship.trainers.map((trainer, index) => (
+                                    <span key={index} className="trainer-badge" title={trainer.full_name}>
+                                      {trainer.full_name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="no-trainers">No trainers assigned</span>
+                              )}
+                            </div>
+                          </td>
                           <td>
                             <span className={`status-badge status-${internship.status}`}>
                               {internship.status}

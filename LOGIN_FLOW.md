@@ -14,6 +14,9 @@
 #### University → `/university-dashboard`
 - مباشرة إلى University Dashboard
 
+#### Trainer → `/trainer-dashboard`
+- مباشرة إلى Trainer Dashboard (نوع جديد)
+
 #### Company → يتم التحقق إذا كان Trainer
 1. **طلب API**: `GET /api/trainers/user/:userId`
 2. **إذا وُجد سجل في جدول Trainers**:
@@ -82,14 +85,39 @@ case 'company':
 
 ## ✅ متى يتم إنشاء Trainer؟
 
+### الطريقة الأولى: التسجيل كـ Company (القديمة)
 عند التسجيل (Signup) بـ `user_type: "company"`:
 1. يتم استخراج الدومين من الإيميل
 2. البحث عن شركة بنفس الدومين
 3. **إذا وُجدت**: يتم إنشاء سجل Trainer تلقائياً
 4. **إذا لم تُوجد**: يتم إنشاء شركة جديدة فقط
 
+### الطريقة الثانية: التسجيل كـ Trainer (الجديدة) ⭐
+عند التسجيل (Signup) بـ `user_type: "trainer"`:
+1. يتم استخراج الدومين من الإيميل (مثل: `noor@ghadeer.com` → `ghadeer.com`)
+2. البحث عن شركة لها نفس الدومين في جدول Company
+3. **إذا وُجدت الشركة**:
+   - ✅ يتم إنشاء User بـ `user_type: "trainer"`
+   - ✅ يتم إنشاء سجل في جدول Trainers مع `company_id` و `user_id`
+   - ✅ يتم تسجيل الدخول تلقائياً والتوجيه إلى `/trainer-dashboard`
+4. **إذا لم تُوجد الشركة**:
+   - ❌ يظهر خطأ: "No company found with domain. Please contact your company administrator."
+
+### مثال على التسجيل كـ Trainer:
+```
+Email: noor@ghadeer.com
+Password: 123456
+User Type: Trainer
+
+→ البحث عن شركة بدومين: ghadeer.com
+→ إذا وُجدت شركة Ghadeer_Company
+→ إنشاء Trainer مرتبط بـ company_id
+→ التوجيه إلى TrainerDashboard ✅
+```
+
 ## 🎯 الخلاصة
 
-- **Trainer**: لديه سجل في جدول Trainers → TrainerDashboard
+- **Trainer (نوع مستقل)**: `user_type: "trainer"` → مباشرة إلى TrainerDashboard
+- **Trainer (من Company)**: لديه سجل في جدول Trainers → TrainerDashboard
 - **Company**: ليس لديه سجل في جدول Trainers → CompanyDashboard
 - التحقق يتم تلقائياً عند تسجيل الدخول

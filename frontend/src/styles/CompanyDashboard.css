@@ -946,6 +946,181 @@
   margin: 0 0 24px 0;
 }
 
+/* Trainer Selection Styles */
+.trainers-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Custom scrollbar for trainer selection */
+.trainers-selection::-webkit-scrollbar {
+  width: 8px;
+}
+
+.trainers-selection::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.trainers-selection::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 4px;
+}
+
+.trainers-selection::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+.trainer-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.trainer-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.75rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+  width: 100%;
+  border: 1px solid transparent;
+}
+
+.trainer-checkbox label:hover {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.trainer-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #1e88e5;
+}
+
+.trainer-checkbox input[type="checkbox"]:checked + .trainer-info {
+  color: #1e88e5;
+}
+
+.trainer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.trainer-info strong {
+  color: #1f2937;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.trainer-spec {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.no-trainers-message {
+  padding: 1.5rem;
+  text-align: center;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px dashed #d1d5db;
+}
+
+.no-trainers-message p {
+  color: #6b7280;
+  margin: 0;
+}
+
+.selected-count {
+  margin-top: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
+  color: #1e40af;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid #bae6fd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.selected-count::before {
+  content: "✓";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #1e40af;
+  color: white;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+/* Trainers in Table */
+.trainers-cell {
+  max-width: 250px;
+  min-width: 150px;
+}
+
+.trainers-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.trainer-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+  color: #0369a1;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid #bae6fd;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.trainer-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #bae6fd 0%, #dbeafe 100%);
+}
+
+.trainer-badge::before {
+  content: "👤";
+  margin-right: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.no-trainers {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-style: italic;
+  padding: 0.25rem 0;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .profile-forms-container {

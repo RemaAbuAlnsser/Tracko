@@ -174,6 +174,22 @@ class Company {
       });
     });
   }
+
+  // Find company by email domain
+  static findByDomain(domain) {
+    const query = "SELECT * FROM Company WHERE email LIKE ?";
+    const domainPattern = `%@${domain}`;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [domainPattern], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0]); // Return first match
+        }
+      });
+    });
+  }
 }
 
 export default Company;

@@ -1,13 +1,14 @@
 import express from "express";
 import Internship from "../models/Internship.js";
 import Company from "../models/Company.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
 // Create new internship
 router.post("/", async (req, res) => {
   try {
-    const { company_email, title, description, requirements, specialization, capacity, status } = req.body;
+    const { company_email, title, description, requirements, specialization, capacity, status, trainer_ids } = req.body;
 
     // Validate required fields
     if (!company_email || !title) {
@@ -37,12 +38,28 @@ router.post("/", async (req, res) => {
       status: status || 'open'
     });
 
-    console.log("✅ Internship created:", result.insertId);
+    const internshipId = result.insertId;
+    console.log("✅ Internship created:", internshipId);
+
+    // Assign trainers if provided
+    if (trainer_ids && Array.isArray(trainer_ids) && trainer_ids.length > 0) {
+      const values = trainer_ids.map(trainerId => [internshipId, trainerId]);
+      const insertQuery = 'INSERT INTO Internship_Trainers (internship_id, trainer_id) VALUES ?';
+      
+      await new Promise((resolve, reject) => {
+        db.query(insertQuery, [values], (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+      
+      console.log(`✅ Assigned ${trainer_ids.length} trainer(s) to internship ${internshipId}`);
+    }
 
     res.status(201).json({
       success: true,
       message: "Internship created successfully",
-      internshipId: result.insertId
+      internshipId
     });
 
   } catch (error) {
@@ -89,9 +106,34 @@ router.get("/company/:email", async (req, res) => {
 
     const internships = await Internship.findByCompanyId(company.id);
 
+    // Get trainers for each internship
+    const internshipsWithTrainers = await Promise.all(
+      internships.map(async (internship) => {
+        const trainersQuery = `
+          SELECT t.id, t.user_id, u.full_name, t.specialization
+          FROM Internship_Trainers it
+          JOIN Trainers t ON it.trainer_id = t.id
+          JOIN Users u ON t.user_id = u.id
+          WHERE it.internship_id = ?
+        `;
+        
+        const trainers = await new Promise((resolve, reject) => {
+          db.query(trainersQuery, [internship.id], (err, results) => {
+            if (err) reject(err);
+            else resolve(results);
+          });
+        });
+
+        return {
+          ...internship,
+          trainers
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      internships
+      internships: internshipsWithTrainers
     });
 
   } catch (error) {

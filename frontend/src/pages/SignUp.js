@@ -60,9 +60,35 @@ function SignUp() {
       const data = await response.json();
 
       if (response.ok) {
-        // Success - show success message and redirect to login
-        alert('Account created successfully! Please login.');
-        navigate('/login');
+        // Success - store user data and redirect based on user type
+        if (formData.userType === 'trainer') {
+          // For trainers, login automatically and redirect to trainer dashboard
+          const loginResponse = await fetch('http://localhost:5050/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: formData.email,
+              password: formData.password
+            }),
+          });
+
+          const loginData = await loginResponse.json();
+          
+          if (loginResponse.ok) {
+            localStorage.setItem('user', JSON.stringify(loginData.user));
+            alert('Trainer account created successfully!');
+            navigate('/trainer-dashboard');
+          } else {
+            alert('Account created successfully! Please login.');
+            navigate('/login');
+          }
+        } else {
+          // For other user types, redirect to login
+          alert('Account created successfully! Please login.');
+          navigate('/login');
+        }
       } else {
         // Show error message from server
         setError(data.message || 'Failed to create account. Please try again.');
@@ -170,6 +196,7 @@ function SignUp() {
                 >
                   <option value="student">Student</option>
                   <option value="company">Company</option>
+                  <option value="trainer">Trainer</option>
                   <option value="university">University</option>
                 </select>
               </div>

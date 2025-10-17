@@ -5,7 +5,6 @@ class Trainer {
   static create(trainerData) {
     const { 
       company_id,
-      internship_id = null,
       user_id,
       specialization = null,
       experience_years = null,
@@ -14,18 +13,19 @@ class Trainer {
       github_url = null,
       hourly_rate = null,
       max_trainees = 5,
-      status = 'active'
+      status = 'active',
+      profile_image = null
     } = trainerData;
     
     const query = `
-      INSERT INTO Trainers (company_id, internship_id, user_id, specialization, experience_years, bio, linkedin_url, github_url, hourly_rate, max_trainees, status) 
+      INSERT INTO Trainers (company_id, user_id, specialization, experience_years, bio, linkedin_url, github_url, hourly_rate, max_trainees, status, profile_image) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [company_id, internship_id, user_id, specialization, experience_years, bio, linkedin_url, github_url, hourly_rate, max_trainees, status], 
+        [company_id, user_id, specialization, experience_years, bio, linkedin_url, github_url, hourly_rate, max_trainees, status, profile_image], 
         (err, result) => {
           if (err) {
             reject(err);
@@ -127,14 +127,14 @@ class Trainer {
       hourly_rate,
       max_trainees,
       status,
-      internship_id
+      profile_image
     } = trainerData;
     
     const query = `
       UPDATE Trainers 
       SET specialization = ?, experience_years = ?, bio = ?, 
           linkedin_url = ?, github_url = ?, hourly_rate = ?, 
-          max_trainees = ?, status = ?, internship_id = ?
+          max_trainees = ?, status = ?, profile_image = ?
       WHERE id = ?
     `;
     
@@ -142,7 +142,7 @@ class Trainer {
       db.query(
         query, 
         [specialization, experience_years, bio, linkedin_url, github_url, 
-         hourly_rate, max_trainees, status, internship_id, id], 
+         hourly_rate, max_trainees, status, profile_image, id], 
         (err, result) => {
           if (err) {
             reject(err);
