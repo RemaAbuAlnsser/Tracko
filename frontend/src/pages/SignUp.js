@@ -61,8 +61,8 @@ function SignUp() {
 
       if (response.ok) {
         // Success - store user data and redirect based on user type
-        if (formData.userType === 'trainer') {
-          // For trainers, login automatically and redirect to trainer dashboard
+        if (formData.userType === 'trainer' || formData.userType === 'student') {
+          // For trainers and students, login automatically and redirect to their dashboard
           const loginResponse = await fetch('http://localhost:5050/api/auth/login', {
             method: 'POST',
             headers: {
@@ -78,8 +78,14 @@ function SignUp() {
           
           if (loginResponse.ok) {
             localStorage.setItem('user', JSON.stringify(loginData.user));
-            alert('Trainer account created successfully!');
-            navigate('/trainer-dashboard');
+            
+            if (formData.userType === 'trainer') {
+              alert('Trainer account created successfully!');
+              navigate('/trainer-dashboard');
+            } else if (formData.userType === 'student') {
+              alert('Student account created successfully!');
+              navigate('/student-dashboard');
+            }
           } else {
             alert('Account created successfully! Please login.');
             navigate('/login');

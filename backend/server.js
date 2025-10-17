@@ -10,6 +10,7 @@ import internshipRoutes from "./routes/internship.js";
 import universityRoutes from "./routes/university.js";
 import partnershipRoutes from "./routes/partnership.js";
 import trainerRoutes from "./routes/trainer.js";
+import studentRoutes from "./routes/student.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,7 @@ app.use("/api/internships", internshipRoutes);
 app.use("/api/universities", universityRoutes);
 app.use("/api/partnerships", partnershipRoutes);
 app.use("/api/trainers", trainerRoutes);
+app.use("/api/students", studentRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
