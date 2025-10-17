@@ -1,5 +1,6 @@
 import express from "express";
 import University from "../models/University.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
@@ -46,7 +47,74 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Update university
+// Update university by email
+router.put("/email/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const universityData = req.body;
+    
+    // Find university by email
+    const existingUniversity = await new Promise((resolve, reject) => {
+      db.query("SELECT * FROM Universities WHERE email = ?", [email], (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0]);
+      });
+    });
+    
+    if (!existingUniversity) {
+      return res.status(404).json({
+        success: false,
+        message: "University not found"
+      });
+    }
+    
+    const oldEmail = existingUniversity.email;
+    const newEmail = universityData.email;
+    const newName = universityData.name;
+    
+    // Update university
+    await University.update(existingUniversity.id, universityData);
+    
+    // Update Users table if email or name changed
+    if (oldEmail && (newEmail !== oldEmail || newName !== existingUniversity.name)) {
+      const updateUserQuery = `
+        UPDATE Users 
+        SET email = ?, full_name = ?
+        WHERE email = ? AND user_type = 'university'
+      `;
+      
+      await new Promise((resolve, reject) => {
+        db.query(updateUserQuery, [newEmail, newName, oldEmail], (err, result) => {
+          if (err) {
+            console.error('Error updating Users table:', err);
+            reject(err);
+          } else {
+            console.log(`✅ Updated Users table for university: ${oldEmail} -> ${newEmail}`);
+            resolve(result);
+          }
+        });
+      });
+    }
+    
+    // Get updated university
+    const updatedUniversity = await University.findById(existingUniversity.id);
+    
+    res.json({
+      success: true,
+      message: "University updated successfully",
+      data: updatedUniversity,
+      newEmail: newEmail !== oldEmail ? newEmail : null
+    });
+  } catch (error) {
+    console.error("Error updating university:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update university"
+    });
+  }
+});
+
+// Update university by ID
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -61,8 +129,33 @@ router.put("/:id", async (req, res) => {
       });
     }
     
+    const oldEmail = existingUniversity.email;
+    const newEmail = universityData.email;
+    const newName = universityData.name;
+    
     // Update university
     await University.update(id, universityData);
+    
+    // Update Users table if email or name changed
+    if (oldEmail && (newEmail !== oldEmail || newName !== existingUniversity.name)) {
+      const updateUserQuery = `
+        UPDATE Users 
+        SET email = ?, full_name = ?
+        WHERE email = ? AND user_type = 'university'
+      `;
+      
+      await new Promise((resolve, reject) => {
+        db.query(updateUserQuery, [newEmail, newName, oldEmail], (err, result) => {
+          if (err) {
+            console.error('Error updating Users table:', err);
+            reject(err);
+          } else {
+            console.log(`✅ Updated Users table for university: ${oldEmail} -> ${newEmail}`);
+            resolve(result);
+          }
+        });
+      });
+    }
     
     // Get updated university
     const updatedUniversity = await University.findById(id);
@@ -70,7 +163,8 @@ router.put("/:id", async (req, res) => {
     res.json({
       success: true,
       message: "University updated successfully",
-      data: updatedUniversity
+      data: updatedUniversity,
+      newEmail: newEmail !== oldEmail ? newEmail : null
     });
   } catch (error) {
     console.error("Error updating university:", error);

@@ -176,7 +176,7 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, requirements, specialization, capacity, status } = req.body;
+    const { title, description, requirements, specialization, capacity, status, trainer_ids } = req.body;
 
     // Check if internship exists
     const existingInternship = await Internship.findById(id);
@@ -196,6 +196,33 @@ router.put("/:id", async (req, res) => {
       capacity: capacity || existingInternship.capacity,
       status: status || existingInternship.status
     });
+
+    // Update trainer assignments if provided
+    if (trainer_ids !== undefined) {
+      // First, delete existing trainer assignments
+      const deleteQuery = 'DELETE FROM Internship_Trainers WHERE internship_id = ?';
+      await new Promise((resolve, reject) => {
+        db.query(deleteQuery, [id], (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+
+      // Then, insert new trainer assignments
+      if (Array.isArray(trainer_ids) && trainer_ids.length > 0) {
+        const values = trainer_ids.map(trainerId => [id, trainerId]);
+        const insertQuery = 'INSERT INTO Internship_Trainers (internship_id, trainer_id) VALUES ?';
+        
+        await new Promise((resolve, reject) => {
+          db.query(insertQuery, [values], (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          });
+        });
+        
+        console.log(`✅ Updated trainer assignments: ${trainer_ids.length} trainer(s) for internship ${id}`);
+      }
+    }
 
     console.log("✅ Internship updated:", id);
 
@@ -278,6 +305,76 @@ router.patch("/:id/status", async (req, res) => {
 
   } catch (error) {
     console.error("Update internship status error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get all internships for university (all available internships)
+router.get("/university/:universityId", async (req, res) => {
+  try {
+    const { universityId } = req.params;
+    
+    // Get all internships from all companies
+    const query = `
+      SELECT 
+        i.*,
+        c.name as company_name,
+        c.logo as company_logo,
+        c.industry as company_industry,
+        c.email as company_email
+      FROM Internships i
+      INNER JOIN Company c ON i.company_id = c.id
+      ORDER BY i.created_at DESC
+    `;
+    
+    const internships = await new Promise((resolve, reject) => {
+      db.query(query, async (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Get trainers for each internship
+          const internshipsWithTrainers = await Promise.all(
+            results.map(async (internship) => {
+              const trainersQuery = `
+                SELECT t.id, u.full_name, t.specialization, u.email
+                FROM Trainers t
+                INNER JOIN Internship_Trainers it ON t.id = it.trainer_id
+                INNER JOIN Users u ON t.user_id = u.id
+                WHERE it.internship_id = ?
+              `;
+              
+              const trainers = await new Promise((resolve, reject) => {
+                db.query(trainersQuery, [internship.id], (err, trainerResults) => {
+                  if (err) reject(err);
+                  else resolve(trainerResults);
+                });
+              });
+              
+              return {
+                ...internship,
+                trainers
+              };
+            })
+          );
+          
+          resolve(internshipsWithTrainers);
+        }
+      });
+    });
+    
+    console.log(`✅ Found ${internships.length} internships`);
+    
+    res.status(200).json({
+      success: true,
+      count: internships.length,
+      data: internships
+    });
+    
+  } catch (error) {
+    console.error("Get university internships error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"
