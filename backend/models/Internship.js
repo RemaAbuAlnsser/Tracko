@@ -4,16 +4,16 @@ class Internship {
   // Create new internship
   static create(internshipData) {
     return new Promise((resolve, reject) => {
-      const { company_id, title, description, requirements, specialization, capacity, status } = internshipData;
+      const { company_id, title, description, requirements, specialization, capacity, status, min_gpa, work_mode } = internshipData;
       
       const query = `
-        INSERT INTO Internships (company_id, title, description, requirements, specialization, capacity, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO Internships (company_id, title, description, requirements, specialization, capacity, status, min_gpa, work_mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       db.query(
         query,
-        [company_id, title, description, requirements, specialization, capacity || 1, status || 'open'],
+        [company_id, title, description, requirements, specialization, capacity || 1, status || 'open', min_gpa || null, work_mode || null],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);
@@ -75,17 +75,17 @@ class Internship {
   // Update internship
   static update(id, internshipData) {
     return new Promise((resolve, reject) => {
-      const { title, description, requirements, specialization, capacity, status } = internshipData;
+      const { title, description, requirements, specialization, capacity, status, min_gpa, work_mode } = internshipData;
       
       const query = `
         UPDATE Internships
-        SET title = ?, description = ?, requirements = ?, specialization = ?, capacity = ?, status = ?
+        SET title = ?, description = ?, requirements = ?, specialization = ?, capacity = ?, status = ?, min_gpa = ?, work_mode = ?
         WHERE id = ?
       `;
       
       db.query(
         query,
-        [title, description, requirements, specialization, capacity, status, id],
+        [title, description, requirements, specialization, capacity, status, min_gpa || null, work_mode || null, id],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);
@@ -114,6 +114,25 @@ class Internship {
       db.query(query, [status, id], (err, result) => {
         if (err) reject(err);
         else resolve(result);
+      });
+    });
+  }
+
+  // Find internships for student based on university partnerships
+  static findByStudentUniversity(universityId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT DISTINCT i.*, c.name as company_name, c.logo as company_logo, c.industry
+        FROM Internships i
+        INNER JOIN Company c ON i.company_id = c.id
+        INNER JOIN University_Company_Partnerships p ON c.id = p.company_id
+        WHERE p.university_id = ? AND p.status = 'active' AND i.status = 'open'
+        ORDER BY i.created_at DESC
+      `;
+      
+      db.query(query, [universityId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
       });
     });
   }

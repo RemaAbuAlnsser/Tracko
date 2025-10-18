@@ -8,7 +8,6 @@ backend/uploads/
 
 # Environment variables
 backend/.env
-
 # Logs
 *.log
 npm-debug.log*

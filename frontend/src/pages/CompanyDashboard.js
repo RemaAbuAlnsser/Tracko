@@ -26,7 +26,9 @@ function CompanyDashboard() {
     requirements: '',
     specialization: '',
     capacity: 1,
-    status: 'open'
+    status: 'open',
+    min_gpa: '',
+    work_mode: ''
   });
   const [internships, setInternships] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -845,6 +847,37 @@ function CompanyDashboard() {
                       <option value="open">Open</option>
                       <option value="pending">Pending</option>
                       <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Minimum GPA</label>
+                    <input 
+                      type="number" 
+                      name="min_gpa"
+                      value={internshipData.min_gpa} 
+                      onChange={handleInternshipInputChange}
+                      min="0"
+                      max="4"
+                      step="0.01"
+                      placeholder="e.g., 3.0"
+                    />
+                    <small style={{color: '#6b7280', fontSize: '12px'}}>Leave empty if no GPA requirement</small>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Work Mode</label>
+                    <select 
+                      name="work_mode"
+                      value={internshipData.work_mode} 
+                      onChange={handleInternshipInputChange}
+                    >
+                      <option value="">Not Specified</option>
+                      <option value="onsite">🏢 Onsite</option>
+                      <option value="online">💻 Online</option>
+                      <option value="hybrid">🔄 Hybrid</option>
                     </select>
                   </div>
                 </div>

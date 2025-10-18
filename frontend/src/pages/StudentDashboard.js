@@ -7,6 +7,8 @@ function StudentDashboard() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [applications, setApplications] = useState([]);
   const [recommendedInternships, setRecommendedInternships] = useState([]);
+  const [partnershipInternships, setPartnershipInternships] = useState([]);
+  const [loadingInternships, setLoadingInternships] = useState(false);
   const [studentData, setStudentData] = useState({
     major: '',
     academic_year: '',
@@ -18,6 +20,9 @@ function StudentDashboard() {
   });
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [selectedCV, setSelectedCV] = useState(null);
+  const [cvFileName, setCvFileName] = useState('');
+  const [cvAnalysis, setCvAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const navigate = useNavigate();
@@ -39,6 +44,7 @@ function StudentDashboard() {
     setUser(parsedUser);
     loadDashboardData();
     loadStudentData(parsedUser.id);
+    loadPartnershipInternships(parsedUser.id);
   }, [navigate]);
 
   const loadStudentData = async (userId) => {
@@ -77,10 +83,85 @@ function StudentDashboard() {
           if (data.student.student_img) {
             setImagePreview(`http://localhost:5050${data.student.student_img}`);
           }
+
+          // Load CV data if exists
+          await loadStudentCV(data.student.id);
         }
       }
     } catch (error) {
       console.error('Error loading student data:', error);
+    }
+  };
+
+  const loadStudentCV = async (studentId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/cvs/student-id/${studentId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cv) {
+          // Set CV file name
+          if (data.cv.file_path) {
+            const fileName = data.cv.file_path.split('/').pop();
+            setCvFileName(fileName);
+          }
+          
+          // Set CV analysis if exists
+          if (data.cv.analysis_data) {
+            try {
+              const analysisData = typeof data.cv.analysis_data === 'string' 
+                ? JSON.parse(data.cv.analysis_data) 
+                : data.cv.analysis_data;
+              setCvAnalysis(analysisData);
+              console.log('✅ CV analysis loaded from database');
+            } catch (e) {
+              console.error('Error parsing CV analysis:', e);
+            }
+          }
+        }
+      } else if (response.status === 404) {
+        // No CV found - this is normal for new students
+        console.log('ℹ️ No CV found for this student yet');
+      }
+    } catch (error) {
+      console.error('Error loading CV:', error);
+    }
+  };
+
+  const loadPartnershipInternships = async (userId) => {
+    try {
+      setLoadingInternships(true);
+      
+      // First, run AI matching to refresh data
+      await runAIMatching(userId);
+      
+      // Then, load the matched internships
+      const response = await fetch(`http://localhost:5050/api/matching/student/${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setPartnershipInternships(data.matches || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading partnership internships:', error);
+    } finally {
+      setLoadingInternships(false);
+    }
+  };
+
+  const runAIMatching = async (userId) => {
+    try {
+      console.log('🤖 Running AI matching...');
+      const response = await fetch(`http://localhost:5050/api/matching/student/${userId}/run`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`✅ AI matching completed: ${data.matchCount} matches found`);
+      }
+    } catch (error) {
+      console.error('Error running AI matching:', error);
     }
   };
 
@@ -158,6 +239,118 @@ function StudentDashboard() {
         setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCVChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(file.type)) {
+        setMessage({ type: 'error', text: 'Please upload PDF, DOC, or DOCX file only' });
+        return;
+      }
+      
+      // Check file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage({ type: 'error', text: 'File size must be less than 5MB' });
+        return;
+      }
+      
+      setSelectedCV(file);
+      setCvFileName(file.name);
+      setMessage({ type: '', text: '' });
+    }
+  };
+
+  const handleCVUpload = async () => {
+    if (!selectedCV) {
+      setMessage({ type: 'error', text: 'Please select a CV file first' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      // Step 1: Upload CV
+      const formData = new FormData();
+      formData.append('cv', selectedCV);
+
+      const uploadResponse = await fetch('http://localhost:5050/api/upload/cv', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      if (!uploadResponse.ok || !uploadData.success) {
+        setMessage({ type: 'error', text: uploadData.message || 'Failed to upload CV' });
+        setLoading(false);
+        return;
+      }
+
+      setMessage({ type: 'success', text: 'CV uploaded! Analyzing with AI...' });
+
+      // Step 2: Analyze CV with AI
+      const analyzeResponse = await fetch('http://localhost:5001/analyze-cv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cv_path: uploadData.filePath
+        }),
+      });
+
+      const analyzeData = await analyzeResponse.json();
+
+      if (analyzeResponse.ok && analyzeData.success) {
+        console.log('AI Analysis Result:', analyzeData.analysis);
+        
+        // Step 3: Save CV record to database
+        const saveCVResponse = await fetch('http://localhost:5050/api/cvs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            cv_file: uploadData.filePath,
+            analysis_data: analyzeData.analysis
+          }),
+        });
+
+        const saveCVData = await saveCVResponse.json();
+
+        if (saveCVResponse.ok && saveCVData.success) {
+          setMessage({ 
+            type: 'success', 
+            text: `CV analyzed successfully!` 
+          });
+        } else {
+          setMessage({ 
+            type: 'success', 
+            text: `CV analyzed! (DB save failed)` 
+          });
+        }
+        
+        // Set analysis results to display
+        setCvAnalysis(analyzeData.analysis);
+        setSelectedCV(null);
+        setCvFileName('');
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: analyzeData.message || 'AI analysis failed, but CV was uploaded' 
+        });
+      }
+    } catch (error) {
+      console.error('CV upload/analysis error:', error);
+      setMessage({ type: 'error', text: 'Failed to process CV' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -329,8 +522,8 @@ function StudentDashboard() {
           </button>
 
           <button 
-            className={`nav-item ${activeMenu === 'cv' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('cv')}
+            className={`nav-item ${activeMenu === 'cv-upload' ? 'active' : ''}`}
+            onClick={() => setActiveMenu('cv-upload')}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -687,7 +880,358 @@ function StudentDashboard() {
           </>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && (
+        {activeMenu === 'cv-upload' && (
+          <>
+            <div className="cv-upload-section">
+              <div className="cv-header">
+                <div className="cv-header-icon">
+                  <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="cv-header-text">
+                  <h2>CV Upload & AI Analysis</h2>
+                  <p>Upload your CV to get AI-powered skills analysis and match recommendations</p>
+                </div>
+                <button className="cv-preview-btn">Preview</button>
+              </div>
+
+              {message.text && (
+                <div className={`alert alert-${message.type}`}>
+                  {message.text}
+                </div>
+              )}
+
+              <div className="cv-upload-container">
+                <div className="cv-upload-box">
+                  <div className="cv-upload-icon">
+                    <svg width="64" height="64" fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <h3>Upload Your CV</h3>
+                  <p className="cv-upload-description">Drag and drop your CV here, or click to browse</p>
+                  
+                  {cvFileName && (
+                    <div className="cv-selected-file">
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                      </svg>
+                      <span>{cvFileName}</span>
+                    </div>
+                  )}
+
+                  <label htmlFor="cv-file" className="cv-choose-btn">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Choose File
+                  </label>
+                  <input 
+                    id="cv-file"
+                    type="file" 
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleCVChange}
+                    style={{ display: 'none' }}
+                  />
+                  <p className="cv-upload-formats">Supported formats: PDF, DOC, DOCX (Max 5MB)</p>
+                </div>
+
+                {selectedCV && (
+                  <button 
+                    className="btn-upload-cv" 
+                    onClick={handleCVUpload}
+                    disabled={loading}
+                  >
+                    {loading ? 'Uploading...' : 'Upload & Analyze'}
+                  </button>
+                )}
+              </div>
+
+              {/* AI Analysis Results */}
+              {cvAnalysis && (
+                <div className="cv-analysis-results">
+                  <div className="analysis-header">
+                    <h3>
+                      <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"/>
+                      </svg>
+                      AI Analysis Results
+                    </h3>
+                    <button className="btn-clear-analysis" onClick={() => setCvAnalysis(null)}>
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="analysis-grid">
+                    {/* Personal Info */}
+                    <div className="analysis-card">
+                      <div className="analysis-card-header">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+                        </svg>
+                        <h4>Personal Information</h4>
+                      </div>
+                      <div className="analysis-items">
+                        {cvAnalysis.Name && (
+                          <div className="analysis-item">
+                            <span className="item-label">Name:</span>
+                            <span className="item-value">{cvAnalysis.Name}</span>
+                          </div>
+                        )}
+                        {cvAnalysis.Email && (
+                          <div className="analysis-item">
+                            <span className="item-label">Email:</span>
+                            <span className="item-value">{cvAnalysis.Email}</span>
+                          </div>
+                        )}
+                        {cvAnalysis.Phone && (
+                          <div className="analysis-item">
+                            <span className="item-label">Phone:</span>
+                            <span className="item-value">{cvAnalysis.Phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Academic Info */}
+                    <div className="analysis-card">
+                      <div className="analysis-card-header">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
+                          <path d="M3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>
+                        </svg>
+                        <h4>Academic Information</h4>
+                      </div>
+                      <div className="analysis-items">
+                        {cvAnalysis.Degree && (
+                          <div className="analysis-item">
+                            <span className="item-label">Degree:</span>
+                            <span className="item-value">{cvAnalysis.Degree}</span>
+                          </div>
+                        )}
+                        {cvAnalysis.GPA && (
+                          <div className="analysis-item">
+                            <span className="item-label">GPA:</span>
+                            <span className="item-value">{cvAnalysis.GPA}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Skills */}
+                    {cvAnalysis.Skills && cvAnalysis.Skills.length > 0 && (
+                      <div className="analysis-card analysis-card-full">
+                        <div className="analysis-card-header">
+                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd"/>
+                            <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z"/>
+                          </svg>
+                          <h4>Skills</h4>
+                        </div>
+                        <div className="skills-tags">
+                          {cvAnalysis.Skills.map((skill, index) => (
+                            <span key={index} className="skill-tag">{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Experience */}
+                    {cvAnalysis.Experience && cvAnalysis.Experience.length > 0 && (
+                      <div className="analysis-card analysis-card-full">
+                        <div className="analysis-card-header">
+                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd"/>
+                            <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z"/>
+                          </svg>
+                          <h4>Experience</h4>
+                        </div>
+                        <div className="experience-list">
+                          {cvAnalysis.Experience.map((exp, index) => (
+                            <div key={index} className="experience-item">
+                              <div className="exp-position">{exp.position || 'Position'}</div>
+                              <div className="exp-company">{exp.company || 'Company'}</div>
+                              {exp.duration && <div className="exp-duration">{exp.duration}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeMenu === 'internships' && (
+          <>
+            <div className="main-header">
+              <h1>AI-Matched Internships</h1>
+              <p>Internships matched to your skills and profile - sorted by compatibility</p>
+            </div>
+
+            {loadingInternships ? (
+              <div className="loading-container">
+                <p>Loading internships...</p>
+              </div>
+            ) : partnershipInternships.length === 0 ? (
+              <div className="empty-state">
+                <svg width="64" height="64" fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <h3>No Internships Available</h3>
+                <p>There are currently no internships from companies partnered with your university.</p>
+              </div>
+            ) : (
+              <div className="internships-grid">
+                {partnershipInternships.map(internship => (
+                  <div key={internship.id} className="internship-card">
+                    {/* Match Percentage Badge */}
+                    <div className="match-badge-container">
+                      <div className={`match-badge ${
+                        internship.match_percentage >= 80 ? 'match-excellent' :
+                        internship.match_percentage >= 60 ? 'match-good' :
+                        internship.match_percentage >= 40 ? 'match-fair' : 'match-low'
+                      }`}>
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                        </svg>
+                        <span>{Math.round(internship.match_percentage)}% Match</span>
+                      </div>
+                    </div>
+
+                    <div className="internship-header">
+                      <div className="company-logo">
+                        {internship.company_logo ? (
+                          <img src={`http://localhost:5050${internship.company_logo}`} alt={internship.company_name} />
+                        ) : (
+                          <div className="logo-placeholder">
+                            {internship.company_name?.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="internship-title-section">
+                        <h3>{internship.internship_title || internship.title}</h3>
+                        <p className="company-name">{internship.company_name}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="internship-details">
+                      {internship.specialization && (
+                        <div className="detail-item">
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
+                            <path d="M3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>
+                          </svg>
+                          <span>{internship.specialization || internship.internship_specialization}</span>
+                        </div>
+                      )}
+                      {internship.min_gpa && (
+                        <div className="detail-item">
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                          </svg>
+                          <span>Min GPA: {internship.min_gpa}</span>
+                        </div>
+                      )}
+                      {internship.work_mode && (
+                        <div className="detail-item">
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                          </svg>
+                          <span>{internship.work_mode === 'onsite' ? '🏢 Onsite' : internship.work_mode === 'online' ? '💻 Online' : '🔄 Hybrid'}</span>
+                        </div>
+                      )}
+                      {internship.industry && (
+                        <div className="detail-item">
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd"/>
+                          </svg>
+                          <span>{internship.industry}</span>
+                        </div>
+                      )}
+                      {internship.capacity && (
+                        <div className="detail-item">
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                          </svg>
+                          <span>{internship.capacity} positions</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {internship.description && (
+                      <div className="internship-description">
+                        <p>{internship.description.length > 150 ? internship.description.substring(0, 150) + '...' : internship.description}</p>
+                      </div>
+                    )}
+
+                    {/* Match Details Section */}
+                    {(internship.matched_skills || internship.matched_categories) && (
+                      <div className="match-details-section">
+                        <h4 className="match-details-title">
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                          </svg>
+                          Why this match?
+                        </h4>
+                        
+                        {/* Matched Skills */}
+                        {internship.matched_skills && internship.matched_skills.length > 0 && (
+                          <div className="match-detail-group">
+                            <p className="match-label">Matched Skills:</p>
+                            <div className="skills-tags">
+                              {internship.matched_skills.map((skill, idx) => (
+                                <span key={idx} className="skill-tag skill-matched">
+                                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                  </svg>
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Matched Categories */}
+                        {internship.matched_categories && Object.keys(internship.matched_categories).length > 0 && (
+                          <div className="match-detail-group">
+                            <p className="match-label">Matched Categories:</p>
+                            <div className="categories-list">
+                              {Object.entries(internship.matched_categories).map(([category, skills]) => (
+                                <div key={category} className="category-item">
+                                  <span className="category-name">{category}</span>
+                                  <div className="category-skills">
+                                    {skills.map((skill, idx) => (
+                                      <span key={idx} className="category-skill">{skill}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="internship-footer">
+                      <span className="status-badge status-open">{internship.internship_status || internship.status}</span>
+                      <button className="btn-view-details">View Details</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && (
           <div className="placeholder-content">
             <h2>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)} Page</h2>
             <p>This section is under development</p>
