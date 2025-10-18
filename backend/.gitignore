@@ -4,6 +4,9 @@ node_modules/
 # Environment variables
 .env
 
+# AI Service
+ai_service/
+
 # Logs
 *.log
 
