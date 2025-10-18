@@ -31,6 +31,14 @@ function UniversityDashboard() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [internships, setInternships] = useState([]);
+  const [internshipSearchTerm, setInternshipSearchTerm] = useState('');
+  const [internshipFilterStatus, setInternshipFilterStatus] = useState('all');
+  const [statistics, setStatistics] = useState({
+    studentsCount: 0,
+    activePartnershipsCount: 0,
+    internshipsCount: 0
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -58,12 +66,15 @@ function UniversityDashboard() {
         const data = await response.json();
         const university = data.data.find(u => u.email === email);
         if (university) {
+          console.log('✅ University data loaded:', university);
           setUniversityData(university);
         } else {
+          console.log('⚠️ University not found in database for email:', email);
           // Initialize with user data if university not found
+          const userData = JSON.parse(localStorage.getItem('user'));
           setUniversityData(prev => ({
             ...prev,
-            name: user?.full_name || '',
+            name: userData?.full_name || '',
             email: email
           }));
         }
@@ -143,7 +154,14 @@ function UniversityDashboard() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch(`http://localhost:5050/api/universities/${universityData.id}`, {
+      // Use email-based endpoint if id is not available
+      const endpoint = universityData.id 
+        ? `http://localhost:5050/api/universities/${universityData.id}`
+        : `http://localhost:5050/api/universities/email/${user.email}`;
+      
+      console.log('📤 Updating university via:', endpoint);
+      
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -156,14 +174,21 @@ function UniversityDashboard() {
       if (response.ok) {
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
         
-        // Update localStorage if name changed
-        if (universityData.name !== user.full_name) {
+        // Update universityData with the returned data to ensure we have the id
+        if (data.data) {
+          setUniversityData(data.data);
+        }
+        
+        // Update localStorage if name or email changed
+        if (universityData.name !== user.full_name || universityData.email !== user.email) {
           const updatedUser = {
             ...user,
-            full_name: universityData.name
+            full_name: universityData.name,
+            email: universityData.email
           };
           localStorage.setItem('user', JSON.stringify(updatedUser));
           setUser(updatedUser);
+          console.log('✅ User data updated in localStorage');
         }
         
         setTimeout(() => {
@@ -185,6 +210,20 @@ function UniversityDashboard() {
     if (activeMenu === 'partnerships' && universityData.id) {
       loadPartnerships();
       loadCompanies();
+    }
+  }, [activeMenu, universityData.id]);
+
+  // Load internships when internships menu is active
+  useEffect(() => {
+    if (activeMenu === 'internships' && universityData.id) {
+      loadInternships();
+    }
+  }, [activeMenu, universityData.id]);
+
+  // Load statistics when dashboard is active
+  useEffect(() => {
+    if (activeMenu === 'dashboard' && universityData.id) {
+      loadStatistics();
     }
   }, [activeMenu, universityData.id]);
 
@@ -315,11 +354,50 @@ function UniversityDashboard() {
     }
   };
 
+  const loadInternships = async () => {
+    if (!universityData.id) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/internships/university/${universityData.id}`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log('✅ Loaded internships:', data.data);
+        setInternships(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading internships:', error);
+    }
+  };
+
+  const loadStatistics = async () => {
+    if (!universityData.id) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/universities/${universityData.id}/statistics`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log('✅ Loaded statistics:', data.data);
+        setStatistics(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+    }
+  };
+
   // Filter partnerships
   const filteredPartnerships = partnerships.filter(partnership => {
     const matchesSearch = partnership.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          partnership.contact_person_company?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || partnership.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Filter internships
+  const filteredInternships = internships.filter(internship => {
+    const matchesSearch = internship.title?.toLowerCase().includes(internshipSearchTerm.toLowerCase()) ||
+                         internship.company_name?.toLowerCase().includes(internshipSearchTerm.toLowerCase()) ||
+                         internship.specialization?.toLowerCase().includes(internshipSearchTerm.toLowerCase());
+    const matchesStatus = internshipFilterStatus === 'all' || internship.status === internshipFilterStatus;
     return matchesSearch && matchesStatus;
   });
 
@@ -462,43 +540,143 @@ function UniversityDashboard() {
             <div className="dashboard-content">
               <h2>University Overview</h2>
               <p><strong>Email:</strong> {user.email}</p>
-              <p><strong>User Type:</strong> {user.user_type}</p>
-              <p><strong>User ID:</strong> {user.id}</p>
+              <p><strong>University:</strong> {universityData.name || user.full_name}</p>
               
               <div style={{ marginTop: '30px' }}>
                 <h3>Quick Stats</h3>
                 <div style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-                  gap: '20px',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                  gap: '24px',
                   marginTop: '20px'
                 }}>
                   <div style={{ 
-                    padding: '20px', 
-                    background: '#f0f9ff', 
-                    borderRadius: '10px',
-                    border: '1px solid #bae6fd'
-                  }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#0369a1' }}>Students</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>0</p>
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #bae6fd',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  onClick={() => setActiveMenu('students')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#0369a1', fontSize: '16px', fontWeight: '600' }}>Students</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>
+                      {statistics.studentsCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#0369a1', margin: '8px 0 0 0' }}>
+                      Total students enrolled
+                    </p>
                   </div>
+                  
                   <div style={{ 
-                    padding: '20px', 
-                    background: '#f0fdf4', 
-                    borderRadius: '10px',
-                    border: '1px solid #bbf7d0'
-                  }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#15803d' }}>Active Partnerships</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>0</p>
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #bbf7d0',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  onClick={() => setActiveMenu('partnerships')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#15803d', fontSize: '16px', fontWeight: '600' }}>Active Partnerships</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>
+                      {statistics.activePartnershipsCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#15803d', margin: '8px 0 0 0' }}>
+                      Active company partnerships
+                    </p>
                   </div>
+                  
                   <div style={{ 
-                    padding: '20px', 
-                    background: '#fef3c7', 
-                    borderRadius: '10px',
-                    border: '1px solid #fde68a'
-                  }}>
-                    <h4 style={{ margin: '0 0 10px 0', color: '#92400e' }}>Internship Opportunities</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>0</p>
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #fde68a',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  onClick={() => setActiveMenu('internships')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#92400e', fontSize: '16px', fontWeight: '600' }}>Internship Opportunities</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>
+                      {statistics.internshipsCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
+                      Available internships
+                    </p>
                   </div>
                 </div>
               </div>
@@ -927,10 +1105,152 @@ function UniversityDashboard() {
         )}
 
         {activeMenu === 'internships' && (
-          <div className="dashboard-content">
-            <h2>Internship Opportunities</h2>
-            <p>Internship opportunities page coming soon...</p>
-          </div>
+          <>
+            <div className="manage-header">
+              <div>
+                <h1>Internship Opportunities</h1>
+                <p>Browse all available internships from companies</p>
+              </div>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="manage-filters" style={{ marginTop: '30px' }}>
+              <div className="search-box">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input 
+                  type="text"
+                  placeholder="Search internships..."
+                  value={internshipSearchTerm}
+                  onChange={(e) => setInternshipSearchTerm(e.target.value)}
+                />
+              </div>
+              <select 
+                className="filter-select"
+                value={internshipFilterStatus}
+                onChange={(e) => setInternshipFilterStatus(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+                <option value="in_progress">In Progress</option>
+              </select>
+            </div>
+
+            {/* Internships Table */}
+            <div className="internships-table-container">
+              <div className="table-header-section">
+                <h3>Available Internships</h3>
+                <span className="posts-count">{filteredInternships.length} internships</span>
+              </div>
+
+              {filteredInternships.length === 0 ? (
+                <div className="empty-state">
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <h3>No internships found</h3>
+                  <p>No internship opportunities available yet</p>
+                </div>
+              ) : (
+                <div className="internships-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Company</th>
+                        <th>Internship Title</th>
+                        <th>Specialization</th>
+                        <th>Capacity</th>
+                        <th>Status</th>
+                        <th>Trainers</th>
+                        <th>Posted Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredInternships.map((internship) => (
+                        <tr key={internship.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {internship.company_logo ? (
+                                <img 
+                                  src={`http://localhost:5050${internship.company_logo}`}
+                                  alt={internship.company_name}
+                                  style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <div style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'white',
+                                  fontSize: '12px',
+                                  fontWeight: '600'
+                                }}>
+                                  {internship.company_name?.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <strong>{internship.company_name}</strong>
+                                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                  {internship.company_industry}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <strong>{internship.title}</strong>
+                          </td>
+                          <td>{internship.specialization || 'N/A'}</td>
+                          <td>
+                            <span style={{
+                              padding: '4px 8px',
+                              background: '#dbeafe',
+                              color: '#1e40af',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              fontWeight: '600'
+                            }}>
+                              {internship.capacity} position(s)
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-badge status-${internship.status}`}>
+                              {internship.status}
+                            </span>
+                          </td>
+                          <td>
+                            {internship.trainers && internship.trainers.length > 0 ? (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {internship.trainers.map((trainer, idx) => (
+                                  <span key={idx} className="trainer-badge" title={trainer.full_name}>
+                                    {trainer.full_name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="no-trainers">No trainers</span>
+                            )}
+                          </td>
+                          <td>
+                            {new Date(internship.created_at).toLocaleDateString('en-GB', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {activeMenu === 'reports' && (

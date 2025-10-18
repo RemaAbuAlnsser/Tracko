@@ -33,6 +33,8 @@ function CompanyDashboard() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [companyTrainers, setCompanyTrainers] = useState([]);
   const [selectedTrainers, setSelectedTrainers] = useState([]);
+  const [editingInternshipId, setEditingInternshipId] = useState(null);
+  const [viewingInternship, setViewingInternship] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -269,8 +271,14 @@ function CompanyDashboard() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:5050/api/internships', {
-        method: 'POST',
+      const url = editingInternshipId 
+        ? `http://localhost:5050/api/internships/${editingInternshipId}`
+        : 'http://localhost:5050/api/internships';
+      
+      const method = editingInternshipId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -284,7 +292,10 @@ function CompanyDashboard() {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Internship posted successfully!' });
+        setMessage({ 
+          type: 'success', 
+          text: editingInternshipId ? 'Internship updated successfully!' : 'Internship posted successfully!' 
+        });
         // Reset form
         setInternshipData({
           title: '',
@@ -295,17 +306,18 @@ function CompanyDashboard() {
           status: 'open'
         });
         setSelectedTrainers([]);
+        setEditingInternshipId(null);
         // Reload internships
         loadInternships();
         setTimeout(() => {
           setMessage({ type: '', text: '' });
         }, 3000);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to post internship' });
+        setMessage({ type: 'error', text: data.message || `Failed to ${editingInternshipId ? 'update' : 'post'} internship` });
       }
     } catch (error) {
-      console.error('Post internship error:', error);
-      setMessage({ type: 'error', text: 'Failed to post internship' });
+      console.error('Post/Update internship error:', error);
+      setMessage({ type: 'error', text: `Failed to ${editingInternshipId ? 'update' : 'post'} internship` });
     } finally {
       setLoading(false);
     }
@@ -324,6 +336,36 @@ function CompanyDashboard() {
     } catch (error) {
       console.error('Load internships error:', error);
     }
+  };
+
+  const handleViewInternship = (internship) => {
+    setViewingInternship(internship);
+  };
+
+  const handleCloseViewModal = () => {
+    setViewingInternship(null);
+  };
+
+  const handleEditInternship = async (internship) => {
+    // Load internship data into form
+    setInternshipData({
+      title: internship.title,
+      description: internship.description || '',
+      requirements: internship.requirements || '',
+      specialization: internship.specialization || '',
+      capacity: internship.capacity,
+      status: internship.status
+    });
+    
+    // Load assigned trainers
+    if (internship.trainers && internship.trainers.length > 0) {
+      setSelectedTrainers(internship.trainers.map(t => t.id));
+    } else {
+      setSelectedTrainers([]);
+    }
+    
+    setEditingInternshipId(internship.id);
+    setActiveMenu('post');
   };
 
   const handleDeleteInternship = async (id) => {
@@ -732,8 +774,8 @@ function CompanyDashboard() {
         {activeMenu === 'post' && (
           <>
             <div className="dashboard-header">
-              <h1>Post New Internship</h1>
-              <p>Create a new internship opportunity for students</p>
+              <h1>{editingInternshipId ? 'Edit Internship' : 'Post New Internship'}</h1>
+              <p>{editingInternshipId ? 'Update internship details' : 'Create a new internship opportunity for students'}</p>
             </div>
 
             {/* Success/Error Message */}
@@ -872,7 +914,19 @@ function CompanyDashboard() {
                   <button 
                     type="button"
                     className="btn-secondary" 
-                    onClick={() => setActiveMenu('dashboard')}
+                    onClick={() => {
+                      setActiveMenu('manage');
+                      setEditingInternshipId(null);
+                      setInternshipData({
+                        title: '',
+                        description: '',
+                        requirements: '',
+                        specialization: '',
+                        capacity: 1,
+                        status: 'open'
+                      });
+                      setSelectedTrainers([]);
+                    }}
                     disabled={loading}
                   >
                     Cancel
@@ -882,7 +936,7 @@ function CompanyDashboard() {
                     className="btn-primary" 
                     disabled={loading}
                   >
-                    {loading ? 'Posting...' : 'Post Internship'}
+                    {loading ? (editingInternshipId ? 'Updating...' : 'Posting...') : (editingInternshipId ? 'Update Internship' : 'Post Internship')}
                   </button>
                 </div>
               </div>
@@ -1010,13 +1064,21 @@ function CompanyDashboard() {
                           </td>
                           <td>
                             <div className="actions-cell">
-                              <button className="action-btn view-btn" title="View">
+                              <button 
+                                className="action-btn view-btn" 
+                                title="View"
+                                onClick={() => handleViewInternship(internship)}
+                              >
                                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
                               </button>
-                              <button className="action-btn edit-btn" title="Edit">
+                              <button 
+                                className="action-btn edit-btn" 
+                                title="Edit"
+                                onClick={() => handleEditInternship(internship)}
+                              >
                                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
@@ -1039,6 +1101,119 @@ function CompanyDashboard() {
                 </div>
               )}
             </div>
+
+            {/* View Internship Modal */}
+            {viewingInternship && (
+              <div className="modal-overlay" onClick={handleCloseViewModal}>
+                <div className="modal-content view-internship-modal" onClick={(e) => e.stopPropagation()}>
+                  <div className="modal-header">
+                    <h2>Internship Details</h2>
+                    <button className="modal-close-btn" onClick={handleCloseViewModal}>
+                      <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <div className="modal-body">
+                    <div className="internship-detail-section">
+                      <div className="detail-header">
+                        <h3>{viewingInternship.title}</h3>
+                        <span className={`status-badge status-${viewingInternship.status}`}>
+                          {viewingInternship.status}
+                        </span>
+                      </div>
+                      <p className="internship-id">ID: {viewingInternship.id}</p>
+                    </div>
+
+                    <div className="internship-detail-grid">
+                      <div className="detail-item">
+                        <label>Specialization</label>
+                        <p>{viewingInternship.specialization || 'Not specified'}</p>
+                      </div>
+                      
+                      <div className="detail-item">
+                        <label>Capacity</label>
+                        <p>{viewingInternship.capacity} position(s)</p>
+                      </div>
+                      
+                      <div className="detail-item">
+                        <label>Posted Date</label>
+                        <p>{new Date(viewingInternship.created_at).toLocaleDateString('en-GB', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}</p>
+                      </div>
+                      
+                      <div className="detail-item">
+                        <label>Last Updated</label>
+                        <p>{new Date(viewingInternship.updated_at).toLocaleDateString('en-GB', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}</p>
+                      </div>
+                    </div>
+
+                    <div className="detail-item full-width">
+                      <label>Description</label>
+                      <div className="detail-text-content">
+                        {viewingInternship.description || 'No description provided'}
+                      </div>
+                    </div>
+
+                    <div className="detail-item full-width">
+                      <label>Requirements</label>
+                      <div className="detail-text-content">
+                        {viewingInternship.requirements || 'No requirements specified'}
+                      </div>
+                    </div>
+
+                    <div className="detail-item full-width">
+                      <label>Assigned Trainers</label>
+                      {viewingInternship.trainers && viewingInternship.trainers.length > 0 ? (
+                        <div className="trainers-list-view">
+                          {viewingInternship.trainers.map((trainer, index) => (
+                            <div key={index} className="trainer-card">
+                              <div className="trainer-avatar">
+                                {trainer.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </div>
+                              <div className="trainer-info">
+                                <strong>{trainer.full_name}</strong>
+                                {trainer.specialization && (
+                                  <span className="trainer-spec">{trainer.specialization}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="no-data">No trainers assigned</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="modal-footer">
+                    <button 
+                      className="btn-secondary" 
+                      onClick={handleCloseViewModal}
+                    >
+                      Close
+                    </button>
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => {
+                        handleCloseViewModal();
+                        handleEditInternship(viewingInternship);
+                      }}
+                    >
+                      Edit Internship
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 

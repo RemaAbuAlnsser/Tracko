@@ -7,6 +7,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import CompanyDashboard from './pages/CompanyDashboard';
 import UniversityDashboard from './pages/UniversityDashboard';
 import TrainerDashboard from './pages/TrainerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import './styles/App.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
       <Route path="/company-dashboard" element={<CompanyDashboard />} />
       <Route path="/university-dashboard" element={<UniversityDashboard />} />
       <Route path="/trainer-dashboard" element={<TrainerDashboard />} />
+      <Route path="/admin-dashboard" element={<AdminDashboard />} />
     </Routes>
   );
 }

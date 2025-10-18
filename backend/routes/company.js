@@ -68,7 +68,8 @@ router.get("/", async (req, res) => {
     res.status(200).json({ 
       success: true,
       count: companies.length,
-      companies
+      data: companies,
+      companies // Keep for backward compatibility
     });
 
   } catch (error) {

@@ -12,6 +12,8 @@ import partnershipRoutes from "./routes/partnership.js";
 import trainerRoutes from "./routes/trainer.js";
 import studentRoutes from "./routes/student.js";
 import cvRoutes from "./routes/cv.js";
+import adminRoutes from "./routes/admin.js";
+import notificationRoutes from "./routes/notifications.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +43,8 @@ app.use("/api/partnerships", partnershipRoutes);
 app.use("/api/trainers", trainerRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/cvs", cvRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
