@@ -60,41 +60,9 @@ function SignUp() {
       const data = await response.json();
 
       if (response.ok) {
-        // Success - store user data and redirect based on user type
-        if (formData.userType === 'trainer' || formData.userType === 'student') {
-          // For trainers and students, login automatically and redirect to their dashboard
-          const loginResponse = await fetch('http://localhost:5050/api/auth/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: formData.email,
-              password: formData.password
-            }),
-          });
-
-          const loginData = await loginResponse.json();
-          
-          if (loginResponse.ok) {
-            localStorage.setItem('user', JSON.stringify(loginData.user));
-            
-            if (formData.userType === 'trainer') {
-              alert('Trainer account created successfully!');
-              navigate('/trainer-dashboard');
-            } else if (formData.userType === 'student') {
-              alert('Student account created successfully!');
-              navigate('/student-dashboard');
-            }
-          } else {
-            alert('Account created successfully! Please login.');
-            navigate('/login');
-          }
-        } else {
-          // For other user types, redirect to login
-          alert('Account created successfully! Please login.');
-          navigate('/login');
-        }
+        // Show success message about admin approval
+        alert('✅ Registration request submitted successfully!\n\n⏳ Please wait for admin approval before you can login.\n\n📧 You will be notified once your account is approved.');
+        navigate('/login');
       } else {
         // Show error message from server
         setError(data.message || 'Failed to create account. Please try again.');

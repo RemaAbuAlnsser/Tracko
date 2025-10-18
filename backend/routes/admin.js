@@ -7,6 +7,7 @@ import Trainer from "../models/Trainer.js";
 import Internship from "../models/Internship.js";
 import Partnership from "../models/Partnership.js";
 import Notification from "../models/Notification.js";
+import RegistrationRequest from "../models/RegistrationRequest.js";
 import db from "../config/database.js";
 
 const router = express.Router();
@@ -197,6 +198,7 @@ router.post("/stats", isAdmin, async (req, res) => {
         totalInternships: "SELECT COUNT(*) as count FROM Internships",
         totalPartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships",
         totalNotifications: "SELECT COUNT(*) as count FROM Notifications",
+        pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending'",
         activeInternships: "SELECT COUNT(*) as count FROM Internships WHERE status = 'active'",
         activePartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships WHERE status = 'active'",
         unreadNotifications: "SELECT COUNT(*) as count FROM Notifications WHERE is_read = FALSE",
@@ -281,31 +283,212 @@ router.post("/users/delete", isAdmin, async (req, res) => {
       });
     }
     
-    const query = "DELETE FROM Users WHERE id = ? AND user_type != 'admin'";
+    // First, get user email to delete from Registration_Requests
+    const getUserQuery = "SELECT email FROM Users WHERE id = ? AND user_type != 'admin'";
     
-    db.query(query, [userIdToDelete], (err, result) => {
+    db.query(getUserQuery, [userIdToDelete], (err, userResults) => {
       if (err) {
-        console.error("Error deleting user:", err);
+        console.error("Error fetching user:", err);
         return res.status(500).json({ 
           success: false,
           message: "Server error" 
         });
       }
       
-      if (result.affectedRows === 0) {
+      if (userResults.length === 0) {
         return res.status(404).json({ 
           success: false,
           message: "User not found or cannot delete admin" 
         });
       }
       
-      res.json({ 
-        success: true,
-        message: "User deleted successfully" 
+      const userEmail = userResults[0].email;
+      
+      // Delete from Users table
+      const deleteUserQuery = "DELETE FROM Users WHERE id = ? AND user_type != 'admin'";
+      
+      db.query(deleteUserQuery, [userIdToDelete], (err, result) => {
+        if (err) {
+          console.error("Error deleting user:", err);
+          return res.status(500).json({ 
+            success: false,
+            message: "Server error" 
+          });
+        }
+        
+        // Also delete from Registration_Requests if exists
+        const deleteRequestQuery = "DELETE FROM Registration_Requests WHERE email = ?";
+        
+        db.query(deleteRequestQuery, [userEmail], (err, requestResult) => {
+          if (err) {
+            console.error("Error deleting registration request:", err);
+            // Don't fail the whole operation if this fails
+          }
+          
+          console.log(`✅ User deleted: ${userEmail}`);
+          console.log(`✅ Registration request deleted (if existed): ${userEmail}`);
+          
+          res.json({ 
+            success: true,
+            message: "User deleted successfully" 
+          });
+        });
       });
     });
   } catch (error) {
     console.error("Error deleting user:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
+// Get all registration requests
+router.post("/registration-requests", isAdmin, async (req, res) => {
+  try {
+    const requests = await RegistrationRequest.getAll();
+    res.json({ 
+      success: true,
+      requests 
+    });
+  } catch (error) {
+    console.error("Error fetching registration requests:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
+// Approve registration request
+router.post("/registration-requests/approve", isAdmin, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    
+    if (!requestId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Request ID is required" 
+      });
+    }
+    
+    // Get the request details
+    const request = await RegistrationRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Registration request not found" 
+      });
+    }
+    
+    if (request.status !== 'pending') {
+      return res.status(400).json({ 
+        success: false,
+        message: "Request has already been processed" 
+      });
+    }
+    
+    // Create user in Users table
+    const userResult = await User.create({
+      full_name: request.full_name,
+      email: request.email,
+      password: request.password,
+      user_type: request.user_type
+    });
+    
+    const userId = userResult.insertId;
+    
+    // Create related records based on user type
+    if (request.user_type === 'company') {
+      await Company.create({
+        name: request.full_name,
+        email: request.email,
+        status: 'pending'
+      });
+    } else if (request.user_type === 'university') {
+      await University.create({
+        name: request.full_name,
+        email: request.email
+      });
+    } else if (request.user_type === 'student') {
+      const domain = request.email.split('@')[1];
+      const university = await University.findByDomain(domain);
+      await Student.create({
+        user_id: userId,
+        university_id: university ? university.id : null,
+        status: 'active'
+      });
+    } else if (request.user_type === 'trainer') {
+      const domain = request.email.split('@')[1];
+      const company = await Company.findByDomain(domain);
+      if (company) {
+        await Trainer.create({
+          company_id: company.id,
+          user_id: userId,
+          status: 'active'
+        });
+      }
+    }
+    
+    // Update request status to approved
+    await RegistrationRequest.updateStatus(requestId, 'approved');
+    
+    res.json({ 
+      success: true,
+      message: "Registration request approved successfully",
+      userId 
+    });
+    
+  } catch (error) {
+    console.error("Error approving registration request:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
+// Reject registration request
+router.post("/registration-requests/reject", isAdmin, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    
+    if (!requestId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Request ID is required" 
+      });
+    }
+    
+    // Get the request details
+    const request = await RegistrationRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Registration request not found" 
+      });
+    }
+    
+    if (request.status !== 'pending') {
+      return res.status(400).json({ 
+        success: false,
+        message: "Request has already been processed" 
+      });
+    }
+    
+    // Update request status to rejected
+    await RegistrationRequest.updateStatus(requestId, 'rejected');
+    
+    res.json({ 
+      success: true,
+      message: "Registration request rejected successfully" 
+    });
+    
+  } catch (error) {
+    console.error("Error rejecting registration request:", error);
     res.status(500).json({ 
       success: false,
       message: "Server error" 

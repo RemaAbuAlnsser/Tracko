@@ -12,6 +12,8 @@ function AdminDashboard() {
   const [trainers, setTrainers] = useState([]);
   const [internships, setInternships] = useState([]);
   const [partnerships, setPartnerships] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [registrationRequests, setRegistrationRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -52,6 +54,10 @@ function AdminDashboard() {
         break;
       case 'partnerships':
         fetchPartnerships();
+        break;
+      case 'notifications':
+        fetchNotifications();
+        fetchRegistrationRequests();
         break;
       default:
         break;
@@ -272,6 +278,114 @@ function AdminDashboard() {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5050/api/admin/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setNotifications(data.notifications);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setError('Failed to load notifications');
+      setLoading(false);
+    }
+  };
+
+  const fetchRegistrationRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5050/api/admin/registration-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setRegistrationRequests(data.requests);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching registration requests:', error);
+      setError('Failed to load registration requests');
+      setLoading(false);
+    }
+  };
+
+  const handleApproveRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to approve this registration request?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5050/api/admin/registration-requests/approve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          userId: user.id,
+          requestId 
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Registration request approved successfully');
+        fetchRegistrationRequests();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to approve request');
+      }
+    } catch (error) {
+      console.error('Error approving request:', error);
+      alert('Failed to approve request');
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to reject this registration request?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5050/api/admin/registration-requests/reject', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          userId: user.id,
+          requestId 
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Registration request rejected successfully');
+        fetchRegistrationRequests();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to reject request');
+      }
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      alert('Failed to reject request');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('user');
     navigate('/login');
@@ -341,6 +455,12 @@ function AdminDashboard() {
             <div className="stat-content">
               <h3>{stats.pendingCompanies}</h3>
               <p>Pending Companies</p>
+            </div>
+          </div>
+          <div className="stat-card" style={{borderLeft: '4px solid #f59e0b'}}>
+            <div className="stat-content">
+              <h3 style={{color: '#f59e0b'}}>{stats.pendingRequests || 0}</h3>
+              <p>Pending Registrations</p>
             </div>
           </div>
         </div>
@@ -731,6 +851,138 @@ function AdminDashboard() {
     );
   };
 
+  const renderNotifications = () => {
+    return (
+      <div className="table-section">
+        <h2>Registration Requests & Notifications</h2>
+        
+        {/* Registration Requests Section */}
+        <div style={{ marginBottom: '40px' }}>
+          <h3 style={{ marginBottom: '16px', color: '#1f2937', fontSize: '18px' }}>Pending Registration Requests</h3>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : registrationRequests.filter(req => req.status === 'pending').length === 0 ? (
+            <div className="loading">No pending registration requests</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>User Type</th>
+                    <th>Status</th>
+                    <th>Requested At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {registrationRequests
+                    .filter(req => req.status === 'pending')
+                    .map((request) => (
+                    <tr key={request.id}>
+                      <td>{request.id}</td>
+                      <td>{request.full_name}</td>
+                      <td>{request.email}</td>
+                      <td>
+                        <span className={`badge badge-${request.user_type}`}>
+                          {request.user_type}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge badge-pending">
+                          {request.status}
+                        </span>
+                      </td>
+                      <td>{new Date(request.created_at).toLocaleString()}</td>
+                      <td>
+                        <button 
+                          onClick={() => handleApproveRequest(request.id)}
+                          style={{
+                            padding: '6px 12px',
+                            marginRight: '8px',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '13px'
+                          }}
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleRejectRequest(request.id)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '13px'
+                          }}
+                        >
+                          Reject
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* All Notifications Section */}
+        <div>
+          <h3 style={{ marginBottom: '16px', color: '#1f2937', fontSize: '18px' }}>All Notifications</h3>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : notifications.length === 0 ? (
+            <div className="loading">No notifications found</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Message</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {notifications.map((notification) => (
+                    <tr key={notification.id}>
+                      <td>{notification.id}</td>
+                      <td>{notification.title}</td>
+                      <td style={{ maxWidth: '300px' }}>{notification.message}</td>
+                      <td>
+                        <span className={`badge badge-${notification.type}`}>
+                          {notification.type}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge badge-${notification.is_read ? 'active' : 'pending'}`}>
+                          {notification.is_read ? 'Read' : 'Unread'}
+                        </span>
+                      </td>
+                      <td>{new Date(notification.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="admin-dashboard">
       {/* Sidebar */}
@@ -825,6 +1077,28 @@ function AdminDashboard() {
             </svg>
             Partnerships
           </button>
+          <button
+            className={`nav-item ${activeTab === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notifications')}
+          >
+            <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            Notifications
+            {stats && stats.pendingRequests > 0 && (
+              <span style={{
+                marginLeft: 'auto',
+                backgroundColor: '#f59e0b',
+                color: 'white',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                {stats.pendingRequests}
+              </span>
+            )}
+          </button>
         </nav>
 
         {/* Logout Button */}
@@ -854,6 +1128,7 @@ function AdminDashboard() {
         {activeTab === 'trainers' && renderTrainers()}
         {activeTab === 'internships' && renderInternships()}
         {activeTab === 'partnerships' && renderPartnerships()}
+        {activeTab === 'notifications' && renderNotifications()}
       </div>
     </div>
   );
