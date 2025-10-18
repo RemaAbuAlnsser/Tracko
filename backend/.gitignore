@@ -5,6 +5,9 @@ ai_service/
 # Environment variables
 .env
 
+# AI Service
+ai_service/
+
 # Logs
 *.log
 

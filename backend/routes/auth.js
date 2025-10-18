@@ -4,6 +4,9 @@ import Company from "../models/Company.js";
 import University from "../models/University.js";
 import Trainer from "../models/Trainer.js";
 import Student from "../models/Student.js";
+import RegistrationRequest from "../models/RegistrationRequest.js";
+import Notification from "../models/Notification.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
@@ -45,158 +48,51 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    // If company type, also check Company table
-    if (user_type === 'company') {
-      const existingCompany = await Company.findByEmail(email);
-      if (existingCompany) {
+    // Check if email already has a pending or rejected request
+    const existingRequest = await RegistrationRequest.findByEmail(email);
+    if (existingRequest) {
+      if (existingRequest.status === 'pending') {
         return res.status(409).json({ 
           success: false,
-          message: "Company with this email already exists" 
+          message: "Registration request already submitted. Please wait for admin approval." 
         });
-      }
-    }
-
-    // If university type, also check University table
-    if (user_type === 'university') {
-      const existingUniversity = await University.findByEmail(email);
-      if (existingUniversity) {
-        return res.status(409).json({ 
+      } else if (existingRequest.status === 'rejected') {
+        return res.status(403).json({ 
           success: false,
-          message: "University with this email already exists" 
+          message: "Your registration request was rejected. Please contact support." 
         });
       }
     }
 
-    // Create new user
-    console.log("💾 Creating user in database...");
-    const result = await User.create({ full_name, email, password, user_type });
-    console.log("✅ User created successfully with ID:", result.insertId);
+    // Create registration request instead of user directly
+    console.log("💾 Creating registration request...");
+    const result = await RegistrationRequest.create({ full_name, email, password, user_type });
+    console.log("✅ Registration request created with ID:", result.insertId);
 
-    // If user type is company, also create a Company record
-    if (user_type === 'company') {
-      try {
-        console.log("🏢 Creating company record for:", email);
-        
-        // Check if company already exists
-        const existingCompany = await Company.findByEmail(email);
-        if (existingCompany) {
-          console.log("ℹ️ Company record already exists");
-        } else {
-          await Company.create({
-            name: full_name,
-            email: email,
-            status: 'pending'
-          });
-          console.log("✅ Company record created successfully");
+    // Get all admin users and send notifications
+    const adminQuery = "SELECT id FROM Users WHERE user_type = 'admin'";
+    db.query(adminQuery, async (err, admins) => {
+      if (!err && admins.length > 0) {
+        for (const admin of admins) {
+          try {
+            await Notification.create({
+              user_id: admin.id,
+              title: "New Registration Request",
+              message: `${full_name} (${email}) has requested to register as ${user_type}`,
+              type: "general"
+            });
+            console.log("✅ Notification sent to admin:", admin.id);
+          } catch (notifError) {
+            console.error("Error creating notification:", notifError);
+          }
         }
-      } catch (companyError) {
-        console.error("⚠️ Warning: Failed to create company record:", companyError);
-        console.error("Error details:", companyError.message);
-        // Don't fail the signup if company creation fails
       }
-    }
-
-    // If user type is university, also create a University record
-    if (user_type === 'university') {
-      try {
-        console.log("🎓 Creating university record for:", email);
-        
-        // Check if university already exists
-        const existingUniversity = await University.findByEmail(email);
-        if (existingUniversity) {
-          console.log("ℹ️ University record already exists");
-        } else {
-          await University.create({
-            name: full_name,
-            email: email
-          });
-          console.log("✅ University record created successfully");
-        }
-      } catch (universityError) {
-        console.error("⚠️ Warning: Failed to create university record:", universityError);
-        console.error("Error details:", universityError.message);
-        // Don't fail the signup if university creation fails
-      }
-    }
-
-    // If user type is trainer, find company by domain and create trainer record
-    if (user_type === 'trainer') {
-      try {
-        console.log("👨‍🏫 Processing trainer signup for:", email);
-        
-        // Extract domain from email (e.g., noor@ghadeer.com -> ghadeer.com)
-        const domain = email.split('@')[1];
-        console.log("🔍 Looking for company with domain:", domain);
-        
-        // Find company by domain
-        const company = await Company.findByDomain(domain);
-        
-        if (company) {
-          console.log("✅ Found company:", company.name, "with ID:", company.id);
-          
-          // Create trainer record
-          await Trainer.create({
-            company_id: company.id,
-            user_id: result.insertId,
-            status: 'active'
-          });
-          
-          console.log("✅ Trainer record created successfully");
-        } else {
-          console.log("❌ No company found with domain:", domain);
-          return res.status(400).json({ 
-            success: false,
-            message: `No company found with domain ${domain}. Please contact your company administrator.`
-          });
-        }
-      } catch (trainerError) {
-        console.error("❌ Error creating trainer record:", trainerError);
-        console.error("Error details:", trainerError.message);
-        return res.status(500).json({ 
-          success: false,
-          message: "Failed to create trainer record" 
-        });
-      }
-    }
-
-    // If user type is student, create a Student record
-    if (user_type === 'student') {
-      try {
-        console.log("🎓 Creating student record for:", email);
-        
-        // Extract domain from email (e.g., rema@najah.com -> najah.com)
-        const domain = email.split('@')[1];
-        console.log("🔍 Looking for university with domain:", domain);
-        
-        // Find university by domain
-        const university = await University.findByDomain(domain);
-        
-        let universityId = null;
-        if (university) {
-          universityId = university.id;
-          console.log("✅ Found university:", university.name, "with ID:", universityId);
-        } else {
-          console.log("ℹ️ No university found with domain:", domain);
-        }
-        
-        await Student.create({
-          user_id: result.insertId,
-          university_id: universityId,
-          status: 'active'
-        });
-        
-        console.log("✅ Student record created successfully");
-      } catch (studentError) {
-        console.error("⚠️ Warning: Failed to create student record:", studentError);
-        console.error("Error details:", studentError.message);
-        // Don't fail the signup if student creation fails
-      }
-    }
+    });
 
     res.status(201).json({ 
       success: true,
-      message: "User registered successfully",
-      userId: result.insertId
+      message: "Registration request submitted successfully. Please wait for admin approval.",
+      requestId: result.insertId
     });
 
   } catch (error) {

@@ -65,6 +65,9 @@ function Login() {
             console.error('Error checking trainer status:', error);
             navigate('/company-dashboard'); // Default to company on error
           }
+        } else if (userType === 'admin') {
+          console.log('➡️ Navigating to admin-dashboard');
+          navigate('/admin-dashboard');
         } else {
           navigate('/');
         }
