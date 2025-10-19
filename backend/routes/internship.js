@@ -1,6 +1,7 @@
 import express from "express";
 import Internship from "../models/Internship.js";
 import Company from "../models/Company.js";
+import Student from "../models/Student.js";
 import db from "../config/database.js";
 
 const router = express.Router();
@@ -8,7 +9,7 @@ const router = express.Router();
 // Create new internship
 router.post("/", async (req, res) => {
   try {
-    const { company_email, title, description, requirements, specialization, capacity, status, trainer_ids } = req.body;
+    const { company_email, title, description, requirements, specialization, capacity, status, trainer_ids, min_gpa, work_mode } = req.body;
 
     // Validate required fields
     if (!company_email || !title) {
@@ -35,7 +36,9 @@ router.post("/", async (req, res) => {
       requirements,
       specialization,
       capacity: capacity || 1,
-      status: status || 'open'
+      status: status || 'open',
+      min_gpa: min_gpa || null,
+      work_mode: work_mode || null
     });
 
     const internshipId = result.insertId;
@@ -176,7 +179,7 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, requirements, specialization, capacity, status, trainer_ids } = req.body;
+    const { title, description, requirements, specialization, capacity, status, trainer_ids, min_gpa, work_mode } = req.body;
 
     // Check if internship exists
     const existingInternship = await Internship.findById(id);
@@ -194,7 +197,9 @@ router.put("/:id", async (req, res) => {
       requirements: requirements || existingInternship.requirements,
       specialization: specialization || existingInternship.specialization,
       capacity: capacity || existingInternship.capacity,
-      status: status || existingInternship.status
+      status: status || existingInternship.status,
+      min_gpa: min_gpa !== undefined ? min_gpa : existingInternship.min_gpa,
+      work_mode: work_mode !== undefined ? work_mode : existingInternship.work_mode
     });
 
     // Update trainer assignments if provided
@@ -375,6 +380,47 @@ router.get("/university/:universityId", async (req, res) => {
     
   } catch (error) {
     console.error("Get university internships error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get internships for student based on university partnerships
+router.get("/student/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find student by user_id
+    const student = await Student.findByUserId(userId);
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+
+    // Check if student has university_id
+    if (!student.university_id) {
+      return res.status(200).json({
+        success: true,
+        message: "Student has no university assigned",
+        internships: []
+      });
+    }
+
+    // Get internships based on university partnerships
+    const internships = await Internship.findByStudentUniversity(student.university_id);
+
+    res.status(200).json({
+      success: true,
+      count: internships.length,
+      internships: internships
+    });
+
+  } catch (error) {
+    console.error("Get student internships error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

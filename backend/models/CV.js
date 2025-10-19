@@ -44,6 +44,21 @@ class CV {
     });
   }
 
+  // Check if CV file already exists for a student
+  static findByStudentIdAndFile(studentId, cvFile) {
+    const query = "SELECT * FROM CVs WHERE student_id = ? AND cv_file = ?";
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [studentId, cvFile], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0]);
+        }
+      });
+    });
+  }
+
   // Find CV by ID
   static findById(id) {
     const query = "SELECT * FROM CVs WHERE id = ?";

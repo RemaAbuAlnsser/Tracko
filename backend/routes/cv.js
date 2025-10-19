@@ -41,6 +41,34 @@ router.get("/student/:userId", async (req, res) => {
   }
 });
 
+// Get CV by student ID directly
+router.get("/student-id/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    // Get latest CV
+    const cv = await CV.findByStudentId(studentId);
+    
+    if (!cv) {
+      return res.status(404).json({
+        success: false,
+        message: "No CV found for this student"
+      });
+    }
+    
+    res.json({
+      success: true,
+      cv: cv
+    });
+  } catch (error) {
+    console.error("Error fetching CV:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Get all CVs for a student
 router.get("/student/:userId/all", async (req, res) => {
   try {
@@ -90,6 +118,17 @@ router.post("/", async (req, res) => {
       });
     }
     
+    // Check if CV already exists for this student with the same file
+    const existingCV = await CV.findByStudentIdAndFile(student.id, cv_file);
+    if (existingCV) {
+      return res.status(200).json({
+        success: true,
+        message: "CV already exists in database",
+        cv_id: existingCV.id,
+        isDuplicate: true
+      });
+    }
+    
     // Create CV record
     const result = await CV.create({
       student_id: student.id,
@@ -100,7 +139,8 @@ router.post("/", async (req, res) => {
     res.json({
       success: true,
       message: "CV record created successfully",
-      cv_id: result.insertId
+      cv_id: result.insertId,
+      isDuplicate: false
     });
   } catch (error) {
     console.error("Error creating CV record:", error);

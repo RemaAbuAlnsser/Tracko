@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,8 +174,47 @@ const cvUpload = multer({
   fileFilter: cvFileFilter
 });
 
+// Helper function to calculate file hash
+const calculateFileHash = (filePath) => {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    
+    stream.on('data', (data) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', (error) => reject(error));
+  });
+};
+
+// Helper function to check if file with same hash exists
+const findDuplicateFile = async (uploadedFilePath, targetDir) => {
+  try {
+    const uploadedHash = await calculateFileHash(uploadedFilePath);
+    const files = fs.readdirSync(targetDir);
+    
+    for (const file of files) {
+      const existingFilePath = path.join(targetDir, file);
+      if (existingFilePath === uploadedFilePath) continue;
+      
+      try {
+        const existingHash = await calculateFileHash(existingFilePath);
+        if (existingHash === uploadedHash) {
+          return `/uploads/cvs/${file}`;
+        }
+      } catch (err) {
+        // Skip files that can't be read
+        continue;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error checking for duplicate:', error);
+    return null;
+  }
+};
+
 // Upload CV endpoint
-router.post("/cv", cvUpload.single('cv'), (req, res) => {
+router.post("/cv", cvUpload.single('cv'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -183,15 +223,33 @@ router.post("/cv", cvUpload.single('cv'), (req, res) => {
       });
     }
 
-    // Return the file path
+    const uploadedFilePath = req.file.path;
     const filePath = `/uploads/cvs/${req.file.filename}`;
+    
+    // Check if a file with the same content already exists
+    const duplicateFilePath = await findDuplicateFile(uploadedFilePath, cvsDir);
+    
+    if (duplicateFilePath) {
+      // Delete the newly uploaded file since it's a duplicate
+      fs.unlinkSync(uploadedFilePath);
+      
+      console.log("⚠️ Duplicate CV detected, returning existing file:", duplicateFilePath);
+      
+      return res.status(200).json({
+        success: true,
+        message: "CV already exists",
+        filePath: duplicateFilePath,
+        isDuplicate: true
+      });
+    }
     
     console.log("✅ CV uploaded:", filePath);
 
     res.status(200).json({
       success: true,
       message: "CV uploaded successfully",
-      filePath: filePath
+      filePath: filePath,
+      isDuplicate: false
     });
 
   } catch (error) {
