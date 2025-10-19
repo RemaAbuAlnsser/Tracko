@@ -5,7 +5,7 @@ node_modules/
 .env
 
 # AI Service
-ai_service/
+#ai_service/
 
 # Logs
 *.log
