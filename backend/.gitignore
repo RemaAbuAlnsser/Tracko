@@ -6,7 +6,7 @@ ai_service/
 .env
 
 # AI Service
-ai_service/
+#ai_service/
 
 # Logs
 *.log

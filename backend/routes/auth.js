@@ -78,7 +78,7 @@ router.post("/signup", async (req, res) => {
             await Notification.create({
               user_id: admin.id,
               title: "New Registration Request",
-              message: `${full_name} (${email}) has requested to register as ${user_type}`,
+              message: `${full_name} (${email}) has requested to register as ${user_type}. Request ID: ${result.insertId}`,
               type: "general"
             });
             console.log("✅ Notification sent to admin:", admin.id);
