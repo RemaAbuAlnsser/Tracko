@@ -21,6 +21,33 @@ function TrainerDashboard() {
   const [trainerId, setTrainerId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [students, setStudents] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [newReport, setNewReport] = useState({
+    student_id: '',
+    report_type: 'weekly',
+    performance_rating: 5,
+    attendance: true,
+    technical_skills: 5,
+    communication_skills: 5,
+    problem_solving: 5,
+    teamwork: 5,
+    comments: ''
+  });
+  const [newSchedule, setNewSchedule] = useState({
+    title: '',
+    description: '',
+    event_type: 'training',
+    start_time: '',
+    end_time: '',
+    student_id: ''
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -132,6 +159,58 @@ function TrainerDashboard() {
     }
   };
 
+  const loadStudents = async () => {
+    if (!trainerId) return;
+    try {
+      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/students`);
+      const data = await response.json();
+      if (data.success) {
+        setStudents(data.students || []);
+      }
+    } catch (error) {
+      console.error('Error loading students:', error);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      const data = await response.json();
+      if (data.success) {
+        setNotifications(data.notifications || []);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const loadReports = async () => {
+    if (!trainerId) return;
+    try {
+      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/reports`);
+      const data = await response.json();
+      if (data.success) {
+        setReports(data.reports || []);
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    }
+  };
+
+  const loadSchedules = async () => {
+    if (!trainerId) return;
+    try {
+      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/schedules`);
+      const data = await response.json();
+      if (data.success) {
+        setSchedules(data.schedules || []);
+      }
+    } catch (error) {
+      console.error('Error loading schedules:', error);
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!trainerId) {
       setMessage({ type: 'error', text: 'Trainer profile not found' });
@@ -201,6 +280,127 @@ function TrainerDashboard() {
     }
   };
 
+  const handleSubmitReport = async (e) => {
+    e.preventDefault();
+    if (!trainerId || !newReport.student_id) {
+      setMessage({ type: 'error', text: 'Please select a student' });
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5050/api/trainers/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newReport, trainer_id: trainerId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Report submitted successfully!' });
+        setNewReport({
+          student_id: '',
+          report_type: 'weekly',
+          performance_rating: 5,
+          attendance: true,
+          technical_skills: 5,
+          communication_skills: 5,
+          problem_solving: 5,
+          teamwork: 5,
+          comments: ''
+        });
+        loadReports();
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to submit report' });
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
+  };
+
+  const handleAddSchedule = async (e) => {
+    e.preventDefault();
+    if (!trainerId) return;
+
+    try {
+      const response = await fetch('http://localhost:5050/api/trainers/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newSchedule, trainer_id: trainerId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Schedule added successfully!' });
+        setNewSchedule({
+          title: '',
+          description: '',
+          event_type: 'training',
+          start_time: '',
+          end_time: '',
+          student_id: ''
+        });
+        loadSchedules();
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to add schedule' });
+      }
+    } catch (error) {
+      console.error('Error adding schedule:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
+  };
+
+  const loadConversations = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch(`http://localhost:5050/api/messages/conversations/${user.id}`);
+      const data = await response.json();
+      if (data.success) {
+        setConversations(data.conversations || []);
+      }
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
+  };
+
+  const loadMessages = async (conversationId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/messages/conversation/${conversationId}`);
+      const data = await response.json();
+      if (data.success) {
+        setMessages(data.messages || []);
+        setSelectedConversation(conversationId);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedConversation || !user) return;
+
+    try {
+      const response = await fetch('http://localhost:5050/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender_id: user.id,
+          conversation_id: selectedConversation,
+          message: newMessage
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setNewMessage('');
+        loadMessages(selectedConversation);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to send message' });
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -250,6 +450,61 @@ function TrainerDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
             Profile & Edit
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'students' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('students'); loadStudents(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            My Students
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'reports' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('reports'); loadReports(); loadStudents(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Reports
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'schedule' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('schedule'); loadSchedules(); loadStudents(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Schedule
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'notifications' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('notifications'); loadNotifications(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            Notifications
+            {notifications.filter(n => !n.is_read).length > 0 && (
+              <span className="notification-badge">
+                {notifications.filter(n => !n.is_read).length}
+              </span>
+            )}
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'messages' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('messages'); loadConversations(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            Messages
           </button>
         </nav>
 
@@ -550,6 +805,543 @@ function TrainerDashboard() {
                 >
                   {loading ? 'Saving...' : 'Save Changes'}
                 </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Students Section */}
+        {activeMenu === 'students' && (
+          <>
+            <div className="dashboard-header">
+              <h1>My Students</h1>
+              <p>View and manage your trainees</p>
+            </div>
+
+            {message.text && (
+              <div className={`alert alert-${message.type}`}>
+                {message.text}
+              </div>
+            )}
+
+            <div className="table-section">
+              <h2>Students List</h2>
+              {students.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No Students Yet</h3>
+                  <p>You don't have any assigned students at the moment.</p>
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>University</th>
+                      <th>Major</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map(student => (
+                      <tr key={student.id}>
+                        <td>{student.full_name}</td>
+                        <td>{student.email}</td>
+                        <td>{student.university_name || 'N/A'}</td>
+                        <td>{student.major || 'N/A'}</td>
+                        <td>
+                          <span className={`badge badge-${student.status}`}>
+                            {student.status}
+                          </span>
+                        </td>
+                        <td>
+                          <button 
+                            className="btn-view"
+                            onClick={() => {
+                              setNewReport({ ...newReport, student_id: student.id });
+                              setActiveMenu('reports');
+                            }}
+                          >
+                            Create Report
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Reports Section */}
+        {activeMenu === 'reports' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Student Reports</h1>
+              <p>Create and manage performance reports</p>
+            </div>
+
+            {message.text && (
+              <div className={`alert alert-${message.type}`}>
+                {message.text}
+              </div>
+            )}
+
+            {/* Create New Report */}
+            <div className="profile-form-card full-width">
+              <h3>Create New Report</h3>
+              <form onSubmit={handleSubmitReport}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Select Student *</label>
+                    <select
+                      value={newReport.student_id}
+                      onChange={(e) => setNewReport({ ...newReport, student_id: e.target.value })}
+                      required
+                    >
+                      <option value="">Choose a student...</option>
+                      {students.map(student => (
+                        <option key={student.id} value={student.id}>
+                          {student.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Report Type</label>
+                    <select
+                      value={newReport.report_type}
+                      onChange={(e) => setNewReport({ ...newReport, report_type: e.target.value })}
+                    >
+                      <option value="weekly">Weekly Report</option>
+                      <option value="monthly">Monthly Report</option>
+                      <option value="final">Final Report</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={newReport.attendance}
+                      onChange={(e) => setNewReport({ ...newReport, attendance: e.target.checked })}
+                    />
+                    {' '}Attendance Confirmed
+                  </label>
+                </div>
+
+                <h4 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Performance Evaluation</h4>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Technical Skills (1-10)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={newReport.technical_skills}
+                      onChange={(e) => setNewReport({ ...newReport, technical_skills: parseInt(e.target.value) })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Communication Skills (1-10)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={newReport.communication_skills}
+                      onChange={(e) => setNewReport({ ...newReport, communication_skills: parseInt(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Problem Solving (1-10)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={newReport.problem_solving}
+                      onChange={(e) => setNewReport({ ...newReport, problem_solving: parseInt(e.target.value) })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Teamwork (1-10)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={newReport.teamwork}
+                      onChange={(e) => setNewReport({ ...newReport, teamwork: parseInt(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Overall Performance Rating (1-10)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={newReport.performance_rating}
+                    onChange={(e) => setNewReport({ ...newReport, performance_rating: parseInt(e.target.value) })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Comments & Feedback</label>
+                  <textarea
+                    rows="5"
+                    value={newReport.comments}
+                    onChange={(e) => setNewReport({ ...newReport, comments: e.target.value })}
+                    placeholder="Provide detailed feedback about the student's performance..."
+                  />
+                </div>
+
+                <div className="form-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setActiveMenu('students')}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Submit Report
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Previous Reports */}
+            <div className="table-section" style={{ marginTop: '2rem' }}>
+              <h2>Previous Reports</h2>
+              {reports.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No Reports Yet</h3>
+                  <p>You haven't submitted any reports yet.</p>
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Type</th>
+                      <th>Rating</th>
+                      <th>Attendance</th>
+                      <th>Date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reports.map(report => (
+                      <tr key={report.id}>
+                        <td>{report.student_name}</td>
+                        <td><span className="badge badge-info">{report.report_type}</span></td>
+                        <td>{report.performance_rating}/10</td>
+                        <td>
+                          <span className={`badge ${report.attendance ? 'badge-success' : 'badge-danger'}`}>
+                            {report.attendance ? 'Present' : 'Absent'}
+                          </span>
+                        </td>
+                        <td>{new Date(report.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <button className="btn-view">View Details</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Schedule Section */}
+        {activeMenu === 'schedule' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Training Schedule</h1>
+              <p>Manage your training sessions and meetings</p>
+            </div>
+
+            {message.text && (
+              <div className={`alert alert-${message.type}`}>
+                {message.text}
+              </div>
+            )}
+
+            {/* Add New Schedule */}
+            <div className="profile-form-card full-width">
+              <h3>Add New Event</h3>
+              <form onSubmit={handleAddSchedule}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Event Title *</label>
+                    <input
+                      type="text"
+                      value={newSchedule.title}
+                      onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })}
+                      placeholder="e.g., Weekly Training Session"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Event Type</label>
+                    <select
+                      value={newSchedule.event_type}
+                      onChange={(e) => setNewSchedule({ ...newSchedule, event_type: e.target.value })}
+                    >
+                      <option value="training">Training Session</option>
+                      <option value="meeting">Meeting</option>
+                      <option value="workshop">Workshop</option>
+                      <option value="review">Performance Review</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Start Time *</label>
+                    <input
+                      type="datetime-local"
+                      value={newSchedule.start_time}
+                      onChange={(e) => setNewSchedule({ ...newSchedule, start_time: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>End Time *</label>
+                    <input
+                      type="datetime-local"
+                      value={newSchedule.end_time}
+                      onChange={(e) => setNewSchedule({ ...newSchedule, end_time: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Student (Optional)</label>
+                  <select
+                    value={newSchedule.student_id}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, student_id: e.target.value })}
+                  >
+                    <option value="">All Students</option>
+                    {students.map(student => (
+                      <option key={student.id} value={student.id}>
+                        {student.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    rows="3"
+                    value={newSchedule.description}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, description: e.target.value })}
+                    placeholder="Add event details..."
+                  />
+                </div>
+
+                <div className="form-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setActiveMenu('dashboard')}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Add Event
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Calendar View */}
+            <div className="table-section" style={{ marginTop: '2rem' }}>
+              <h2>Upcoming Events</h2>
+              {schedules.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No Events Scheduled</h3>
+                  <p>You don't have any upcoming events.</p>
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Event</th>
+                      <th>Type</th>
+                      <th>Student</th>
+                      <th>Start Time</th>
+                      <th>End Time</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedules.map(schedule => (
+                      <tr key={schedule.id}>
+                        <td><strong>{schedule.title}</strong></td>
+                        <td><span className="badge badge-info">{schedule.event_type}</span></td>
+                        <td>{schedule.student_name || 'All Students'}</td>
+                        <td>{new Date(schedule.start_time).toLocaleString()}</td>
+                        <td>{new Date(schedule.end_time).toLocaleString()}</td>
+                        <td>
+                          <button className="btn-view">Edit</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Notifications Section */}
+        {activeMenu === 'notifications' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Notifications</h1>
+              <p>Stay updated with important messages</p>
+            </div>
+
+            <div className="table-section">
+              <h2>All Notifications</h2>
+              {notifications.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No Notifications</h3>
+                  <p>You don't have any notifications yet.</p>
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Message</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notifications.map(notification => (
+                      <tr key={notification.id} className={!notification.is_read ? 'unread-row' : ''}>
+                        <td><strong>{notification.title}</strong></td>
+                        <td>{notification.message}</td>
+                        <td><span className="badge badge-info">{notification.type}</span></td>
+                        <td>
+                          <span className={`badge ${notification.is_read ? 'badge-success' : 'badge-warning'}`}>
+                            {notification.is_read ? 'Read' : 'Unread'}
+                          </span>
+                        </td>
+                        <td>{new Date(notification.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Messages Section */}
+        {activeMenu === 'messages' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Messages</h1>
+              <p>Chat with your students and colleagues</p>
+            </div>
+
+            <div className="chat-container">
+              {/* Conversations List */}
+              <div className="conversations-sidebar">
+                <h3>Conversations</h3>
+                {conversations.length === 0 ? (
+                  <div className="empty-state-small">
+                    <p>No conversations yet</p>
+                  </div>
+                ) : (
+                  <div className="conversations-list">
+                    {conversations.map(conversation => (
+                      <div
+                        key={conversation.id}
+                        className={`conversation-item ${selectedConversation === conversation.id ? 'active' : ''}`}
+                        onClick={() => loadMessages(conversation.id)}
+                      >
+                        <div className="conversation-avatar">
+                          {conversation.participant_name ? conversation.participant_name.charAt(0).toUpperCase() : '?'}
+                        </div>
+                        <div className="conversation-info">
+                          <h4>{conversation.participant_name || 'Unknown'}</h4>
+                          <p>{conversation.last_message || 'No messages yet'}</p>
+                        </div>
+                        {conversation.unread_count > 0 && (
+                          <span className="unread-count">{conversation.unread_count}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Area */}
+              <div className="chat-area">
+                {!selectedConversation ? (
+                  <div className="empty-state">
+                    <h3>Select a Conversation</h3>
+                    <p>Choose a conversation from the list to start chatting</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Messages List */}
+                    <div className="messages-list">
+                      {messages.length === 0 ? (
+                        <div className="empty-state-small">
+                          <p>No messages yet. Start the conversation!</p>
+                        </div>
+                      ) : (
+                        messages.map(msg => (
+                          <div
+                            key={msg.id}
+                            className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                          >
+                            <div className="message-bubble">
+                              <p>{msg.message}</p>
+                              <span className="message-time">
+                                {new Date(msg.created_at).toLocaleTimeString([], { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Message Input */}
+                    <form className="message-input-form" onSubmit={handleSendMessage}>
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="message-input"
+                      />
+                      <button type="submit" className="send-button" disabled={!newMessage.trim()}>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                        Send
+                      </button>
+                    </form>
+                  </>
+                )}
               </div>
             </div>
           </>

@@ -15,7 +15,8 @@ const router = express.Router();
 // Middleware to check if user is admin
 const isAdmin = async (req, res, next) => {
   try {
-    const { userId } = req.body;
+    // Get userId from body (for POST) or query params (for GET/PUT)
+    const userId = req.body.userId || req.query.userId;
     
     if (!userId) {
       return res.status(401).json({ 
@@ -489,6 +490,58 @@ router.post("/registration-requests/reject", isAdmin, async (req, res) => {
     
   } catch (error) {
     console.error("Error rejecting registration request:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
+// Mark notification as read
+router.put("/notifications/:notificationId/read", isAdmin, async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    
+    console.log('📥 Received request to mark notification as read:', notificationId);
+    
+    if (!notificationId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Notification ID is required" 
+      });
+    }
+    
+    // Update notification status to read
+    const query = "UPDATE Notifications SET is_read = TRUE WHERE id = ?";
+    
+    db.query(query, [notificationId], (err, result) => {
+      if (err) {
+        console.error("❌ Error marking notification as read:", err);
+        return res.status(500).json({ 
+          success: false,
+          message: "Server error" 
+        });
+      }
+      
+      if (result.affectedRows === 0) {
+        console.log('⚠️ Notification not found:', notificationId);
+        return res.status(404).json({ 
+          success: false,
+          message: "Notification not found" 
+        });
+      }
+      
+      console.log('✅ Notification marked as read successfully:', notificationId);
+      console.log('📊 Affected rows:', result.affectedRows);
+      
+      res.json({ 
+        success: true,
+        message: "Notification marked as read" 
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Error marking notification as read:", error);
     res.status(500).json({ 
       success: false,
       message: "Server error" 
