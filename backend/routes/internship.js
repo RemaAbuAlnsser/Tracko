@@ -94,7 +94,7 @@ router.get("/", async (req, res) => {
 });
 
 // Get internships by company email
-router.get("/company/:email", async (req, res) => {
+router.get("/by-company/:email", async (req, res) => {
   try {
     const { email } = req.params;
 
@@ -141,33 +141,6 @@ router.get("/company/:email", async (req, res) => {
 
   } catch (error) {
     console.error("Get company internships error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
-  }
-});
-
-// Get internship by ID
-router.get("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const internship = await Internship.findById(id);
-
-    if (!internship) {
-      return res.status(404).json({
-        success: false,
-        message: "Internship not found"
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      internship
-    });
-
-  } catch (error) {
-    console.error("Get internship error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"
@@ -318,7 +291,7 @@ router.patch("/:id/status", async (req, res) => {
 });
 
 // Get all internships for university (all available internships)
-router.get("/university/:universityId", async (req, res) => {
+router.get("/by-university/:universityId", async (req, res) => {
   try {
     const { universityId } = req.params;
     
@@ -388,7 +361,7 @@ router.get("/university/:universityId", async (req, res) => {
 });
 
 // Get internships for student based on university partnerships
-router.get("/student/:userId", async (req, res) => {
+router.get("/by-student/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -421,6 +394,38 @@ router.get("/student/:userId", async (req, res) => {
 
   } catch (error) {
     console.error("Get student internships error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get internship by ID (must be last to avoid conflicts with other routes)
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📋 Fetching internship with ID: ${id}`);
+    
+    const internship = await Internship.findById(id);
+    console.log(`📦 Internship data:`, internship);
+
+    if (!internship) {
+      console.log(`❌ Internship ${id} not found`);
+      return res.status(404).json({
+        success: false,
+        message: "Internship not found"
+      });
+    }
+
+    console.log(`✅ Returning internship ${id}:`, internship.title);
+    res.status(200).json({
+      success: true,
+      internship
+    });
+
+  } catch (error) {
+    console.error("❌ Get internship error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

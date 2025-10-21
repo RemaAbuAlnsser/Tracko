@@ -25,6 +25,10 @@ function StudentDashboard() {
   const [cvAnalysis, setCvAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [selectedInternship, setSelectedInternship] = useState(null);
+  const [showInternshipDetails, setShowInternshipDetails] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [savedInternships, setSavedInternships] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,7 +49,25 @@ function StudentDashboard() {
     loadDashboardData();
     loadStudentData(parsedUser.id);
     loadPartnershipInternships(parsedUser.id);
+    loadSavedInternshipsWithUser(parsedUser);
   }, [navigate]);
+
+  const loadSavedInternshipsWithUser = async (userData) => {
+    if (!userData) return;
+    
+    try {
+      console.log('📚 Loading saved internships for user:', userData.id);
+      const response = await fetch(`http://localhost:5050/api/matching/student/${userData.id}/saved`);
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Saved internships loaded:', data.data);
+        setSavedInternships(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading saved internships:', error);
+    }
+  };
 
   const loadStudentData = async (userId) => {
     try {
@@ -162,6 +184,136 @@ function StudentDashboard() {
       }
     } catch (error) {
       console.error('Error running AI matching:', error);
+    }
+  };
+
+  const handleViewDetails = async (internshipId) => {
+    try {
+      setLoadingDetails(true);
+      console.log('🔍 Loading internship details for ID:', internshipId);
+      const response = await fetch(`http://localhost:5050/api/internships/${internshipId}`);
+      
+      console.log('📡 Response status:', response.status, response.ok);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📦 Response data:', data);
+        
+        if (data.success && data.internship) {
+          console.log('✅ Internship loaded successfully:', data.internship);
+          // Check if this internship is already saved
+          const isSaved = savedInternships.some(saved => saved.internship_id === internshipId);
+          setSelectedInternship({
+            ...data.internship,
+            isSaved: isSaved
+          });
+          setShowInternshipDetails(true);
+        } else {
+          console.error('❌ Invalid data structure:', data);
+          alert('Failed to load internship details');
+        }
+      } else {
+        console.error('❌ Response not OK:', response.status);
+        alert('Failed to load internship details');
+      }
+    } catch (error) {
+      console.error('❌ Error loading internship details:', error);
+      alert('An error occurred while loading internship details');
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleCloseDetails = () => {
+    setShowInternshipDetails(false);
+    setSelectedInternship(null);
+  };
+
+  const handleApplyInternship = async () => {
+    if (!selectedInternship || !user) return;
+    
+    try {
+      console.log(`📝 Applying to internship ${selectedInternship.id}...`);
+      const response = await fetch(
+        `http://localhost:5050/api/matching/student/${user.id}/apply/${selectedInternship.id}`,
+        { method: 'POST' }
+      );
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('✅ Application submitted successfully!');
+        handleCloseDetails();
+      } else {
+        alert('❌ Failed to submit application');
+      }
+    } catch (error) {
+      console.error('Error applying to internship:', error);
+      alert('❌ An error occurred while submitting application');
+    }
+  };
+
+  const handleSaveInternship = async () => {
+    if (!selectedInternship || !user) return;
+    
+    try {
+      if (selectedInternship.isSaved) {
+        // Unsave the internship
+        console.log(`🗑️ Unsaving internship ${selectedInternship.id}...`);
+        const response = await fetch(
+          `http://localhost:5050/api/matching/student/${user.id}/unsave/${selectedInternship.id}`,
+          { method: 'POST' }
+        );
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('✅ Internship removed from saved list!');
+          // Reload saved internships
+          loadSavedInternships();
+          handleCloseDetails();
+        } else {
+          alert('❌ Failed to unsave internship');
+        }
+      } else {
+        // Save the internship
+        console.log(`💾 Saving internship ${selectedInternship.id}...`);
+        const response = await fetch(
+          `http://localhost:5050/api/matching/student/${user.id}/save/${selectedInternship.id}`,
+          { method: 'POST' }
+        );
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('✅ Internship saved successfully!');
+          // Reload saved internships
+          loadSavedInternships();
+          handleCloseDetails();
+        } else {
+          alert('❌ Failed to save internship');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving/unsaving internship:', error);
+      alert('❌ An error occurred');
+    }
+  };
+
+  const loadSavedInternships = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('📚 Loading saved internships...');
+      const response = await fetch(`http://localhost:5050/api/matching/student/${user.id}/saved`);
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Saved internships loaded:', data.data);
+        setSavedInternships(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading saved internships:', error);
     }
   };
 
@@ -1132,12 +1284,36 @@ function StudentDashboard() {
                         </div>
                       )}
                       {internship.min_gpa && (
-                        <div className="detail-item">
+                        <div className={`detail-item ${internship.gpa_match === false ? 'gpa-mismatch' : ''}`}>
                           <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
                             <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
                           </svg>
-                          <span>Min GPA: {internship.min_gpa}</span>
+                          <span>
+                            Min GPA: {internship.min_gpa}
+                            {(() => {
+                              // Get GPA from CV analysis_data first, fallback to studentData
+                              const studentGPA = cvAnalysis?.GPA || studentData.gpa;
+                              if (studentGPA) {
+                                return (
+                                  <span className={`student-gpa ${parseFloat(studentGPA) >= parseFloat(internship.min_gpa) ? 'gpa-sufficient' : 'gpa-insufficient'}`}>
+                                    {' '}| Your GPA: {studentGPA}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {internship.gpa_match === false && (
+                              <span className="gpa-mismatch-text" title="Your GPA is below the minimum requirement">
+                                {' '}(Below Required)
+                              </span>
+                            )}
+                            {internship.gpa_match === true && (
+                              <span className="gpa-match-text" title="Your GPA meets the requirement">
+                                {' '}✓
+                              </span>
+                            )}
+                          </span>
                         </div>
                       )}
                       {internship.work_mode && (
@@ -1221,8 +1397,13 @@ function StudentDashboard() {
                     )}
 
                     <div className="internship-footer">
-                      <span className="status-badge status-open">{internship.internship_status || internship.status}</span>
-                      <button className="btn-view-details">View Details</button>
+                      {/* <span className="status-badge status-open">{internship.internship_status || internship.status}</span> */}
+                      <button 
+                        className="btn-view-details" 
+                        onClick={() => handleViewDetails(internship.internship_id)}
+                      >
+                        View Details
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1231,10 +1412,215 @@ function StudentDashboard() {
           </>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && (
+        {/* Saved Internships Section */}
+        {activeMenu === 'details' && (
+          <div className="content-section">
+            <div className="section-header">
+              <h2>Saved Internships</h2>
+              <p className="section-subtitle">Internships you've saved for later</p>
+            </div>
+
+            {savedInternships.length === 0 ? (
+              <div className="empty-state">
+                <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                <h3>No Saved Internships</h3>
+                <p>You haven't saved any internships yet. Browse internships and click "Save for Later" to add them here.</p>
+              </div>
+            ) : (
+              <div className="internships-grid">
+                {savedInternships.map((internship) => (
+                  <div key={internship.id} className="internship-card">
+                    <div className="internship-header">
+                      <div className="company-logo">
+                        {internship.company_logo ? (
+                          <img src={`http://localhost:5050${internship.company_logo}`} alt={internship.company_name} />
+                        ) : (
+                          <div className="logo-placeholder">
+                            {internship.company_name?.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="internship-info">
+                        <h3>{internship.internship_title}</h3>
+                        <p className="company-name">{internship.company_name}</p>
+                      </div>
+                    </div>
+
+                    {internship.internship_specialization && (
+                      <div className="specialization-badge">
+                        {internship.internship_specialization}
+                      </div>
+                    )}
+
+                    {internship.match_percentage > 0 && (
+                      <div className="match-score">
+                        <div className="match-percentage">
+                          <span className="percentage-value">{internship.match_percentage}%</span>
+                          <span className="percentage-label">Match</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="internship-footer">
+                      <span className="status-badge status-open">{internship.internship_status || 'open'}</span>
+                      <button 
+                        className="btn-view-details" 
+                        onClick={() => handleViewDetails(internship.internship_id)}
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && (
           <div className="placeholder-content">
             <h2>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)} Page</h2>
             <p>This section is under development</p>
+          </div>
+        )}
+
+        {/* Internship Details Modal */}
+        {showInternshipDetails && selectedInternship && (
+          <div className="modal-overlay" onClick={handleCloseDetails}>
+            <div className="modal-content internship-details-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Internship Details</h2>
+                <button className="modal-close-btn" onClick={handleCloseDetails}>
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {/* Company Header */}
+                <div className="detail-company-header">
+                  <div className="detail-company-logo">
+                    {selectedInternship.company_logo ? (
+                      <img src={`http://localhost:5050${selectedInternship.company_logo}`} alt={selectedInternship.company_name} />
+                    ) : (
+                      <div className="detail-logo-placeholder">
+                        {selectedInternship.company_name?.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="detail-company-info">
+                    <h3>{selectedInternship.title}</h3>
+                    <p className="detail-company-name">{selectedInternship.company_name}</p>
+                  </div>
+                </div>
+
+                {/* Internship Information */}
+                <div className="detail-section">
+                  <h4 className="detail-section-title">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                    </svg>
+                    Basic Information
+                  </h4>
+                  <div className="detail-info-grid">
+                    {selectedInternship.specialization && (
+                      <div className="detail-info-item">
+                        <span className="detail-label">Specialization:</span>
+                        <span className="detail-value">{selectedInternship.specialization}</span>
+                      </div>
+                    )}
+                    {selectedInternship.min_gpa && (
+                      <div className="detail-info-item">
+                        <span className="detail-label">Minimum GPA:</span>
+                        <span className="detail-value">{selectedInternship.min_gpa}</span>
+                      </div>
+                    )}
+                    {selectedInternship.work_mode && (
+                      <div className="detail-info-item">
+                        <span className="detail-label">Work Mode:</span>
+                        <span className="detail-value">
+                          {selectedInternship.work_mode === 'onsite' ? '🏢 Onsite' : 
+                           selectedInternship.work_mode === 'online' ? '💻 Online' : '🔄 Hybrid'}
+                        </span>
+                      </div>
+                    )}
+                    {selectedInternship.capacity && (
+                      <div className="detail-info-item">
+                        <span className="detail-label">Available Positions:</span>
+                        <span className="detail-value">{selectedInternship.capacity}</span>
+                      </div>
+                    )}
+                    {selectedInternship.status && (
+                      <div className="detail-info-item">
+                        <span className="detail-label">Status:</span>
+                        <span className={`detail-status-badge status-${selectedInternship.status}`}>
+                          {selectedInternship.status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedInternship.description && (
+                  <div className="detail-section">
+                    <h4 className="detail-section-title">
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"/>
+                      </svg>
+                      Description
+                    </h4>
+                    <p className="detail-description">{selectedInternship.description}</p>
+                  </div>
+                )}
+
+                {/* Requirements */}
+                {selectedInternship.requirements && (
+                  <div className="detail-section">
+                    <h4 className="detail-section-title">
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                      </svg>
+                      Requirements
+                    </h4>
+                    <p className="detail-requirements">{selectedInternship.requirements}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="detail-actions">
+                  <button className="btn-apply-internship" onClick={handleApplyInternship}>
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                    Apply Now
+                  </button>
+                  <button 
+                    className={`btn-save-internship ${selectedInternship.isSaved ? 'saved' : ''}`} 
+                    onClick={handleSaveInternship}
+                  >
+                    {selectedInternship.isSaved ? (
+                      <>
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                        Unsave
+                      </>
+                    ) : (
+                      <>
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                        Save for Later
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

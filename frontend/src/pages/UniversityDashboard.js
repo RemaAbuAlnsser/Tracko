@@ -358,7 +358,7 @@ function UniversityDashboard() {
     if (!universityData.id) return;
     
     try {
-      const response = await fetch(`http://localhost:5050/api/internships/university/${universityData.id}`);
+      const response = await fetch(`http://localhost:5050/api/internships/by-university/${universityData.id}`);
       const data = await response.json();
       if (response.ok) {
         console.log('✅ Loaded internships:', data.data);

@@ -38,13 +38,21 @@ npm install
 ```
 
 2. **Configure environment variables:**
-Create a `.env` file in the backend directory:
+Copy `.env.example` to `.env` and fill in your values:
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your actual credentials:
 ```env
 DB_HOST=localhost
 DB_USER=your_mysql_user
 DB_PASSWORD=your_mysql_password
 DB_NAME=tracko_db
 DB_PORT=3306
+
+# Get your Groq API key from: https://console.groq.com/keys
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 3. **Create database tables:**
@@ -58,6 +66,17 @@ npm start
 ```
 
 The server will run on `http://localhost:5050`
+
+5. **Start the AI CV Analyzer (optional):**
+If you want to use the CV analysis feature:
+```bash
+cd ai_service
+python cv_analyzer.py
+```
+
+The AI service will run on `http://localhost:5001`
+
+**Note:** Make sure you have set `GROQ_API_KEY` in your `.env` file before running the AI service.
 
 ## 📚 API Endpoints
 

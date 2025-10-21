@@ -8,17 +8,25 @@ class InternshipMatch {
       internship_id,
       match_percentage,
       matched_skills = null,
-      matched_categories = null
+      matched_categories = null,
+      gpa_match = null,
+      gpa_message = null,
+      work_mode_match = null,
+      work_mode_message = null
     } = matchData;
     
     const query = `
       INSERT INTO Internship_Matches 
-      (student_id, internship_id, match_percentage, matched_skills, matched_categories) 
-      VALUES (?, ?, ?, ?, ?)
+      (student_id, internship_id, match_percentage, matched_skills, matched_categories, gpa_match, gpa_message, work_mode_match, work_mode_message) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE 
         match_percentage = VALUES(match_percentage),
         matched_skills = VALUES(matched_skills),
         matched_categories = VALUES(matched_categories),
+        gpa_match = VALUES(gpa_match),
+        gpa_message = VALUES(gpa_message),
+        work_mode_match = VALUES(work_mode_match),
+        work_mode_message = VALUES(work_mode_message),
         last_updated = CURRENT_TIMESTAMP
     `;
     
@@ -34,7 +42,11 @@ class InternshipMatch {
           internship_id, 
           match_percentage, 
           skillsJson,
-          categoriesJson
+          categoriesJson,
+          gpa_match,
+          gpa_message,
+          work_mode_match,
+          work_mode_message
         ], 
         (err, result) => {
           if (err) {
@@ -59,6 +71,8 @@ class InternshipMatch {
         i.specialization as internship_specialization,
         i.capacity,
         i.status as internship_status,
+        i.min_gpa,
+        i.work_mode,
         c.name as company_name,
         c.logo as company_logo,
         c.industry as company_industry
@@ -219,6 +233,312 @@ class InternshipMatch {
                   : row.matched_categories;
               } catch (e) {
                 console.warn('Failed to parse matched_categories:', row.matched_categories);
+              }
+            }
+            
+            return {
+              ...row,
+              matched_skills: matchedSkills,
+              matched_categories: matchedCategories
+            };
+          });
+          resolve(parsedResults);
+        }
+      });
+    });
+  }
+
+  // Save internship for later
+  static saveInternship(studentId, internshipId) {
+    const query = `
+      INSERT INTO Internship_Matches (student_id, internship_id, saved, match_percentage)
+      VALUES (?, ?, TRUE, 0)
+      ON DUPLICATE KEY UPDATE saved = TRUE
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [studentId, internshipId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  // Unsave internship
+  static unsaveInternship(studentId, internshipId) {
+    const query = `
+      UPDATE Internship_Matches 
+      SET saved = FALSE 
+      WHERE student_id = ? AND internship_id = ?
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [studentId, internshipId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  // Update application status (accept/reject)
+  static updateStatus(matchId, status) {
+    const query = `
+      UPDATE Internship_Matches 
+      SET status = ? 
+      WHERE id = ?
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [status, matchId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  // Apply to internship
+  static applyToInternship(studentId, internshipId) {
+    const query = `
+      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, match_percentage)
+      VALUES (?, ?, TRUE, NOW(), 0)
+      ON DUPLICATE KEY UPDATE applied = TRUE, applied_at = NOW()
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [studentId, internshipId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  // Get applicants for a company's internship
+  static getApplicantsByInternship(internshipId) {
+    const query = `
+      SELECT 
+        im.*,
+        s.id as student_id,
+        u.full_name,
+        s.major,
+        s.academic_year as year_of_study,
+        s.student_img,
+        u.email,
+        un.name as university_name,
+        cv.analysis_data,
+        i.title as internship_title
+      FROM Internship_Matches im
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      LEFT JOIN Universities un ON s.university_id = un.id
+      LEFT JOIN CVs cv ON s.id = cv.student_id
+      INNER JOIN Internships i ON im.internship_id = i.id
+      WHERE im.internship_id = ? AND im.applied = TRUE
+      ORDER BY im.applied_at DESC
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [internshipId], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Parse JSON fields and extract GPA
+          const parsedResults = results.map(row => {
+            let matchedSkills = null;
+            let gpa = null;
+            
+            // Parse matched_skills
+            if (row.matched_skills) {
+              try {
+                matchedSkills = typeof row.matched_skills === 'string' 
+                  ? JSON.parse(row.matched_skills) 
+                  : row.matched_skills;
+              } catch (e) {
+                console.warn('Failed to parse matched_skills:', row.matched_skills);
+              }
+            }
+            
+            // Extract GPA from analysis_data (for internship)
+            if (row.analysis_data) {
+              try {
+                const analysisData = typeof row.analysis_data === 'string'
+                  ? JSON.parse(row.analysis_data)
+                  : row.analysis_data;
+                
+                console.log('📊 [Internship] Analysis data for student', row.student_id, ':', JSON.stringify(analysisData).substring(0, 200));
+                
+                // Try different possible GPA field names
+                gpa = analysisData.gpa || 
+                      analysisData.GPA || 
+                      analysisData.grade_point_average ||
+                      analysisData.overall_gpa ||
+                      null;
+                
+                console.log('📈 [Internship] Extracted GPA for student', row.student_id, ':', gpa);
+              } catch (e) {
+                console.warn('❌ Failed to parse analysis_data:', e.message);
+              }
+            } else {
+              console.log('⚠️ No analysis_data for student:', row.student_id);
+            }
+            
+            return {
+              ...row,
+              matched_skills: matchedSkills,
+              gpa: gpa
+            };
+          });
+          resolve(parsedResults);
+        }
+      });
+    });
+  }
+
+  // Get all applicants for a company (all internships)
+  static getApplicantsByCompany(companyId) {
+    const query = `
+      SELECT 
+        im.*,
+        s.id as student_id,
+        u.full_name,
+        s.major,
+        s.academic_year as year_of_study,
+        s.student_img,
+        u.email,
+        un.name as university_name,
+        cv.analysis_data,
+        i.title as internship_title,
+        i.id as internship_id
+      FROM Internship_Matches im
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      LEFT JOIN Universities un ON s.university_id = un.id
+      LEFT JOIN CVs cv ON s.id = cv.student_id
+      INNER JOIN Internships i ON im.internship_id = i.id
+      WHERE i.company_id = ? AND im.applied = TRUE
+      ORDER BY im.applied_at DESC
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [companyId], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Parse JSON fields and extract GPA
+          const parsedResults = results.map(row => {
+            let matchedSkills = null;
+            let gpa = null;
+            
+            // Parse matched_skills
+            if (row.matched_skills) {
+              try {
+                matchedSkills = typeof row.matched_skills === 'string' 
+                  ? JSON.parse(row.matched_skills) 
+                  : row.matched_skills;
+              } catch (e) {
+                console.warn('Failed to parse matched_skills:', row.matched_skills);
+              }
+            }
+            
+            // Extract GPA from analysis_data (for company)
+            if (row.analysis_data) {
+              try {
+                const analysisData = typeof row.analysis_data === 'string'
+                  ? JSON.parse(row.analysis_data)
+                  : row.analysis_data;
+                
+                console.log('📊 [Company] Analysis data for student', row.student_id, ':', JSON.stringify(analysisData).substring(0, 200));
+                
+                // Try different possible GPA field names
+                gpa = analysisData.gpa || 
+                      analysisData.GPA || 
+                      analysisData.grade_point_average ||
+                      analysisData.overall_gpa ||
+                      null;
+                
+                console.log('📈 [Company] Extracted GPA for student', row.student_id, ':', gpa);
+              } catch (e) {
+                console.warn('❌ Failed to parse analysis_data:', e.message);
+              }
+            } else {
+              console.log('⚠️ No analysis_data for student:', row.student_id);
+            }
+            
+            return {
+              ...row,
+              matched_skills: matchedSkills,
+              gpa: gpa
+            };
+          });
+          resolve(parsedResults);
+        }
+      });
+    });
+  }
+
+  // Get saved internships for a student
+  static getSavedInternships(studentId) {
+    const query = `
+      SELECT 
+        im.*,
+        i.title as internship_title,
+        i.description as internship_description,
+        i.requirements as internship_requirements,
+        i.specialization as internship_specialization,
+        i.capacity,
+        i.status as internship_status,
+        i.min_gpa,
+        i.work_mode,
+        c.name as company_name,
+        c.logo as company_logo,
+        c.industry as company_industry
+      FROM Internship_Matches im
+      INNER JOIN Internships i ON im.internship_id = i.id
+      INNER JOIN Company c ON i.company_id = c.id
+      WHERE im.student_id = ? AND im.saved = TRUE
+      ORDER BY im.last_updated DESC
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [studentId], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Parse JSON fields safely
+          const parsedResults = results.map(row => {
+            let matchedSkills = null;
+            let matchedCategories = null;
+            
+            if (row.matched_skills) {
+              try {
+                matchedSkills = typeof row.matched_skills === 'string' 
+                  ? JSON.parse(row.matched_skills) 
+                  : row.matched_skills;
+              } catch (e) {
+                console.warn('Failed to parse matched_skills:', row.matched_skills);
+                matchedSkills = null;
+              }
+            }
+            
+            if (row.matched_categories) {
+              try {
+                matchedCategories = typeof row.matched_categories === 'string'
+                  ? JSON.parse(row.matched_categories)
+                  : row.matched_categories;
+              } catch (e) {
+                console.warn('Failed to parse matched_categories:', row.matched_categories);
+                matchedCategories = null;
               }
             }
             

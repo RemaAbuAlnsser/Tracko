@@ -15,14 +15,20 @@ pip install -r requirements.txt
 - **Ubuntu**: `sudo apt-get install tesseract-ocr`
 - **Windows**: Download from https://github.com/UB-Mannheim/tesseract/wiki
 
-3. Set up Groq API key:
-```bash
-export GROQ_API_KEY="your_groq_api_key_here"
+3. Set up Groq API key in `backend/.env`:
+```env
+GROQ_API_KEY=your_groq_api_key_here
 ```
+
+**Note:** The service reads the API key from `backend/.env` file using `python-dotenv`.
+You don't need to export it manually.
+
+Get your API key from: https://console.groq.com/keys
 
 ## Run the Service
 
 ```bash
+cd backend/ai_service
 python cv_analyzer.py
 ```
 
@@ -73,3 +79,9 @@ Response:
    - Sends text to Groq AI (Llama 3.3 70B)
    - Returns structured JSON with extracted data
 5. Frontend displays results and can update student profile
+
+## Security Notes
+
+- API key is stored in `.env` file (not committed to Git)
+- `.env` file is in `.gitignore` to prevent accidental commits
+- Use `.env.example` as a template for setting up your environment
