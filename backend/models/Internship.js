@@ -59,15 +59,22 @@ class Internship {
   static findById(id) {
     return new Promise((resolve, reject) => {
       const query = `
-        SELECT i.*, c.name as company_name, c.logo as company_logo
+        SELECT i.*, c.name as company_name, c.logo as company_logo, c.industry
         FROM Internships i
         LEFT JOIN Company c ON i.company_id = c.id
         WHERE i.id = ?
       `;
       
+      console.log('🔍 Executing query for internship ID:', id);
+      
       db.query(query, [id], (err, results) => {
-        if (err) reject(err);
-        else resolve(results[0]);
+        if (err) {
+          console.error('❌ Query error:', err);
+          reject(err);
+        } else {
+          console.log('✅ Query results:', results);
+          resolve(results[0]);
+        }
       });
     });
   }

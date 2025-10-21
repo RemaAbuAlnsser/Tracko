@@ -156,40 +156,80 @@ class AIMatchingService {
       // تصنيف المهارات المتطابقة
       const { categorized: matchedCategories } = this.categorizeSkills(matchedSkills);
 
-      // فحص GPA - إذا كان مطلوب ولا يطابق، تقليل النسبة
+      // فحص GPA - إذا كان مطلوب ولا يطابق، تقليل النسبة أو عدم عرض التدريب
       let gpaMatch = true;
       let gpaMessage = null;
+      let gpaBonus = 0;
+      
       if (internshipMinGpa && studentGpa !== null && studentGpa !== undefined) {
         const studentGpaNum = parseFloat(studentGpa);
         const minGpaNum = parseFloat(internshipMinGpa);
         
-        if (studentGpaNum < minGpaNum) {
-          gpaMatch = false;
-          gpaMessage = `GPA ${studentGpaNum} is below required ${minGpaNum}`;
-          // تقليل النسبة بـ 30% إذا GPA أقل من المطلوب
-          matchPercentage = Math.max(0, matchPercentage - 30);
-        } else {
-          gpaMessage = `GPA ${studentGpaNum} meets requirement ${minGpaNum}`;
-          // زيادة النسبة بـ 5% إذا GPA يطابق أو أعلى
-          matchPercentage = Math.min(100, matchPercentage + 5);
+        if (!isNaN(studentGpaNum) && !isNaN(minGpaNum)) {
+          if (studentGpaNum < minGpaNum) {
+            gpaMatch = false;
+            gpaMessage = `GPA ${studentGpaNum.toFixed(2)} is below required ${minGpaNum}`;
+            // لا نعرض التدريب إذا GPA أقل من المطلوب (نرجع 0)
+            matchPercentage = 0;
+          } else {
+            gpaMessage = `GPA ${studentGpaNum.toFixed(2)} meets requirement ${minGpaNum}`;
+            // زيادة النسبة بناءً على مدى تجاوز الحد الأدنى
+            const gpaExcess = studentGpaNum - minGpaNum;
+            if (gpaExcess >= 0.5) {
+              gpaBonus = 10; // زيادة 10% إذا GPA أعلى بـ 0.5 أو أكثر
+            } else if (gpaExcess >= 0.2) {
+              gpaBonus = 5;  // زيادة 5% إذا GPA أعلى بـ 0.2 إلى 0.5
+            } else {
+              gpaBonus = 3;  // زيادة 3% إذا GPA يساوي أو أعلى قليلاً
+            }
+            matchPercentage = Math.min(100, matchPercentage + gpaBonus);
+          }
         }
       }
 
       // فحص Work Mode - إذا كان مطلوب ويطابق تفضيلات الطالب
       let workModeMatch = true;
       let workModeMessage = null;
+      let workModeBonus = 0;
+      
       if (internshipWorkMode && studentWorkPreference) {
-        if (internshipWorkMode === studentWorkPreference || internshipWorkMode === 'hybrid') {
+        const internshipMode = internshipWorkMode.toLowerCase().trim();
+        const studentMode = studentWorkPreference.toLowerCase().trim();
+        
+        // Normalize work mode values
+        const normalizeMode = (mode) => {
+          if (mode.includes('online') || mode.includes('remote')) return 'online';
+          if (mode.includes('onsite') || mode.includes('office')) return 'onsite';
+          if (mode.includes('hybrid') || mode.includes('mixed')) return 'hybrid';
+          return mode;
+        };
+        
+        const normalizedInternship = normalizeMode(internshipMode);
+        const normalizedStudent = normalizeMode(studentMode);
+        
+        if (normalizedInternship === normalizedStudent) {
+          // تطابق تام
           workModeMatch = true;
-          workModeMessage = `Work mode ${internshipWorkMode} matches preference`;
-          // زيادة النسبة بـ 5% إذا Work Mode يطابق
-          matchPercentage = Math.min(100, matchPercentage + 5);
+          workModeMessage = `Work mode ${internshipWorkMode} matches preference perfectly`;
+          workModeBonus = 8;
+        } else if (normalizedInternship === 'hybrid') {
+          // Hybrid يناسب الجميع
+          workModeMatch = true;
+          workModeMessage = `Work mode ${internshipWorkMode} is flexible (hybrid)`;
+          workModeBonus = 5;
+        } else if (normalizedStudent === 'hybrid') {
+          // الطالب مرن
+          workModeMatch = true;
+          workModeMessage = `Student is flexible with ${internshipWorkMode} work mode`;
+          workModeBonus = 3;
         } else {
+          // لا يطابق
           workModeMatch = false;
           workModeMessage = `Work mode ${internshipWorkMode} doesn't match preference ${studentWorkPreference}`;
-          // تقليل النسبة بـ 10% إذا Work Mode لا يطابق
-          matchPercentage = Math.max(0, matchPercentage - 10);
+          workModeBonus = -5; // تقليل بسيط فقط
         }
+        
+        matchPercentage = Math.max(0, Math.min(100, matchPercentage + workModeBonus));
       }
 
       return {
