@@ -29,6 +29,7 @@ function StudentDashboard() {
   const [showInternshipDetails, setShowInternshipDetails] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [savedInternships, setSavedInternships] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,6 +47,7 @@ function StudentDashboard() {
     }
     
     setUser(parsedUser);
+    console.log('👤 User loaded:', parsedUser);
     loadDashboardData();
     loadStudentData(parsedUser.id);
     loadPartnershipInternships(parsedUser.id);
@@ -367,6 +369,59 @@ function StudentDashboard() {
         match: 89
       }
     ]);
+  };
+
+  const loadNotifications = async () => {
+    if (!user) {
+      console.log('No user found');
+      return;
+    }
+    
+    console.log('Loading notifications for user:', user.id);
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      console.log('Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('Response data:', data);
+      
+      if (data.success) {
+        console.log('Notifications loaded:', data.notifications.length);
+        setNotifications(data.notifications || []);
+      } else {
+        console.log('API returned error:', data.message);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update local state
+        setNotifications(notifications.map(notif => 
+          notif.id === notificationId 
+            ? { ...notif, is_read: true } 
+            : notif
+        ));
+        console.log('Notification marked as read');
+      } else {
+        console.error('Failed to mark notification as read:', data.message);
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
   const handleLogout = () => {
@@ -715,12 +770,17 @@ function StudentDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'notifications' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('notifications')}
+            onClick={() => { setActiveMenu('notifications'); loadNotifications(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
             Notifications
+            {notifications.filter(n => !n.is_read).length > 0 && (
+              <span className="notification-badge">
+                {notifications.filter(n => !n.is_read).length}
+              </span>
+            )}
           </button>
 
           <button 
@@ -1479,7 +1539,7 @@ function StudentDashboard() {
           </div>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && (
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && (
           <div className="placeholder-content">
             <h2>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)} Page</h2>
             <p>This section is under development</p>
@@ -1621,6 +1681,75 @@ function StudentDashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Notifications Section */}
+        {activeMenu === 'notifications' && (
+          <div className="notifications-section">
+            <div className="section-header">
+              <h2>Notifications</h2>
+              <p>Stay updated with your application status and important messages</p>
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="empty-state">
+                <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <h3>No Notifications Yet</h3>
+                <p>You'll see notifications here when companies respond to your applications</p>
+              </div>
+            ) : (
+              <div className="notifications-list">
+                {notifications.map(notification => (
+                  <div 
+                    key={notification.id} 
+                    className={`notification-card ${!notification.is_read ? 'unread' : ''}`}
+                  >
+                    <div className="notification-icon">
+                      {notification.type === 'application' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="notification-content">
+                      <h4>{notification.title}</h4>
+                      <p>{notification.message}</p>
+                      <span className="notification-time">
+                        {new Date(notification.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    {!notification.is_read && (
+                      <>
+                        <button 
+                          className="mark-read-btn"
+                          onClick={() => markAsRead(notification.id)}
+                          title="Mark as read"
+                        >
+                          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Read
+                        </button>
+                        <div className="unread-indicator"></div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>

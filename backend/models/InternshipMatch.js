@@ -286,6 +286,36 @@ class InternshipMatch {
     });
   }
 
+  // Get match details by ID (for notifications)
+  static getMatchDetailsById(matchId) {
+    const query = `
+      SELECT 
+        im.*,
+        s.user_id as student_user_id,
+        u.full_name as student_name,
+        u.email as student_email,
+        i.title as internship_title,
+        i.company_id,
+        c.name as company_name
+      FROM Internship_Matches im
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      INNER JOIN Internships i ON im.internship_id = i.id
+      INNER JOIN Company c ON i.company_id = c.id
+      WHERE im.id = ?
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [matchId], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0]);
+        }
+      });
+    });
+  }
+
   // Update application status (accept/reject)
   static updateStatus(matchId, status) {
     const query = `

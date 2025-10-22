@@ -3,6 +3,33 @@ import Notification from "../models/Notification.js";
 
 const router = express.Router();
 
+// Get all notifications for a user (GET method)
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "User ID is required" 
+      });
+    }
+    
+    const notifications = await Notification.getByUserId(userId);
+    
+    res.json({ 
+      success: true,
+      notifications 
+    });
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
 // Get all notifications for logged-in user
 router.post("/", async (req, res) => {
   try {
@@ -117,7 +144,34 @@ router.post("/create", async (req, res) => {
   }
 });
 
-// Mark notification as read
+// Mark notification as read (PUT method with ID in URL)
+router.put("/:notificationId/read", async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    
+    if (!notificationId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Notification ID is required" 
+      });
+    }
+    
+    await Notification.markAsRead(notificationId);
+    
+    res.json({ 
+      success: true,
+      message: "Notification marked as read" 
+    });
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
+// Mark notification as read (POST method - legacy)
 router.post("/mark-read", async (req, res) => {
   try {
     const { notificationId } = req.body;
