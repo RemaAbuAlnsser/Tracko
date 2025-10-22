@@ -288,19 +288,65 @@ class InternshipMatch {
 
   // Update application status (accept/reject)
   static updateStatus(matchId, status) {
-    const query = `
-      UPDATE Internship_Matches 
-      SET status = ? 
-      WHERE id = ?
-    `;
-    
     return new Promise((resolve, reject) => {
-      db.query(query, [status, matchId], (err, result) => {
+      // Start transaction
+      db.beginTransaction((err) => {
         if (err) {
-          reject(err);
-        } else {
-          resolve(result);
+          return reject(err);
         }
+
+        // Update status
+        const updateStatusQuery = `
+          UPDATE Internship_Matches 
+          SET status = ? 
+          WHERE id = ?
+        `;
+
+        db.query(updateStatusQuery, [status, matchId], (err, result) => {
+          if (err) {
+            return db.rollback(() => {
+              reject(err);
+            });
+          }
+
+          // If accepting, decrease capacity
+          if (status === 'accepted') {
+            const decreaseCapacityQuery = `
+              UPDATE Internships i
+              INNER JOIN Internship_Matches im ON i.id = im.internship_id
+              SET i.capacity = i.capacity - 1
+              WHERE im.id = ? AND i.capacity > 0
+            `;
+
+            db.query(decreaseCapacityQuery, [matchId], (err, result) => {
+              if (err) {
+                return db.rollback(() => {
+                  reject(err);
+                });
+              }
+
+              // Commit transaction
+              db.commit((err) => {
+                if (err) {
+                  return db.rollback(() => {
+                    reject(err);
+                  });
+                }
+                resolve(result);
+              });
+            });
+          } else {
+            // If rejecting, just commit
+            db.commit((err) => {
+              if (err) {
+                return db.rollback(() => {
+                  reject(err);
+                });
+              }
+              resolve(result);
+            });
+          }
+        });
       });
     });
   }
@@ -344,7 +390,7 @@ class InternshipMatch {
       LEFT JOIN Universities un ON s.university_id = un.id
       LEFT JOIN CVs cv ON s.id = cv.student_id
       INNER JOIN Internships i ON im.internship_id = i.id
-      WHERE im.internship_id = ? AND im.applied = TRUE
+      WHERE im.internship_id = ? AND im.applied = TRUE AND im.status = 'pending'
       ORDER BY im.applied_at DESC
     `;
     
@@ -405,6 +451,85 @@ class InternshipMatch {
     });
   }
 
+  // Get accepted applicants for a company
+  static getAcceptedApplicantsByCompany(companyId) {
+    const query = `
+      SELECT 
+        im.*,
+        s.id as student_id,
+        u.full_name,
+        s.major,
+        s.academic_year as year_of_study,
+        s.student_img,
+        u.email,
+        un.name as university_name,
+        cv.analysis_data,
+        i.title as internship_title,
+        i.id as internship_id
+      FROM Internship_Matches im
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      LEFT JOIN Universities un ON s.university_id = un.id
+      LEFT JOIN CVs cv ON s.id = cv.student_id
+      INNER JOIN Internships i ON im.internship_id = i.id
+      WHERE i.company_id = ? AND im.applied = TRUE AND im.status = 'accepted'
+      ORDER BY im.applied_at DESC
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, [companyId], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Parse JSON fields and extract GPA
+          const parsedResults = results.map(row => {
+            let matchedSkills = null;
+            let gpa = null;
+            
+            // Parse matched_skills
+            if (row.matched_skills) {
+              try {
+                matchedSkills = typeof row.matched_skills === 'string' 
+                  ? JSON.parse(row.matched_skills) 
+                  : row.matched_skills;
+              } catch (e) {
+                console.warn('Failed to parse matched_skills:', row.matched_skills);
+              }
+            }
+            
+            // Extract GPA from analysis_data
+            if (row.analysis_data) {
+              try {
+                const analysisData = typeof row.analysis_data === 'string'
+                  ? JSON.parse(row.analysis_data)
+                  : row.analysis_data;
+                
+                console.log('📊 [Accepted] Analysis data for student', row.student_id, ':', JSON.stringify(analysisData).substring(0, 200));
+                
+                gpa = analysisData.gpa || 
+                      analysisData.GPA || 
+                      analysisData.grade_point_average ||
+                      analysisData.overall_gpa ||
+                      null;
+                
+                console.log('📈 [Accepted] Extracted GPA for student', row.student_id, ':', gpa);
+              } catch (e) {
+                console.warn('❌ Failed to parse analysis_data:', e.message);
+              }
+            }
+            
+            return {
+              ...row,
+              matched_skills: matchedSkills,
+              gpa: gpa
+            };
+          });
+          resolve(parsedResults);
+        }
+      });
+    });
+  }
+
   // Get all applicants for a company (all internships)
   static getApplicantsByCompany(companyId) {
     const query = `
@@ -426,7 +551,7 @@ class InternshipMatch {
       LEFT JOIN Universities un ON s.university_id = un.id
       LEFT JOIN CVs cv ON s.id = cv.student_id
       INNER JOIN Internships i ON im.internship_id = i.id
-      WHERE i.company_id = ? AND im.applied = TRUE
+      WHERE i.company_id = ? AND im.applied = TRUE AND im.status = 'pending'
       ORDER BY im.applied_at DESC
     `;
     

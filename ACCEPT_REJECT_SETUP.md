@@ -74,6 +74,7 @@ npm start
 3. يتم تحديث `status = 'accepted'` في قاعدة البيانات
 4. رسالة تأكيد: "✅ Applicant accepted successfully!"
 5. يتم تحديث القائمة
+6. **المتقدم يختفي من القائمة** ✅
 
 ### **عند الرفض:**
 1. الشركة تضغط "Reject"
@@ -82,6 +83,12 @@ npm start
 4. يتم تحديث `status = 'rejected'` في قاعدة البيانات
 5. رسالة: "❌ Applicant rejected"
 6. يتم تحديث القائمة
+7. **المتقدم يختفي من القائمة** ✅
+
+### **آلية الإخفاء:**
+- الـ API يجلب فقط المتقدمين بحالة `status = 'pending'`
+- عند Accept/Reject → يتغير الـ status → لا يظهر في القائمة
+- المتقدمون المقبولون/المرفوضون محفوظون في قاعدة البيانات
 
 ---
 
@@ -105,13 +112,37 @@ CREATE TABLE Internship_Matches (
 
 ---
 
+## 📊 عرض المقبولين والمرفوضين
+
+### حالياً:
+- القائمة تعرض فقط المتقدمين بحالة `pending`
+- المقبولون والمرفوضون **محفوظون في قاعدة البيانات**
+
+### لعرض المقبولين/المرفوضين:
+```sql
+-- عرض المقبولين
+SELECT * FROM Internship_Matches 
+WHERE status = 'accepted' AND applied = TRUE;
+
+-- عرض المرفوضين
+SELECT * FROM Internship_Matches 
+WHERE status = 'rejected' AND applied = TRUE;
+
+-- عرض قيد الانتظار
+SELECT * FROM Internship_Matches 
+WHERE status = 'pending' AND applied = TRUE;
+```
+
+---
+
 ## 🎯 التطويرات المستقبلية
 
 ### يمكن إضافة:
-1. **فلتر حسب Status:**
-   - عرض المقبولين فقط
-   - عرض المرفوضين فقط
-   - عرض قيد الانتظار فقط
+1. **فلتر حسب Status في الواجهة:**
+   - تبويب "Pending" (الافتراضي)
+   - تبويب "Accepted" 
+   - تبويب "Rejected"
+   - تبويب "All"
 
 2. **إشعارات للطالب:**
    - إرسال email عند القبول
@@ -119,6 +150,7 @@ CREATE TABLE Internship_Matches (
 
 3. **تغيير Status:**
    - إمكانية تغيير من accepted إلى rejected والعكس
+   - زر "Undo" للتراجع
 
 4. **سبب الرفض:**
    - إضافة حقل `rejection_reason`
@@ -128,6 +160,7 @@ CREATE TABLE Internship_Matches (
    - عدد المقبولين
    - عدد المرفوضين
    - معدل القبول
+   - رسم بياني للحالات
 
 ---
 

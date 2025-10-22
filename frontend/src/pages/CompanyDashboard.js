@@ -38,6 +38,7 @@ function CompanyDashboard() {
   const [editingInternshipId, setEditingInternshipId] = useState(null);
   const [viewingInternship, setViewingInternship] = useState(null);
   const [applicants, setApplicants] = useState([]);
+  const [acceptedApplicants, setAcceptedApplicants] = useState([]);
   const [selectedInternshipFilter, setSelectedInternshipFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [matchScoreFilter, setMatchScoreFilter] = useState('all');
@@ -463,11 +464,12 @@ function CompanyDashboard() {
       const data = await response.json();
       
       if (data.success) {
-        alert('✅ Applicant accepted successfully!');
-        // Reload applicants
+        alert('✅ Applicant accepted successfully!\n📉 Internship capacity decreased by 1');
+        // Reload applicants and internships to update capacity
         loadApplicants();
+        loadInternships();
       } else {
-        alert('❌ Failed to accept applicant');
+        alert(`❌ ${data.message || 'Failed to accept applicant'}`);
       }
     } catch (error) {
       console.error('Error accepting applicant:', error);
@@ -503,11 +505,66 @@ function CompanyDashboard() {
     }
   };
 
+  // Load accepted applicants
+  const loadAcceptedApplicants = async () => {
+    if (!user) {
+      console.log('⚠️ No user found');
+      return;
+    }
+    
+    try {
+      console.log('🔍 Loading accepted applicants for:', user.email);
+      const response = await fetch(`http://localhost:5050/api/companies/email/${user.email}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📦 Company data:', data);
+        
+        if (data.success && data.company) {
+          const companyId = data.company.id;
+          console.log('🏢 Company ID:', companyId);
+          
+          console.log('✅ Fetching accepted applicants for company:', companyId);
+          const acceptedResponse = await fetch(`http://localhost:5050/api/matching/company/${companyId}/accepted`);
+          
+          if (acceptedResponse.ok) {
+            const acceptedData = await acceptedResponse.json();
+            console.log('✅ Accepted applicants data:', acceptedData);
+            
+            if (acceptedData.success) {
+              console.log(`✅ Loaded ${acceptedData.data.length} accepted applicants`);
+              setAcceptedApplicants(acceptedData.data);
+            } else {
+              console.log('⚠️ No accepted applicants found');
+              setAcceptedApplicants([]);
+            }
+          } else {
+            console.error('❌ Failed to fetch accepted applicants:', acceptedResponse.status);
+          }
+        } else {
+          console.error('❌ Company not found in response');
+        }
+      } else {
+        console.error('❌ Failed to fetch company:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error loading accepted applicants:', error);
+    }
+  };
+
   // Load applicants when switching to applicants tab
   useEffect(() => {
     if (activeMenu === 'applicants' && user) {
       loadInternships(); // Load internships first for the filter
       loadApplicants();
+    }
+  }, [activeMenu, user]);
+
+  // Load accepted applicants when switching to details tab
+  useEffect(() => {
+    if (activeMenu === 'details' && user) {
+      loadInternships(); // Load internships for the filter
+      loadAcceptedApplicants();
     }
   }, [activeMenu, user]);
 
@@ -608,9 +665,9 @@ function CompanyDashboard() {
             onClick={() => setActiveMenu('details')}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Applicant Details
+            Accepted Students
           </button>
 
           <button 
@@ -1531,7 +1588,142 @@ function CompanyDashboard() {
           </>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'post' && activeMenu !== 'manage' && activeMenu !== 'applicants' && (
+        {/* Accepted Students Section */}
+        {activeMenu === 'details' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Accepted Students</h1>
+              <p>Students who have been accepted for your internships</p>
+            </div>
+
+            {/* Internship Filter Dropdown */}
+            <div className="internship-filter-section">
+              <label htmlFor="internship-filter" className="filter-label">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd"/>
+                </svg>
+                Filter by Internship:
+              </label>
+              <select 
+                id="internship-filter"
+                value={selectedInternshipFilter}
+                onChange={(e) => setSelectedInternshipFilter(e.target.value)}
+                className="internship-filter-select"
+              >
+                <option value="all">All Internships ({acceptedApplicants.length})</option>
+                {internships.map(internship => {
+                  const count = acceptedApplicants.filter(a => a.internship_id === internship.id).length;
+                  return count > 0 ? (
+                    <option key={internship.id} value={internship.id}>
+                      {internship.title} ({count})
+                    </option>
+                  ) : null;
+                })}
+              </select>
+            </div>
+
+            {acceptedApplicants.length === 0 ? (
+              <div className="empty-state">
+                <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3>No Accepted Applicants Yet</h3>
+                <p>Accepted applicants will appear here</p>
+              </div>
+            ) : (
+              <>
+                {acceptedApplicants
+                  .filter(applicant => 
+                    selectedInternshipFilter === 'all' || 
+                    applicant.internship_id === parseInt(selectedInternshipFilter)
+                  ).length === 0 ? (
+                  <div className="empty-state">
+                    <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <h3>No Applicants for This Internship</h3>
+                    <p>Try selecting a different internship</p>
+                  </div>
+                ) : (
+                  <div className="applicants-grid">
+                    {acceptedApplicants
+                      .filter(applicant => 
+                        selectedInternshipFilter === 'all' || 
+                        applicant.internship_id === parseInt(selectedInternshipFilter)
+                      )
+                      .map((applicant, index) => (
+                  <div key={applicant.id || index} className="applicant-card accepted-card">
+                    <div className="accepted-badge">✓ Accepted</div>
+                    <div className="applicant-header">
+                      <div className="applicant-avatar">
+                        {applicant.student_img ? (
+                          <img 
+                            src={`http://localhost:5050${applicant.student_img}`} 
+                            alt={applicant.full_name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                          />
+                        ) : (
+                          applicant.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'
+                        )}
+                      </div>
+                      <div className="applicant-info">
+                        <h3>{applicant.full_name || 'Student Name'}</h3>
+                        <p className="university-name">{applicant.university_name || 'University'}</p>
+                        <p className="major-year">{applicant.major || 'Major'} • {applicant.year_of_study || 'Year'}</p>
+                      </div>
+                      <div className={`match-badge ${
+                        applicant.match_percentage >= 90 ? 'match-high' : 
+                        applicant.match_percentage >= 75 ? 'match-good' : 
+                        applicant.match_percentage >= 60 ? 'match-medium' : 'match-low'
+                      }`}>
+                        {applicant.match_percentage}% match
+                      </div>
+                    </div>
+
+                    <div className="applicant-details">
+                      <div className="detail-row">
+                        <span className="detail-label">GPA</span>
+                        <span className="detail-value">{applicant.gpa || 'N/A'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Accepted Date</span>
+                        <span className="detail-value">
+                          {applicant.applied_at ? new Date(applicant.applied_at).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Position</span>
+                        <span className="detail-value">{applicant.internship_title || 'N/A'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Email</span>
+                        <span className="detail-value">{applicant.email || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    {applicant.matched_skills && applicant.matched_skills.length > 0 && (
+                      <div className="applicant-skills">
+                        <span className="skills-label">Top Skills:</span>
+                        <div className="skills-tags">
+                          {applicant.matched_skills.slice(0, 4).map((skill, idx) => (
+                            <span key={idx} className="skill-tag">{skill}</span>
+                          ))}
+                          {applicant.matched_skills.length > 4 && (
+                            <span className="skill-tag">+{applicant.matched_skills.length - 4} more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'post' && activeMenu !== 'manage' && activeMenu !== 'applicants' && activeMenu !== 'details' && (
           <div className="dashboard-header">
             <h1>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)}</h1>
             <p>This section is under development</p>

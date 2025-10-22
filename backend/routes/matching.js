@@ -4,6 +4,7 @@ import Student from "../models/Student.js";
 import CV from "../models/CV.js";
 import Internship from "../models/Internship.js";
 import aiMatchingService from "../services/aiMatchingService.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
@@ -436,6 +437,31 @@ router.get("/company/:companyId/applicants", async (req, res) => {
   }
 });
 
+// Get accepted applicants for a company
+router.get("/company/:companyId/accepted", async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    
+    console.log(`✅ Getting accepted applicants for company ${companyId}...`);
+
+    const acceptedApplicants = await InternshipMatch.getAcceptedApplicantsByCompany(companyId);
+
+    console.log(`✅ Found ${acceptedApplicants.length} accepted applicants`);
+
+    res.status(200).json({
+      success: true,
+      data: acceptedApplicants
+    });
+
+  } catch (error) {
+    console.error("❌ Get accepted applicants error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Accept applicant
 router.post("/applicant/:matchId/accept", async (req, res) => {
   try {
@@ -443,13 +469,58 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
     
     console.log(`✅ Accepting applicant with match ID ${matchId}...`);
 
-    await InternshipMatch.updateStatus(matchId, 'accepted');
+    // Check capacity before accepting
+    const checkCapacityQuery = `
+      SELECT i.capacity, i.title 
+      FROM Internships i
+      INNER JOIN Internship_Matches im ON i.id = im.internship_id
+      WHERE im.id = ?
+    `;
+    
+    db.query(checkCapacityQuery, [matchId], async (err, results) => {
+      if (err) {
+        console.error("❌ Error checking capacity:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
 
-    console.log(`✅ Applicant ${matchId} accepted`);
+      if (results.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Internship not found"
+        });
+      }
 
-    res.status(200).json({
-      success: true,
-      message: "Applicant accepted successfully"
+      const internship = results[0];
+      
+      if (internship.capacity <= 0) {
+        console.log(`⚠️ Cannot accept: ${internship.title} has no available capacity`);
+        return res.status(400).json({
+          success: false,
+          message: "This internship has reached its maximum capacity"
+        });
+      }
+
+      // Proceed with acceptance
+      try {
+        await InternshipMatch.updateStatus(matchId, 'accepted');
+
+        console.log(`✅ Applicant ${matchId} accepted successfully`);
+        console.log(`📉 ${internship.title} capacity: ${internship.capacity} → ${internship.capacity - 1}`);
+
+        res.status(200).json({
+          success: true,
+          message: "Applicant accepted successfully"
+        });
+      } catch (error) {
+        console.error("❌ Accept applicant error:", error);
+        res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
     });
 
   } catch (error) {

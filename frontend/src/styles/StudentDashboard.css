@@ -1061,21 +1061,22 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 28px;
-  margin-top: 24px;
+  margin-top: 40px;
+  padding-top: 20px;
 }
 
 .internship-card {
   background: white;
   border-radius: 16px;
   padding: 28px;
-  padding-top: 60px;
+  padding-top: 50px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   gap: 20px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #f0f0f0;
 }
 
@@ -1104,7 +1105,7 @@
 /* Match Badge */
 .match-badge-container {
   position: absolute;
-  top: 16px;
+  top: -12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -1115,14 +1116,14 @@
   align-items: center;
   gap: 7px;
   padding: 8px 20px;
-  border-radius: 24px;
+  border-radius: 25px;
   font-size: 14px;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(4px);
-  transition: all 0.3s;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
   white-space: nowrap;
+  letter-spacing: 0.3px;
   min-width: fit-content;
 }
 

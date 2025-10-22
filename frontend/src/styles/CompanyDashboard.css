@@ -12,6 +12,62 @@
   padding: 0 32px;
 }
 
+/* Internship Filter Section */
+.internship-filter-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 32px;
+  background: white;
+  border-radius: 12px;
+  margin: 0 32px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 2px solid #e5e7eb;
+}
+
+.filter-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.filter-label svg {
+  color: #3b82f6;
+}
+
+.internship-filter-select {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1f2937;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.internship-filter-select:hover {
+  border-color: #3b82f6;
+  background-color: #f9fafb;
+}
+
+.internship-filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.internship-filter-select option {
+  padding: 12px;
+  font-size: 14px;
+}
+
 .filter-select {
   flex: 1;
   padding: 10px 16px;
@@ -48,11 +104,34 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.3s;
   border: 1px solid #e5e7eb;
+  position: relative;
 }
 
 .applicant-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
+}
+
+.accepted-card {
+  border: 2px solid #10b981;
+  background: linear-gradient(to bottom, #f0fdf4 0%, white 100%);
+}
+
+.accepted-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: #10b981;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  z-index: 10;
 }
 
 .applicant-header {
@@ -61,6 +140,7 @@
   gap: 16px;
   margin-bottom: 20px;
   position: relative;
+  padding-top: 40px;
 }
 
 .applicant-avatar {
@@ -102,12 +182,13 @@
 
 .match-badge {
   position: absolute;
-  top: 0;
+  top: -35px;
   right: 0;
-  padding: 6px 12px;
+  padding: 8px 16px;
   border-radius: 20px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .match-high {
