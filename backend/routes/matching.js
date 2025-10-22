@@ -3,6 +3,7 @@ import InternshipMatch from "../models/InternshipMatch.js";
 import Student from "../models/Student.js";
 import CV from "../models/CV.js";
 import Internship from "../models/Internship.js";
+import Notification from "../models/Notification.js";
 import aiMatchingService from "../services/aiMatchingService.js";
 import db from "../config/database.js";
 
@@ -469,6 +470,16 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
     
     console.log(`✅ Accepting applicant with match ID ${matchId}...`);
 
+    // Get match details before updating
+    const matchDetails = await InternshipMatch.getMatchDetailsById(matchId);
+    
+    if (!matchDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found"
+      });
+    }
+
     // Check capacity before accepting
     const checkCapacityQuery = `
       SELECT i.capacity, i.title 
@@ -510,6 +521,20 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
         console.log(`✅ Applicant ${matchId} accepted successfully`);
         console.log(`📉 ${internship.title} capacity: ${internship.capacity} → ${internship.capacity - 1}`);
 
+        // Send notification to student
+        try {
+          await Notification.create({
+            user_id: matchDetails.student_user_id,
+            title: '🎉 Application Accepted!',
+            message: `Congratulations! Your application for "${matchDetails.internship_title}" at ${matchDetails.company_name} has been accepted.`,
+            type: 'application'
+          });
+          console.log(`📧 Notification sent to student (user_id: ${matchDetails.student_user_id})`);
+        } catch (notifError) {
+          console.error("⚠️  Failed to send notification:", notifError);
+          // Don't fail the request if notification fails
+        }
+
         res.status(200).json({
           success: true,
           message: "Applicant accepted successfully"
@@ -539,9 +564,34 @@ router.post("/applicant/:matchId/reject", async (req, res) => {
     
     console.log(`❌ Rejecting applicant with match ID ${matchId}...`);
 
+    // Get match details before updating
+    const matchDetails = await InternshipMatch.getMatchDetailsById(matchId);
+    
+    if (!matchDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found"
+      });
+    }
+
+    // Update status to rejected
     await InternshipMatch.updateStatus(matchId, 'rejected');
 
     console.log(`❌ Applicant ${matchId} rejected`);
+
+    // Send notification to student
+    try {
+      await Notification.create({
+        user_id: matchDetails.student_user_id,
+        title: 'Application Update',
+        message: `Thank you for your interest in "${matchDetails.internship_title}" at ${matchDetails.company_name}. Unfortunately, your application was not selected at this time. Keep looking for other opportunities!`,
+        type: 'application'
+      });
+      console.log(`📧 Notification sent to student (user_id: ${matchDetails.student_user_id})`);
+    } catch (notifError) {
+      console.error("⚠️  Failed to send notification:", notifError);
+      // Don't fail the request if notification fails
+    }
 
     res.status(200).json({
       success: true,
