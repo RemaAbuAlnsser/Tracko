@@ -34,7 +34,7 @@ async function addApplicationType() {
     
     console.log('✅ Migration completed successfully!');
     console.log('');
-    console.log('Updated Notifications.type ENUM to include:');
+    console.log('Updated notifications.type ENUM to include:');
     console.log("  - 'appointment'");
     console.log("  - 'submission'");
     console.log("  - 'meeting'");

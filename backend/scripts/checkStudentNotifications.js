@@ -39,7 +39,7 @@ async function checkNotifications() {
     // Check notifications
     console.log('2️⃣ Checking notifications for this user...');
     const [notifications] = await connection.query(
-      'SELECT * FROM Notifications WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
       [student.user_id]
     );
     
@@ -50,7 +50,7 @@ async function checkNotifications() {
       console.log('\n💡 Creating a test notification...');
       
       await connection.query(
-        'INSERT INTO Notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
         [
           student.user_id,
           '🎉 Test Notification',
@@ -63,7 +63,7 @@ async function checkNotifications() {
       
       // Check again
       const [newNotifications] = await connection.query(
-        'SELECT * FROM Notifications WHERE user_id = ? ORDER BY created_at DESC',
+        'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
         [student.user_id]
       );
       

@@ -52,6 +52,7 @@ function StudentDashboard() {
     loadStudentData(parsedUser.id);
     loadPartnershipInternships(parsedUser.id);
     loadSavedInternshipsWithUser(parsedUser);
+    loadNotificationsOnLogin(parsedUser);
   }, [navigate]);
 
   const loadSavedInternshipsWithUser = async (userData) => {
@@ -369,6 +370,34 @@ function StudentDashboard() {
         match: 89
       }
     ]);
+  };
+
+  const loadNotificationsOnLogin = async (userData) => {
+    if (!userData) {
+      console.log('❌ No user data provided');
+      return;
+    }
+    
+    console.log('🔔 Loading notifications on login for user:', userData.id);
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/notifications/user/${userData.id}`);
+      console.log('📡 Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+      
+      if (data.success) {
+        console.log(`✅ Notifications loaded: ${data.notifications.length} total`);
+        const unreadCount = data.notifications.filter(n => !n.is_read).length;
+        console.log(`📬 Unread notifications: ${unreadCount}`);
+        setNotifications(data.notifications || []);
+      } else {
+        console.log('⚠️ API returned error:', data.message);
+      }
+    } catch (error) {
+      console.error('❌ Error loading notifications:', error);
+    }
   };
 
   const loadNotifications = async () => {

@@ -20,11 +20,11 @@ async function checkTable() {
     });
 
     console.log('✅ Connected to database');
-    console.log('📋 Checking Notifications table structure...\n');
+    console.log('📋 Checking notifications table structure...\n');
     
-    const [columns] = await connection.query('DESCRIBE Notifications');
+    const [columns] = await connection.query('DESCRIBE notifications');
     
-    console.log('Table: Notifications');
+    console.log('Table: notifications');
     console.log('─'.repeat(100));
     
     columns.forEach(col => {

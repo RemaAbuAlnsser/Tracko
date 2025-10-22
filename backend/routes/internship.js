@@ -2,6 +2,9 @@ import express from "express";
 import Internship from "../models/Internship.js";
 import Company from "../models/Company.js";
 import Student from "../models/Student.js";
+import CV from "../models/CV.js";
+import Notification from "../models/Notification.js";
+import aiMatchingService from "../services/aiMatchingService.js";
 import db from "../config/database.js";
 
 const router = express.Router();
@@ -58,6 +61,20 @@ router.post("/", async (req, res) => {
       
       console.log(`✅ Assigned ${trainer_ids.length} trainer(s) to internship ${internshipId}`);
     }
+
+    // Send notifications to matching students (async, don't wait for it)
+    notifyMatchingStudents(internshipId, {
+      company_id: company.id,
+      company_name: company.name,
+      title,
+      description,
+      requirements,
+      specialization,
+      min_gpa,
+      work_mode
+    }).catch(err => {
+      console.error('⚠️  Error sending notifications:', err);
+    });
 
     res.status(201).json({
       success: true,
@@ -432,5 +449,72 @@ router.get("/:id", async (req, res) => {
     });
   }
 });
+
+// Helper function: Notify matching students about new internship
+async function notifyMatchingStudents(internshipId, internshipData) {
+  try {
+    console.log(`\n🔔 Starting notification process for internship ${internshipId}...`);
+    
+    // Get all students with CVs
+    const students = await Student.findAll();
+    console.log(`📊 Found ${students.length} students to check`);
+    
+    let notificationsSent = 0;
+    
+    for (const student of students) {
+      try {
+        // Get student's CV
+        const cv = await CV.findByStudentId(student.id);
+        if (!cv || !cv.analysis_data) {
+          continue; // Skip students without CV or analysis
+        }
+        
+        // Parse CV data
+        let cvData = cv.analysis_data;
+        if (typeof cvData === 'string') {
+          cvData = JSON.parse(cvData);
+        }
+        
+        // Get student GPA and work mode preference
+        const studentGPA = cvData.GPA ? parseFloat(cvData.GPA) : student.gpa;
+        const studentWorkMode = cvData.work_mode || cvData.status || cvData.WorkMode || null;
+        
+        // Calculate match percentage
+        const matchResult = aiMatchingService.calculateMatch(
+          cv.analysis_data,
+          internshipData.requirements,
+          internshipData.specialization,
+          internshipData.min_gpa,
+          internshipData.work_mode,
+          studentGPA,
+          studentWorkMode
+        );
+        
+        // Send notification if match is above 50%
+        if (matchResult.matchPercentage > 50) {
+          await Notification.create({
+            user_id: student.user_id,
+            title: '🎯 New Matching Internship!',
+            message: `A new internship "${internshipData.title}" at ${internshipData.company_name} matches your profile with ${matchResult.matchPercentage}% compatibility!`,
+            type: 'general'
+          });
+          
+          notificationsSent++;
+          console.log(`✅ Notification sent to ${student.full_name} (${matchResult.matchPercentage}% match)`);
+        }
+        
+      } catch (studentError) {
+        console.error(`⚠️  Error processing student ${student.id}:`, studentError.message);
+        // Continue with next student
+      }
+    }
+    
+    console.log(`\n✅ Notification process completed: ${notificationsSent} notifications sent\n`);
+    
+  } catch (error) {
+    console.error('❌ Error in notifyMatchingStudents:', error);
+    throw error;
+  }
+}
 
 export default router;

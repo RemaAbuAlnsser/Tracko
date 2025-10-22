@@ -11,7 +11,7 @@ class Notification {
     } = notificationData;
     
     const query = `
-      INSERT INTO Notifications (user_id, title, message, type) 
+      INSERT INTO notifications (user_id, title, message, type) 
       VALUES (?, ?, ?, ?)
     `;
     
@@ -33,7 +33,7 @@ class Notification {
   // Get all notifications for a user
   static getByUserId(userId, filters = {}) {
     let query = `
-      SELECT * FROM Notifications 
+      SELECT * FROM notifications 
       WHERE user_id = ?
     `;
     const params = [userId];
@@ -71,7 +71,7 @@ class Notification {
 
   // Get notification by ID
   static findById(id) {
-    const query = "SELECT * FROM Notifications WHERE id = ?";
+    const query = "SELECT * FROM notifications WHERE id = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [id], (err, results) => {
@@ -86,7 +86,7 @@ class Notification {
 
   // Mark notification as read
   static markAsRead(id) {
-    const query = "UPDATE Notifications SET is_read = TRUE WHERE id = ?";
+    const query = "UPDATE notifications SET is_read = TRUE WHERE id = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [id], (err, result) => {
@@ -101,7 +101,7 @@ class Notification {
 
   // Mark all notifications as read for a user
   static markAllAsRead(userId) {
-    const query = "UPDATE Notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE";
+    const query = "UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE";
     
     return new Promise((resolve, reject) => {
       db.query(query, [userId], (err, result) => {
@@ -116,7 +116,7 @@ class Notification {
 
   // Delete notification
   static delete(id) {
-    const query = "DELETE FROM Notifications WHERE id = ?";
+    const query = "DELETE FROM notifications WHERE id = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [id], (err, result) => {
@@ -131,7 +131,7 @@ class Notification {
 
   // Delete all notifications for a user
   static deleteAllByUserId(userId) {
-    const query = "DELETE FROM Notifications WHERE user_id = ?";
+    const query = "DELETE FROM notifications WHERE user_id = ?";
     
     return new Promise((resolve, reject) => {
       db.query(query, [userId], (err, result) => {
@@ -146,7 +146,7 @@ class Notification {
 
   // Get unread count for a user
   static getUnreadCount(userId) {
-    const query = "SELECT COUNT(*) as count FROM Notifications WHERE user_id = ? AND is_read = FALSE";
+    const query = "SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = FALSE";
     
     return new Promise((resolve, reject) => {
       db.query(query, [userId], (err, results) => {
@@ -163,7 +163,7 @@ class Notification {
   static getAll(filters = {}) {
     let query = `
       SELECT n.*, u.full_name, u.email 
-      FROM Notifications n
+      FROM notifications n
       LEFT JOIN Users u ON n.user_id = u.id
     `;
     const params = [];
@@ -204,7 +204,7 @@ class Notification {
   // Create bulk notifications
   static createBulk(notifications) {
     const query = `
-      INSERT INTO Notifications (user_id, title, message, type) 
+      INSERT INTO notifications (user_id, title, message, type) 
       VALUES ?
     `;
     

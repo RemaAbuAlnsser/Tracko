@@ -425,6 +425,7 @@
   background: none;
   width: calc(100% - 24px);
   text-align: left;
+  position: relative;
 }
 
 .nav-item:hover {
@@ -441,6 +442,27 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+
+/* Notification Badge */
+.notification-badge {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  min-width: 20px;
+  text-align: center;
+  line-height: 1.5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.nav-item.active .notification-badge {
+  background: #dc2626;
 }
 
 /* Logout Button */

@@ -325,10 +325,10 @@ class InternshipMatch {
           return reject(err);
         }
 
-        // Update status
+        // Update status and set applied to 0 when accepting or rejecting
         const updateStatusQuery = `
           UPDATE Internship_Matches 
-          SET status = ? 
+          SET status = ?, applied = 0
           WHERE id = ?
         `;
 
@@ -502,7 +502,7 @@ class InternshipMatch {
       LEFT JOIN Universities un ON s.university_id = un.id
       LEFT JOIN CVs cv ON s.id = cv.student_id
       INNER JOIN Internships i ON im.internship_id = i.id
-      WHERE i.company_id = ? AND im.applied = TRUE AND im.status = 'accepted'
+      WHERE i.company_id = ? AND im.status = 'accepted'
       ORDER BY im.applied_at DESC
     `;
     

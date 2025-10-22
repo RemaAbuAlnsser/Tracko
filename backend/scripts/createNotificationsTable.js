@@ -2,10 +2,10 @@ import db from "../config/database.js";
 
 async function createNotificationsTable() {
   try {
-    console.log("🔧 Creating Notifications table...");
+    console.log("🔧 Creating notifications table...");
     
     const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS Notifications (
+      CREATE TABLE IF NOT EXISTS notifications (
         id INT PRIMARY KEY AUTO_INCREMENT,
         user_id INT NOT NULL,
         title VARCHAR(255) NOT NULL,
@@ -22,11 +22,11 @@ async function createNotificationsTable() {
     
     db.query(createTableQuery, (err, result) => {
       if (err) {
-        console.error("❌ Error creating Notifications table:", err);
+        console.error("❌ Error creating notifications table:", err);
         process.exit(1);
       }
       
-      console.log("✅ Notifications table created successfully!");
+      console.log("✅ notifications table created successfully!");
       console.log("📋 Table structure:");
       console.log("   - id: PRIMARY KEY, AUTO_INCREMENT");
       console.log("   - user_id: FOREIGN KEY -> Users(id)");

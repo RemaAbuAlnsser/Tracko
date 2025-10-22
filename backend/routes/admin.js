@@ -198,11 +198,11 @@ router.post("/stats", isAdmin, async (req, res) => {
         totalTrainers: "SELECT COUNT(*) as count FROM Trainers",
         totalInternships: "SELECT COUNT(*) as count FROM Internships",
         totalPartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships",
-        totalNotifications: "SELECT COUNT(*) as count FROM Notifications",
+        totalNotifications: "SELECT COUNT(*) as count FROM notifications",
         pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending'",
         activeInternships: "SELECT COUNT(*) as count FROM Internships WHERE status = 'active'",
         activePartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships WHERE status = 'active'",
-        unreadNotifications: "SELECT COUNT(*) as count FROM Notifications WHERE is_read = FALSE",
+        unreadNotifications: "SELECT COUNT(*) as count FROM notifications WHERE is_read = FALSE",
         pendingCompanies: "SELECT COUNT(*) as count FROM Company WHERE status = 'pending'"
       };
       
@@ -512,7 +512,7 @@ router.put("/notifications/:notificationId/read", isAdmin, async (req, res) => {
     }
     
     // Update notification status to read
-    const query = "UPDATE Notifications SET is_read = TRUE WHERE id = ?";
+    const query = "UPDATE notifications SET is_read = TRUE WHERE id = ?";
     
     db.query(query, [notificationId], (err, result) => {
       if (err) {

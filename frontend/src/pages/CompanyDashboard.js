@@ -42,6 +42,8 @@ function CompanyDashboard() {
   const [selectedInternshipFilter, setSelectedInternshipFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [matchScoreFilter, setMatchScoreFilter] = useState('all');
+  const [newApplicantsCount, setNewApplicantsCount] = useState(0);
+  const [lastViewedTime, setLastViewedTime] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -107,7 +109,45 @@ function CompanyDashboard() {
     
     loadCompanyData();
     loadCompanyTrainers();
+    loadNewApplicantsCount(parsedUser);
   }, [navigate]);
+
+  // Load new applicants count on login
+  const loadNewApplicantsCount = async (userData) => {
+    if (!userData) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/companies/email/${userData.email}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.company) {
+          const companyId = data.company.id;
+          
+          // Get applicants
+          const applicantsResponse = await fetch(`http://localhost:5050/api/matching/company/${companyId}/applicants`);
+          if (applicantsResponse.ok) {
+            const applicantsData = await applicantsResponse.json();
+            if (applicantsData.success && applicantsData.data) {
+              const storedTime = localStorage.getItem(`company_${companyId}_lastViewedApplicants`);
+              if (storedTime) {
+                const lastViewed = new Date(storedTime);
+                const newCount = applicantsData.data.filter(app => {
+                  const appliedDate = new Date(app.applied_at);
+                  return appliedDate > lastViewed;
+                }).length;
+                setNewApplicantsCount(newCount);
+                console.log(`🔔 ${newCount} new applicants since last view`);
+              } else {
+                setNewApplicantsCount(applicantsData.data.length);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading new applicants count:', error);
+    }
+  };
 
   const loadCompanyTrainers = async () => {
     try {
@@ -427,9 +467,25 @@ function CompanyDashboard() {
             if (applicantsData.success) {
               console.log(`📋 Loaded ${applicantsData.data.length} applicants`);
               setApplicants(applicantsData.data);
+              
+              // Calculate new applicants count
+              const storedTime = localStorage.getItem(`company_${companyId}_lastViewedApplicants`);
+              if (storedTime) {
+                const lastViewed = new Date(storedTime);
+                const newCount = applicantsData.data.filter(app => {
+                  const appliedDate = new Date(app.applied_at);
+                  return appliedDate > lastViewed;
+                }).length;
+                setNewApplicantsCount(newCount);
+                console.log(`🆕 ${newCount} new applicants since last view`);
+              } else {
+                // First time viewing, all are new
+                setNewApplicantsCount(applicantsData.data.length);
+              }
             } else {
               console.log('⚠️ No applicants found');
               setApplicants([]);
+              setNewApplicantsCount(0);
             }
           } else {
             console.error('❌ Failed to fetch applicants:', applicantsResponse.status);
@@ -552,6 +608,29 @@ function CompanyDashboard() {
     }
   };
 
+  // Handle clicking on Applicants List - mark as viewed
+  const handleApplicantsMenuClick = async () => {
+    setActiveMenu('applicants');
+    
+    // Get company ID and save current time as last viewed
+    if (user) {
+      try {
+        const response = await fetch(`http://localhost:5050/api/companies/email/${user.email}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.company) {
+            const companyId = data.company.id;
+            localStorage.setItem(`company_${companyId}_lastViewedApplicants`, new Date().toISOString());
+            setNewApplicantsCount(0); // Reset counter
+            console.log('✅ Marked applicants as viewed');
+          }
+        }
+      } catch (error) {
+        console.error('Error updating last viewed time:', error);
+      }
+    }
+  };
+
   // Load applicants when switching to applicants tab
   useEffect(() => {
     if (activeMenu === 'applicants' && user) {
@@ -652,12 +731,17 @@ function CompanyDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'applicants' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('applicants')}
+            onClick={handleApplicantsMenuClick}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             Applicants List
+            {newApplicantsCount > 0 && (
+              <span className="notification-badge">
+                {newApplicantsCount}
+              </span>
+            )}
           </button>
 
           <button 
