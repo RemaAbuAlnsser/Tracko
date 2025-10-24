@@ -1,0 +1,364 @@
+/* Training Plan Card with Timeline */
+.training-plan-card {
+  background: white;
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #1e88e5;
+}
+
+.plan-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.plan-title-section h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.plan-company {
+  font-size: 16px;
+  color: #6b7280;
+  font-weight: 500;
+  margin: 4px 0;
+}
+
+.plan-applied-date {
+  font-size: 14px;
+  color: #9ca3af;
+  margin: 4px 0 0 0;
+}
+
+.plan-status-badge {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.plan-status-badge.status-active {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.plan-status-badge.status-completed {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.plan-status-badge.status-draft {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Next Step Section */
+.plan-next-step {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.plan-next-step h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px 0;
+}
+
+.plan-next-step p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Application Timeline Section */
+.application-timeline-section {
+  margin-top: 24px;
+}
+
+.application-timeline-section h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 20px 0;
+}
+
+.timeline-container {
+  position: relative;
+  padding-left: 0;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 24px;
+}
+
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #e5e7eb;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 2px #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.timeline-dot.active {
+  background-color: #1e88e5;
+  box-shadow: 0 0 0 2px #1e88e5;
+}
+
+.timeline-dot.active svg {
+  color: white;
+}
+
+/* Approved status - Blue */
+.timeline-dot.approved {
+  background-color: #1e88e5;
+  box-shadow: 0 0 0 2px #1e88e5;
+}
+
+.timeline-dot.approved svg {
+  color: white;
+}
+
+/* Pending status - Gray */
+.timeline-dot.pending {
+  background-color: #f59e0b;
+  box-shadow: 0 0 0 2px #f59e0b;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 15px;
+  top: 32px;
+  width: 2px;
+  height: calc(100% - 8px);
+  background-color: #e5e7eb;
+  z-index: 1;
+}
+
+.timeline-content {
+  flex: 1;
+  padding-top: 4px;
+}
+
+.timeline-task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.timeline-task-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.timeline-date {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.btn-view-task-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-view-task-details:hover {
+  background-color: #1e88e5;
+  border-color: #1e88e5;
+  color: white;
+}
+
+.btn-view-task-details svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Task Modal */
+.task-modal {
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.task-detail-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.task-detail-section:last-of-type {
+  border-bottom: none;
+}
+
+.task-detail-section h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.task-week-description {
+  font-size: 15px;
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 8px 0 0 0;
+}
+
+.task-detail-section h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-detail-section h4 svg {
+  color: #1e88e5;
+}
+
+.task-content {
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* Upload Solution Section */
+.task-upload-section {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.task-upload-section h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-upload-section h4 svg {
+  color: #1e88e5;
+}
+
+.upload-solution-area {
+  text-align: center;
+}
+
+.upload-solution-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 48px;
+  background-color: white;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.upload-solution-btn:hover {
+  border-color: #1e88e5;
+  background-color: #eff6ff;
+}
+
+.upload-solution-btn svg {
+  color: #9ca3af;
+  transition: color 0.3s;
+}
+
+.upload-solution-btn:hover svg {
+  color: #1e88e5;
+}
+
+.upload-solution-btn span {
+  font-size: 15px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.upload-hint {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 12px 0 0 0;
+}
+
+/* Plans List */
+.plans-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .training-plan-card {
+    padding: 20px;
+  }
+
+  .plan-card-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .timeline-task-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .btn-view-task-details {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .task-modal {
+    max-width: 95%;
+    margin: 20px;
+  }
+}

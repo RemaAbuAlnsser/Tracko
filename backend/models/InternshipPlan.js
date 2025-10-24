@@ -33,6 +33,7 @@ class InternshipPlan {
           description TEXT,
           objectives TEXT,
           tasks TEXT,
+          task_description TEXT,
           resources TEXT,
           deliverables TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -238,19 +239,20 @@ class InternshipPlan {
         description, 
         objectives,
         tasks,
+        task_description,
         resources,
         deliverables
       } = weekData;
 
       const query = `
         INSERT INTO Plan_Weeks 
-        (plan_id, week_number, title, description, objectives, tasks, resources, deliverables)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       db.query(
         query,
-        [plan_id, week_number, title, description, objectives, tasks, resources, deliverables],
+        [plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);
@@ -267,6 +269,7 @@ class InternshipPlan {
         description, 
         objectives,
         tasks,
+        task_description,
         resources,
         deliverables
       } = weekData;
@@ -274,13 +277,13 @@ class InternshipPlan {
       const query = `
         UPDATE Plan_Weeks 
         SET title = ?, description = ?, objectives = ?, 
-            tasks = ?, resources = ?, deliverables = ?
+            tasks = ?, task_description = ?, resources = ?, deliverables = ?
         WHERE id = ?
       `;
 
       db.query(
         query,
-        [title, description, objectives, tasks, resources, deliverables, weekId],
+        [title, description, objectives, tasks, task_description, resources, deliverables, weekId],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);

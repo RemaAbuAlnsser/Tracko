@@ -61,6 +61,14 @@ function TrainerDashboard() {
     status: 'draft'
   });
   const [planWeeks, setPlanWeeks] = useState([]);
+  const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState('approved');
+  const [reviewComment, setReviewComment] = useState('');
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -83,6 +91,9 @@ function TrainerDashboard() {
     
     // Load trainer data from database
     loadTrainerData(parsedUser.id);
+    
+    // Load notifications on login
+    loadNotificationsOnLogin(parsedUser);
   }, [navigate]);
 
   const loadTrainerData = async (userId) => {
@@ -178,7 +189,27 @@ function TrainerDashboard() {
       const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/students`);
       const data = await response.json();
       if (data.success) {
-        setStudents(data.students || []);
+        const studentsWithPendingCount = await Promise.all(
+          (data.students || []).map(async (student) => {
+            try {
+              const countResponse = await fetch(
+                `http://localhost:5050/api/task-submissions/student/${student.student_id}/trainer/${trainerId}/pending-count`
+              );
+              const countData = await countResponse.json();
+              return {
+                ...student,
+                pendingSubmissions: countData.success ? countData.count : 0
+              };
+            } catch (error) {
+              console.error(`Error loading pending count for student ${student.student_id}:`, error);
+              return {
+                ...student,
+                pendingSubmissions: 0
+              };
+            }
+          })
+        );
+        setStudents(studentsWithPendingCount);
       }
     } catch (error) {
       console.error('Error loading students:', error);
@@ -195,6 +226,61 @@ function TrainerDashboard() {
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
+    }
+  };
+
+  const loadNotificationsOnLogin = async (userData) => {
+    if (!userData) {
+      console.log('❌ No user data provided');
+      return;
+    }
+    
+    console.log('🔔 Loading notifications on login for user:', userData.id);
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/notifications/user/${userData.id}`);
+      console.log('📡 Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+      
+      if (data.success) {
+        console.log(`✅ Notifications loaded: ${data.notifications.length} total`);
+        const unreadCount = data.notifications.filter(n => !n.is_read).length;
+        console.log(`📬 Unread notifications: ${unreadCount}`);
+        setNotifications(data.notifications || []);
+      } else {
+        console.log('⚠️ API returned error:', data.message);
+      }
+    } catch (error) {
+      console.error('❌ Error loading notifications on login:', error);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update local state
+        setNotifications(notifications.map(notif => 
+          notif.id === notificationId 
+            ? { ...notif, is_read: true } 
+            : notif
+        ));
+        console.log('Notification marked as read');
+      } else {
+        console.error('Failed to mark notification as read:', data.message);
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
     }
   };
 
@@ -505,6 +591,7 @@ function TrainerDashboard() {
       description: '',
       objectives: '',
       tasks: '',
+      task_description: '',
       resources: '',
       deliverables: ''
     }]);
@@ -523,6 +610,163 @@ function TrainerDashboard() {
       week.week_number = i + 1;
     });
     setPlanWeeks(updatedWeeks);
+  };
+
+  const handleViewStudentTasks = async (student) => {
+    setSelectedStudent(student);
+    setShowSubmissionsModal(true);
+    setLoadingSubmissions(true);
+    
+    try {
+      // Get student's current training plan
+      const plansResponse = await fetch(`http://localhost:5050/api/plans/student/${student.student_id}`);
+      const plansData = await plansResponse.json();
+      
+      let currentPlanId = null;
+      if (plansData.success && plansData.plans && plansData.plans.length > 0) {
+        // Get the active or most recent plan
+        const activePlan = plansData.plans.find(p => p.status === 'active') || plansData.plans[0];
+        currentPlanId = activePlan.id;
+      }
+      
+      // Fetch submissions for current plan only
+      let url = `http://localhost:5050/api/task-submissions/student/${student.student_id}/trainer/${trainerId}`;
+      if (currentPlanId) {
+        url += `?planId=${currentPlanId}`;
+      }
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSubmissions(data.submissions || []);
+      }
+    } catch (error) {
+      console.error('Error loading submissions:', error);
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  const handleReviewSubmission = (submission) => {
+    setSelectedSubmission(submission);
+    setReviewStatus(submission.status === 'pending' ? 'approved' : submission.status);
+    setReviewComment(submission.trainer_comment || '');
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedSubmission) return;
+
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/task-submissions/${selectedSubmission.id}/review`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: reviewStatus,
+          trainer_comment: reviewComment
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setMessage({ 
+          type: 'success', 
+          text: 'Review submitted successfully! Student has been notified.' 
+        });
+        
+        // Reload submissions
+        if (selectedStudent) {
+          // Get student's current training plan
+          const plansResponse = await fetch(`http://localhost:5050/api/plans/student/${selectedStudent.student_id}`);
+          const plansData = await plansResponse.json();
+          
+          let currentPlanId = null;
+          if (plansData.success && plansData.plans && plansData.plans.length > 0) {
+            const activePlan = plansData.plans.find(p => p.status === 'active') || plansData.plans[0];
+            currentPlanId = activePlan.id;
+          }
+          
+          let url = `http://localhost:5050/api/task-submissions/student/${selectedStudent.student_id}/trainer/${trainerId}`;
+          if (currentPlanId) {
+            url += `?planId=${currentPlanId}`;
+          }
+          
+          const reloadResponse = await fetch(url);
+          const reloadData = await reloadResponse.json();
+          if (reloadData.success) {
+            setSubmissions(reloadData.submissions || []);
+          }
+
+          // Update pending count for this student in the students list
+          try {
+            const countResponse = await fetch(
+              `http://localhost:5050/api/task-submissions/student/${selectedStudent.student_id}/trainer/${trainerId}/pending-count`
+            );
+            const countData = await countResponse.json();
+            if (countData.success) {
+              setStudents(prevStudents => 
+                prevStudents.map(student => 
+                  student.student_id === selectedStudent.student_id
+                    ? { ...student, pendingSubmissions: countData.count }
+                    : student
+                )
+              );
+            }
+          } catch (error) {
+            console.error('Error updating pending count:', error);
+          }
+        }
+        
+        setTimeout(() => {
+          setShowReviewModal(false);
+          setMessage({ type: '', text: '' });
+        }, 1500);
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: data.message || 'Failed to submit review' 
+        });
+      }
+    } catch (error) {
+      console.error('Submit review error:', error);
+      setMessage({ type: 'error', text: 'Failed to submit review' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { text: 'Pending Review', color: '#fb8c00', bgColor: '#fff3e0' },
+      approved: { text: 'Approved', color: '#43a047', bgColor: '#e8f5e9' },
+      rejected: { text: 'Needs Revision', color: '#e53935', bgColor: '#ffebee' }
+    };
+    const config = statusConfig[status] || statusConfig.pending;
+    return (
+      <span style={{ 
+        padding: '4px 12px', 
+        borderRadius: '12px', 
+        fontSize: '0.85rem',
+        fontWeight: '500',
+        backgroundColor: config.bgColor,
+        color: config.color
+      }}>
+        {config.text}
+      </span>
+    );
+  };
+
+  const downloadFile = (filePath) => {
+    if (filePath) {
+      window.open(`http://localhost:5050${filePath}`, '_blank');
+    }
   };
 
   if (!user) {
@@ -988,6 +1232,7 @@ function TrainerDashboard() {
                       <th>University</th>
                       <th>Major</th>
                       <th>GPA</th>
+                      <th>Pending Tasks</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1028,20 +1273,47 @@ function TrainerDashboard() {
                           </span>
                         </td>
                         <td>
+                          {student.pendingSubmissions > 0 ? (
+                            <span className="badge badge-pending" style={{ 
+                              backgroundColor: '#f59e0b', 
+                              color: 'white',
+                              fontWeight: 'bold',
+                              padding: '0.4rem 0.8rem',
+                              borderRadius: '12px',
+                              fontSize: '0.9rem'
+                            }}>
+                              📝 {student.pendingSubmissions} pending
+                            </span>
+                          ) : (
+                            <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                              ✓ No pending tasks
+                            </span>
+                          )}
+                        </td>
+                        <td>
                           <span className="badge badge-accepted">
                             {student.status}
                           </span>
                         </td>
                         <td>
-                          <button 
-                            className="btn-view"
-                            onClick={() => {
-                              setNewReport({ ...newReport, student_id: student.student_id });
-                              setActiveMenu('reports');
-                            }}
-                          >
-                            Create Report
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button 
+                              className="btn-view"
+                              onClick={() => {
+                                setNewReport({ ...newReport, student_id: student.student_id });
+                                setActiveMenu('reports');
+                              }}
+                            >
+                              Create Report
+                            </button>
+                            <button 
+                              className="btn-primary"
+                              style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+                              onClick={() => handleViewStudentTasks(student)}
+                            >
+                              📝 View Tasks
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1381,49 +1653,75 @@ function TrainerDashboard() {
 
         {/* Notifications Section */}
         {activeMenu === 'notifications' && (
-          <>
-            <div className="dashboard-header">
-              <h1>Notifications</h1>
-              <p>Stay updated with important messages</p>
+          <div className="notifications-section">
+            <div className="section-header">
+              <h2>Notifications</h2>
+              <p>Stay updated with student submissions and important messages</p>
             </div>
 
-            <div className="table-section">
-              <h2>All Notifications</h2>
-              {notifications.length === 0 ? (
-                <div className="empty-state">
-                  <h3>No Notifications</h3>
-                  <p>You don't have any notifications yet.</p>
-                </div>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Title</th>
-                      <th>Message</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {notifications.map(notification => (
-                      <tr key={notification.id} className={!notification.is_read ? 'unread-row' : ''}>
-                        <td><strong>{notification.title}</strong></td>
-                        <td>{notification.message}</td>
-                        <td><span className="badge badge-info">{notification.type}</span></td>
-                        <td>
-                          <span className={`badge ${notification.is_read ? 'badge-success' : 'badge-warning'}`}>
-                            {notification.is_read ? 'Read' : 'Unread'}
-                          </span>
-                        </td>
-                        <td>{new Date(notification.created_at).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
+            {notifications.length === 0 ? (
+              <div className="empty-state">
+                <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <h3>No Notifications Yet</h3>
+                <p>You'll see notifications here when students submit their work</p>
+              </div>
+            ) : (
+              <div className="notifications-list">
+                {notifications.map(notification => (
+                  <div 
+                    key={notification.id} 
+                    className={`notification-card ${!notification.is_read ? 'unread' : ''}`}
+                  >
+                    <div className="notification-icon">
+                      {notification.type === 'task_submission' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      ) : notification.type === 'task_review' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="notification-content">
+                      <h4>{notification.title}</h4>
+                      <p>{notification.message}</p>
+                      <span className="notification-time">
+                        {new Date(notification.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    {!notification.is_read && (
+                      <>
+                        <button 
+                          className="mark-read-btn"
+                          onClick={() => markAsRead(notification.id)}
+                          title="Mark as read"
+                        >
+                          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Read
+                        </button>
+                        <div className="unread-indicator"></div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* My Internships Section */}
@@ -1780,6 +2078,16 @@ function TrainerDashboard() {
                           </div>
 
                           <div className="form-group">
+                            <label>Task Description</label>
+                            <textarea
+                              rows="3"
+                              value={week.task_description}
+                              onChange={(e) => handleUpdateWeek(index, 'task_description', e.target.value)}
+                              placeholder="Detailed description of the tasks..."
+                            />
+                          </div>
+
+                          <div className="form-group">
                             <label>Resources</label>
                             <textarea
                               rows="2"
@@ -1944,6 +2252,13 @@ function TrainerDashboard() {
                               </div>
                             )}
                             
+                            {week.task_description && (
+                              <div className="week-section">
+                                <strong>Task Description:</strong>
+                                <p>{week.task_description}</p>
+                              </div>
+                            )}
+                            
                             {week.resources && (
                               <div className="week-section">
                                 <strong>Resources:</strong>
@@ -1970,6 +2285,248 @@ function TrainerDashboard() {
           </>
         )}
       </main>
+
+      {/* Submissions Modal */}
+      {showSubmissionsModal && selectedStudent && (
+        <div className="modal-overlay" onClick={() => setShowSubmissionsModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Task Submissions - {selectedStudent.full_name}</h2>
+              <button className="modal-close" onClick={() => setShowSubmissionsModal(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {loadingSubmissions ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <p>Loading submissions...</p>
+                </div>
+              ) : submissions.length === 0 ? (
+                <div className="empty-state">
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3>No Submissions Yet</h3>
+                  <p>This student hasn't submitted any tasks yet.</p>
+                </div>
+              ) : (
+                <div className="table-section">
+                  <h3>All Submissions ({submissions.length})</h3>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Task</th>
+                        <th>Plan</th>
+                        <th>Week</th>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submissions.map((submission) => (
+                        <tr key={submission.id}>
+                          <td><strong>{submission.task_title}</strong></td>
+                          <td>{submission.plan_title}</td>
+                          <td>Week {submission.week_number}</td>
+                          <td>{new Date(submission.submitted_at).toLocaleString()}</td>
+                          <td>{getStatusBadge(submission.status)}</td>
+                          <td>
+                            <button 
+                              className="btn-primary"
+                              onClick={() => handleReviewSubmission(submission)}
+                              style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+                            >
+                              {submission.status === 'pending' ? 'Review' : 'View Review'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowSubmissionsModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {showReviewModal && selectedSubmission && (
+        <div className="modal-overlay" onClick={() => setShowReviewModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '700px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Review Submission</h2>
+              <button className="modal-close" onClick={() => setShowReviewModal(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="task-detail-section">
+                <h3>{selectedSubmission.task_title}</h3>
+                <p><strong>Student:</strong> {selectedSubmission.student_name}</p>
+                <p><strong>Plan:</strong> {selectedSubmission.plan_title}</p>
+                <p><strong>Week:</strong> {selectedSubmission.week_number} - {selectedSubmission.week_title}</p>
+                <p><strong>Submitted:</strong> {new Date(selectedSubmission.submitted_at).toLocaleString()}</p>
+              </div>
+
+              <div className="task-detail-section">
+                <h4>Submission Content</h4>
+                
+                {selectedSubmission.submission_file && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>File:</strong>
+                    <button 
+                      onClick={() => downloadFile(selectedSubmission.submission_file)}
+                      style={{
+                        marginLeft: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#1e88e5',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      📥 Download File
+                    </button>
+                  </div>
+                )}
+
+                {selectedSubmission.submission_text && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>Text Submission:</strong>
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '1rem',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '8px',
+                      whiteSpace: 'pre-wrap',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      {selectedSubmission.submission_text}
+                    </div>
+                  </div>
+                )}
+
+                {selectedSubmission.submission_link && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>Link:</strong>
+                    <a 
+                      href={selectedSubmission.submission_link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ marginLeft: '0.5rem', color: '#1e88e5', textDecoration: 'underline' }}
+                    >
+                      {selectedSubmission.submission_link}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {selectedSubmission.status !== 'pending' && (
+                <div className="task-detail-section">
+                  <h4>Previous Review</h4>
+                  <p><strong>Status:</strong> {getStatusBadge(selectedSubmission.status)}</p>
+                  {selectedSubmission.trainer_comment && (
+                    <p><strong>Comment:</strong> {selectedSubmission.trainer_comment}</p>
+                  )}
+                  {selectedSubmission.reviewed_at && (
+                    <p><strong>Reviewed:</strong> {new Date(selectedSubmission.reviewed_at).toLocaleString()}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="task-detail-section">
+                <h4>Your Review</h4>
+                
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Status
+                  </label>
+                  <select
+                    value={reviewStatus}
+                    onChange={(e) => setReviewStatus(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    <option value="approved">✅ Approve</option>
+                    <option value="rejected">📝 Request Revision</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Comment for Student
+                  </label>
+                  <textarea
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Provide feedback to the student..."
+                    rows="5"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                  />
+                  <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                    💡 This comment will be sent as a notification to the student
+                  </p>
+                </div>
+
+                {message.text && (
+                  <div className={`alert alert-${message.type}`} style={{ marginTop: '1rem' }}>
+                    {message.text}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowReviewModal(false)}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={handleSubmitReview}
+                disabled={loading}
+                style={{
+                  backgroundColor: loading ? '#9ca3af' : '#1e88e5',
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {loading ? 'Submitting...' : '📤 Submit Review & Notify Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

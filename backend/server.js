@@ -17,6 +17,7 @@ import adminRoutes from "./routes/admin.js";
 import notificationRoutes from "./routes/notifications.js";
 import internshipPlanRoutes from "./routes/internshipPlan.js";
 import reportsRoutes from "./routes/reports.js";
+import taskSubmissionRoutes from "./routes/taskSubmission.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/plans", internshipPlanRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/task-submissions", taskSubmissionRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 

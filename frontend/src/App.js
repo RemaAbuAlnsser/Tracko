@@ -9,6 +9,7 @@ import UniversityDashboard from './pages/UniversityDashboard';
 import TrainerDashboard from './pages/TrainerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import InternshipDetails from './pages/InternshipDetails';
+import TrainerSubmissionsView from './pages/TrainerSubmissionsView';
 import './styles/App.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
       <Route path="/company-dashboard" element={<CompanyDashboard />} />
       <Route path="/university-dashboard" element={<UniversityDashboard />} />
       <Route path="/trainer-dashboard" element={<TrainerDashboard />} />
+      <Route path="/trainer/submissions/:studentId" element={<TrainerSubmissionsView />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/internship-details/:id" element={<InternshipDetails />} />
     </Routes>

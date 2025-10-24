@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/StudentDashboard.css';
+import '../styles/TrainingPlanTimeline.css';
 
 function StudentDashboard() {
   const [user, setUser] = useState(null);
@@ -33,6 +34,14 @@ function StudentDashboard() {
   const [trainingPlans, setTrainingPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [studentId, setStudentId] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [selectedSolutionFile, setSelectedSolutionFile] = useState(null);
+  const [solutionText, setSolutionText] = useState('');
+  const [solutionLink, setSolutionLink] = useState('');
+  const [uploadingSubmission, setUploadingSubmission] = useState(false);
+  const [submissionMessage, setSubmissionMessage] = useState({ type: '', text: '' });
+  const [weekStatuses, setWeekStatuses] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -338,9 +347,40 @@ function StudentDashboard() {
       if (data.success) {
         console.log('✅ Training plans loaded:', data.plans);
         setTrainingPlans(data.plans || []);
+        
+        // Load submission statuses for each plan
+        if (data.plans && data.plans.length > 0) {
+          for (const plan of data.plans) {
+            await loadWeekStatuses(plan.id);
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading training plans:', error);
+    }
+  };
+
+  const loadWeekStatuses = async (planId) => {
+    if (!studentId || !planId) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/task-submissions/student/${studentId}/plan/${planId}/statuses`);
+      const data = await response.json();
+      
+      if (data.success && data.weekStatuses) {
+        // Create a map of week_id -> status
+        const statusMap = {};
+        data.weekStatuses.forEach(ws => {
+          statusMap[ws.week_id] = ws.status;
+        });
+        
+        setWeekStatuses(prev => ({
+          ...prev,
+          [planId]: statusMap
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading week statuses:', error);
     }
   };
 
@@ -697,6 +737,123 @@ function StudentDashboard() {
       setMessage({ type: 'error', text: error.message || 'Failed to update profile' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSolutionFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (10MB max)
+      if (file.size > 10 * 1024 * 1024) {
+        setSubmissionMessage({ type: 'error', text: 'File size must be less than 10MB' });
+        return;
+      }
+      setSelectedSolutionFile(file);
+      setSubmissionMessage({ type: '', text: '' });
+    }
+  };
+
+  const handleSubmitSolution = async () => {
+    if (!selectedTask || !studentId) {
+      setSubmissionMessage({ type: 'error', text: 'Missing required information' });
+      return;
+    }
+
+    // Validate at least one submission method
+    if (!selectedSolutionFile && !solutionText.trim() && !solutionLink.trim()) {
+      setSubmissionMessage({ type: 'error', text: 'Please provide at least one submission method (file, text, or link)' });
+      return;
+    }
+
+    setUploadingSubmission(true);
+    setSubmissionMessage({ type: '', text: '' });
+
+    try {
+      let uploadedFilePath = null;
+
+      // Upload file if selected
+      if (selectedSolutionFile) {
+        const formData = new FormData();
+        formData.append('file', selectedSolutionFile);
+
+        const uploadResponse = await fetch('http://localhost:5050/api/upload/file', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const uploadData = await uploadResponse.json();
+
+        if (!uploadResponse.ok || !uploadData.success) {
+          setSubmissionMessage({ type: 'error', text: uploadData.message || 'Failed to upload file' });
+          setUploadingSubmission(false);
+          return;
+        }
+
+        uploadedFilePath = uploadData.filePath;
+      }
+
+      // Get trainer_id from the selected plan
+      const planResponse = await fetch(`http://localhost:5050/api/plans/${selectedTask.plan_id}`);
+      const planData = await planResponse.json();
+      
+      if (!planData.success || !planData.plan) {
+        setSubmissionMessage({ type: 'error', text: 'Failed to get plan information' });
+        setUploadingSubmission(false);
+        return;
+      }
+
+      const trainerId = planData.plan.trainer_id;
+
+      // Submit the solution
+      const submitResponse = await fetch('http://localhost:5050/api/task-submissions/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          trainer_id: trainerId,
+          week_id: selectedTask.id,
+          plan_id: selectedTask.plan_id,
+          task_title: selectedTask.tasks || `Week ${selectedTask.week_number}`,
+          submission_file: uploadedFilePath,
+          submission_text: solutionText.trim() || null,
+          submission_link: solutionLink.trim() || null
+        }),
+      });
+
+      const submitData = await submitResponse.json();
+
+      if (submitResponse.ok && submitData.success) {
+        setSubmissionMessage({ 
+          type: 'success', 
+          text: 'Solution submitted successfully! Your trainer will review it soon.' 
+        });
+        
+        // Reload week statuses to update timeline
+        await loadWeekStatuses(selectedTask.plan_id);
+        
+        // Reset form
+        setSelectedSolutionFile(null);
+        setSolutionText('');
+        setSolutionLink('');
+        
+        // Close modal after 2 seconds
+        setTimeout(() => {
+          setShowTaskModal(false);
+          setSubmissionMessage({ type: '', text: '' });
+        }, 2000);
+      } else {
+        setSubmissionMessage({ 
+          type: 'error', 
+          text: submitData.message || 'Failed to submit solution' 
+        });
+      }
+    } catch (error) {
+      console.error('Submit solution error:', error);
+      setSubmissionMessage({ type: 'error', text: 'Failed to submit solution' });
+    } finally {
+      setUploadingSubmission(false);
     }
   };
 
@@ -1833,114 +1990,271 @@ function StudentDashboard() {
                 <p>No training plans have been published yet for your internships</p>
               </div>
             ) : (
-              <div className="plans-grid">
+              <div className="plans-list">
                 {trainingPlans.map(plan => (
-                  <div key={plan.id} className="plan-card">
-                    <div className="plan-header">
-                      <div className="plan-company-info">
-                        {plan.company_logo ? (
-                          <img 
-                            src={`http://localhost:5050${plan.company_logo}`} 
-                            alt={plan.company_name}
-                            className="plan-company-logo"
-                          />
-                        ) : (
-                          <div className="plan-company-placeholder">
-                            {plan.company_name?.charAt(0) || 'C'}
-                          </div>
-                        )}
-                        <div>
-                          <h3>{plan.title}</h3>
-                          <p className="plan-internship-title">{plan.internship_title}</p>
-                          <p className="plan-company-name">{plan.company_name}</p>
-                        </div>
+                  <div key={plan.id} className="training-plan-card">
+                    {/* Plan Header */}
+                    <div className="plan-card-header">
+                      <div className="plan-title-section">
+                        <h3>{plan.title}</h3>
+                        <p className="plan-company">{plan.company_name}</p>
+                        <p className="plan-applied-date">Applied on {new Date(plan.created_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</p>
                       </div>
                       <span className={`plan-status-badge status-${plan.status}`}>
-                        {plan.status === 'draft' ? 'Draft' : plan.status === 'active' ? 'Active' : 'Completed'}
+                        {plan.status === 'active' ? 'In Progress' : plan.status === 'completed' ? 'Completed' : 'Draft'}
                       </span>
                     </div>
 
-                    <div className="plan-info">
-                      <div className="plan-info-item">
-                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
-                        </svg>
-                        <span>Trainer: {plan.trainer_name}</span>
-                      </div>
-                      <div className="plan-info-item">
-                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
-                        </svg>
-                        <span>Duration: {plan.duration_weeks} weeks</span>
-                      </div>
-                      {plan.start_date && (
-                        <div className="plan-info-item">
-                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
-                          </svg>
-                          <span>Start Date: {new Date(plan.start_date).toLocaleDateString('en-US')}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {plan.description && (
-                      <div className="plan-description">
-                        <p>{plan.description}</p>
-                      </div>
-                    )}
-
+                    {/* Next Step Section */}
                     {plan.weeks && plan.weeks.length > 0 && (
-                      <div className="plan-weeks">
-                        <h4>Plan Content ({plan.weeks.length} weeks)</h4>
-                        <div className="weeks-list">
-                          {plan.weeks.map(week => (
-                            <div key={week.id} className="week-item">
-                              <div className="week-header">
-                                <span className="week-number">Week {week.week_number}</span>
-                                <h5>{week.title}</h5>
-                              </div>
-                              {week.description && (
-                                <p className="week-description">{week.description}</p>
-                              )}
-                              {week.objectives && (
-                                <div className="week-detail">
-                                  <strong>Objectives:</strong>
-                                  <p>{week.objectives}</p>
-                                </div>
-                              )}
-                              {week.tasks && (
-                                <div className="week-detail">
-                                  <strong>Tasks:</strong>
-                                  <p>{week.tasks}</p>
-                                </div>
-                              )}
-                              {week.deliverables && (
-                                <div className="week-detail">
-                                  <strong>Deliverables:</strong>
-                                  <p>{week.deliverables}</p>
-                                </div>
-                              )}
-                              {week.resources && (
-                                <div className="week-detail">
-                                  <strong>Resources:</strong>
-                                  <p>{week.resources}</p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                      <div className="plan-next-step">
+                        <h4>Next Step:</h4>
+                        <p>{plan.weeks[0]?.title || 'Start Week 1'} - {plan.weeks[0]?.description || 'Begin your training journey'}</p>
                       </div>
                     )}
 
-                    <div className="plan-footer">
-                      <span className="plan-date">
-                        Published: {new Date(plan.created_at).toLocaleDateString('en-US')}
-                      </span>
-                    </div>
+                    {/* Application Timeline */}
+                    {plan.weeks && plan.weeks.length > 0 && (
+                      <div className="application-timeline-section">
+                        <h4>Application Timeline:</h4>
+                        <div className="timeline-container">
+                          {plan.weeks.map((week, index) => {
+                            const weekStatus = weekStatuses[plan.id]?.[week.id];
+                            const isApproved = weekStatus === 'approved';
+                            const isPending = weekStatus === 'pending';
+                            const isRejected = weekStatus === 'rejected';
+                            
+                            return (
+                            <div key={week.id} className="timeline-item">
+                              <div className={`timeline-dot ${isApproved ? 'approved' : isPending ? 'pending' : ''}`}>
+                                {isApproved ? (
+                                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                                  </svg>
+                                ) : null}
+                              </div>
+                              {index < plan.weeks.length - 1 && <div className="timeline-line"></div>}
+                              <div className="timeline-content">
+                                <div className="timeline-task-header">
+                                  <span className="timeline-task-name">{week.tasks || `Week ${week.week_number}`}</span>
+                                  <button 
+                                    className="btn-view-task-details"
+                                    onClick={() => {
+                                      setSelectedTask({ ...week, plan_id: plan.id });
+                                      setShowTaskModal(true);
+                                    }}
+                                  >
+                                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
+                                    </svg>
+                                    View Details
+                                  </button>
+                                </div>
+                                <span className="timeline-date">Week {week.week_number}</span>
+                              </div>
+                            </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Task Details Modal */}
+        {showTaskModal && selectedTask && (
+          <div className="modal-overlay" onClick={() => setShowTaskModal(false)}>
+            <div className="modal-content task-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Task Details</h2>
+                <button className="modal-close" onClick={() => setShowTaskModal(false)}>
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="task-detail-section">
+                  <h3>Week {selectedTask.week_number}: {selectedTask.title}</h3>
+                  {selectedTask.description && (
+                    <p className="task-week-description">{selectedTask.description}</p>
+                  )}
+                </div>
+
+                <div className="task-detail-section">
+                  <h4>
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                    </svg>
+                    Task Name
+                  </h4>
+                  <p className="task-content">{selectedTask.tasks || 'No task specified'}</p>
+                </div>
+
+                {selectedTask.task_description && (
+                  <div className="task-detail-section">
+                    <h4>
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
+                      </svg>
+                      Task Description
+                    </h4>
+                    <p className="task-content">{selectedTask.task_description}</p>
+                  </div>
+                )}
+
+                {selectedTask.objectives && (
+                  <div className="task-detail-section">
+                    <h4>
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                      </svg>
+                      Learning Objectives
+                    </h4>
+                    <p className="task-content">{selectedTask.objectives}</p>
+                  </div>
+                )}
+
+                {selectedTask.deliverables && (
+                  <div className="task-detail-section">
+                    <h4>
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
+                      </svg>
+                      Deliverables
+                    </h4>
+                    <p className="task-content">{selectedTask.deliverables}</p>
+                  </div>
+                )}
+
+                {selectedTask.resources && (
+                  <div className="task-detail-section">
+                    <h4>
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clipRule="evenodd"/>
+                        <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H2h2a2 2 0 002-2v-2z"/>
+                      </svg>
+                      Resources
+                    </h4>
+                    <p className="task-content">{selectedTask.resources}</p>
+                  </div>
+                )}
+
+                {/* Upload Solution Section */}
+                <div className="task-upload-section">
+                  <h4>
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd"/>
+                    </svg>
+                    Upload Your Solution
+                  </h4>
+
+                  {/* Success/Error Message */}
+                  {submissionMessage.text && (
+                    <div className={`alert alert-${submissionMessage.type}`} style={{ marginBottom: '1rem' }}>
+                      {submissionMessage.text}
+                    </div>
+                  )}
+
+                  {/* File Upload */}
+                  <div className="upload-solution-area">
+                    <label htmlFor="solution-upload" className="upload-solution-btn">
+                      <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>{selectedSolutionFile ? selectedSolutionFile.name : 'Choose File to Upload'}</span>
+                    </label>
+                    <input 
+                      id="solution-upload"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.zip,.rar"
+                      style={{ display: 'none' }}
+                      onChange={handleSolutionFileChange}
+                    />
+                    <p className="upload-hint">Supported formats: PDF, DOC, DOCX, ZIP, RAR (Max 10MB)</p>
+                  </div>
+
+                  {/* Text Solution */}
+                  <div className="solution-text-area" style={{ marginTop: '1rem' }}>
+                    <label htmlFor="solution-text" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                      Or write your solution here:
+                    </label>
+                    <textarea
+                      id="solution-text"
+                      value={solutionText}
+                      onChange={(e) => setSolutionText(e.target.value)}
+                      placeholder="Describe your solution or paste your code here..."
+                      rows="6"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        fontSize: '0.95rem',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+
+                  {/* Link Solution */}
+                  <div className="solution-link-area" style={{ marginTop: '1rem' }}>
+                    <label htmlFor="solution-link" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                      Or provide a link (GitHub, Google Drive, etc.):
+                    </label>
+                    <input
+                      id="solution-link"
+                      type="url"
+                      value={solutionLink}
+                      onChange={(e) => setSolutionLink(e.target.value)}
+                      placeholder="https://github.com/username/repo or https://drive.google.com/..."
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        fontSize: '0.95rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    className="btn-submit-solution"
+                    onClick={handleSubmitSolution}
+                    disabled={uploadingSubmission}
+                    style={{
+                      marginTop: '1.5rem',
+                      width: '100%',
+                      padding: '0.875rem',
+                      backgroundColor: '#1e88e5',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      cursor: uploadingSubmission ? 'not-allowed' : 'pointer',
+                      opacity: uploadingSubmission ? 0.6 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {uploadingSubmission ? 'Submitting...' : 'Submit Solution'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn-secondary" onClick={() => setShowTaskModal(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>
