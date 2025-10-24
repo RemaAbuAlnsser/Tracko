@@ -26,6 +26,7 @@ function TrainerDashboard() {
   const [reports, setReports] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [internships, setInternships] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState('');
@@ -48,6 +49,18 @@ function TrainerDashboard() {
     end_time: '',
     student_id: ''
   });
+  const [plans, setPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [newPlan, setNewPlan] = useState({
+    internship_id: '',
+    title: '',
+    description: '',
+    duration_weeks: 4,
+    start_date: '',
+    end_date: '',
+    status: 'draft'
+  });
+  const [planWeeks, setPlanWeeks] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -208,6 +221,21 @@ function TrainerDashboard() {
       }
     } catch (error) {
       console.error('Error loading schedules:', error);
+    }
+  };
+
+  const loadInternships = async () => {
+    if (!trainerId) return;
+    try {
+      console.log('📋 Loading internships for trainer:', trainerId);
+      const response = await fetch(`http://localhost:5050/api/internships/trainer/${trainerId}`);
+      const data = await response.json();
+      if (data.success) {
+        console.log('✅ Loaded internships:', data.internships);
+        setInternships(data.internships || []);
+      }
+    } catch (error) {
+      console.error('Error loading internships:', error);
     }
   };
 
@@ -401,6 +429,102 @@ function TrainerDashboard() {
     }
   };
 
+  const loadPlans = async () => {
+    if (!trainerId) return;
+    try {
+      console.log('📋 Loading plans for trainer:', trainerId);
+      const response = await fetch(`http://localhost:5050/api/plans/trainer/${trainerId}`);
+      const data = await response.json();
+      if (data.success) {
+        console.log('✅ Loaded plans:', data.plans);
+        setPlans(data.plans || []);
+      }
+    } catch (error) {
+      console.error('Error loading plans:', error);
+    }
+  };
+
+  const loadPlanDetails = async (planId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/plans/${planId}`);
+      const data = await response.json();
+      if (data.success) {
+        setSelectedPlan(data.plan);
+        setPlanWeeks(data.plan.weeks || []);
+      }
+    } catch (error) {
+      console.error('Error loading plan details:', error);
+    }
+  };
+
+  const handleCreatePlan = async (e) => {
+    e.preventDefault();
+    if (!trainerId || !newPlan.internship_id || !newPlan.title || !newPlan.duration_weeks) {
+      setMessage({ type: 'error', text: 'Please fill all required fields' });
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5050/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newPlan,
+          trainer_id: trainerId,
+          weeks: planWeeks
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Plan created successfully!' });
+        setNewPlan({
+          internship_id: '',
+          title: '',
+          description: '',
+          duration_weeks: 4,
+          start_date: '',
+          end_date: '',
+          status: 'draft'
+        });
+        setPlanWeeks([]);
+        loadPlans();
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to create plan' });
+      }
+    } catch (error) {
+      console.error('Error creating plan:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
+  };
+
+  const handleAddWeek = () => {
+    const weekNumber = planWeeks.length + 1;
+    setPlanWeeks([...planWeeks, {
+      week_number: weekNumber,
+      title: `Week ${weekNumber}`,
+      description: '',
+      objectives: '',
+      tasks: '',
+      resources: '',
+      deliverables: ''
+    }]);
+  };
+
+  const handleUpdateWeek = (index, field, value) => {
+    const updatedWeeks = [...planWeeks];
+    updatedWeeks[index][field] = value;
+    setPlanWeeks(updatedWeeks);
+  };
+
+  const handleRemoveWeek = (index) => {
+    const updatedWeeks = planWeeks.filter((_, i) => i !== index);
+    // Renumber weeks
+    updatedWeeks.forEach((week, i) => {
+      week.week_number = i + 1;
+    });
+    setPlanWeeks(updatedWeeks);
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -450,6 +574,16 @@ function TrainerDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
             Profile & Edit
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'internships' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('internships'); loadInternships(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            My Internships
           </button>
 
           <button 
@@ -505,6 +639,16 @@ function TrainerDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             Messages
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'plans' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('plans'); loadPlans(); loadInternships(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            Training Plans
           </button>
         </nav>
 
@@ -825,33 +969,66 @@ function TrainerDashboard() {
             )}
 
             <div className="table-section">
-              <h2>Students List</h2>
+              <h2>Accepted Students ({students.length})</h2>
               {students.length === 0 ? (
                 <div className="empty-state">
-                  <h3>No Students Yet</h3>
-                  <p>You don't have any assigned students at the moment.</p>
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <h3>No Accepted Students Yet</h3>
+                  <p>Students who are accepted in your internships will appear here.</p>
                 </div>
               ) : (
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Email</th>
+                      <th>Student</th>
+                      <th>Internship</th>
+                      <th>Company</th>
                       <th>University</th>
                       <th>Major</th>
+                      <th>GPA</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {students.map(student => (
-                      <tr key={student.id}>
-                        <td>{student.full_name}</td>
-                        <td>{student.email}</td>
+                    {students.map((student, index) => (
+                      <tr key={`${student.student_id}-${student.internship_id}-${index}`}>
+                        <td>
+                          <div className="student-cell">
+                            {student.student_img ? (
+                              <img 
+                                src={`http://localhost:5050${student.student_img}`} 
+                                alt={student.full_name}
+                                className="student-avatar-small"
+                              />
+                            ) : (
+                              <div className="student-avatar-placeholder">
+                                {student.full_name?.charAt(0) || 'S'}
+                              </div>
+                            )}
+                            <div>
+                              <div className="student-name">{student.full_name}</div>
+                              <div className="student-email">{student.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="internship-cell">
+                            <strong>{student.internship_title}</strong>
+                          </div>
+                        </td>
+                        <td>{student.company_name}</td>
                         <td>{student.university_name || 'N/A'}</td>
                         <td>{student.major || 'N/A'}</td>
                         <td>
-                          <span className={`badge badge-${student.status}`}>
+                          <span className="gpa-badge">
+                            {student.gpa && !isNaN(student.gpa) ? Number(student.gpa).toFixed(2) : 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="badge badge-accepted">
                             {student.status}
                           </span>
                         </td>
@@ -859,7 +1036,7 @@ function TrainerDashboard() {
                           <button 
                             className="btn-view"
                             onClick={() => {
-                              setNewReport({ ...newReport, student_id: student.id });
+                              setNewReport({ ...newReport, student_id: student.student_id });
                               setActiveMenu('reports');
                             }}
                           >
@@ -1249,6 +1426,93 @@ function TrainerDashboard() {
           </>
         )}
 
+        {/* My Internships Section */}
+        {activeMenu === 'internships' && (
+          <>
+            <div className="dashboard-header">
+              <h1>My Internships</h1>
+              <p>Internships you are training</p>
+            </div>
+
+            {internships.length === 0 ? (
+              <div className="empty-state">
+                <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <h3>No Internships Assigned</h3>
+                <p>You haven't been assigned to any internships yet</p>
+              </div>
+            ) : (
+              <div className="internships-grid">
+                {internships.map(internship => (
+                  <div key={internship.id} className="internship-card">
+                    <div className="internship-header">
+                      <div className="company-info">
+                        {internship.company_logo ? (
+                          <img 
+                            src={`http://localhost:5050${internship.company_logo}`} 
+                            alt={internship.company_name}
+                            className="company-logo-small"
+                          />
+                        ) : (
+                          <div className="company-logo-placeholder">
+                            {internship.company_name?.charAt(0) || 'C'}
+                          </div>
+                        )}
+                        <div>
+                          <h3>{internship.title}</h3>
+                          <p className="company-name">{internship.company_name}</p>
+                        </div>
+                      </div>
+                      <span className={`status-badge status-${internship.status}`}>
+                        {internship.status}
+                      </span>
+                    </div>
+
+                    <div className="internship-details">
+                      <div className="detail-item">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+                        </svg>
+                        <span>{internship.specialization || 'General'}</span>
+                      </div>
+                      <div className="detail-item">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                        </svg>
+                        <span>{internship.capacity} positions</span>
+                      </div>
+                      <div className="detail-item">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                        </svg>
+                        <span>{new Date(internship.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="internship-stats">
+                      <div className="stat-box">
+                        <span className="stat-number">{internship.applicants_count || 0}</span>
+                        <span className="stat-label">Applicants</span>
+                      </div>
+                      <div className="stat-box">
+                        <span className="stat-number">{internship.accepted_count || 0}</span>
+                        <span className="stat-label">Accepted</span>
+                      </div>
+                    </div>
+
+                    {internship.description && (
+                      <div className="internship-description">
+                        <p>{internship.description.substring(0, 150)}...</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
         {/* Messages Section */}
         {activeMenu === 'messages' && (
           <>
@@ -1344,6 +1608,365 @@ function TrainerDashboard() {
                 )}
               </div>
             </div>
+          </>
+        )}
+
+        {/* Training Plans Section */}
+        {activeMenu === 'plans' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Training Plans</h1>
+              <p>Create and manage internship training plans</p>
+            </div>
+
+            {message.text && (
+              <div className={`alert alert-${message.type}`}>
+                {message.text}
+              </div>
+            )}
+
+            {/* Create New Plan */}
+            <div className="profile-form-card">
+              <h3>Create New Training Plan</h3>
+              <form onSubmit={handleCreatePlan}>
+                <div className="form-group">
+                  <label>Select Internship *</label>
+                  <select
+                    value={newPlan.internship_id}
+                    onChange={(e) => setNewPlan({...newPlan, internship_id: e.target.value})}
+                    required
+                  >
+                    <option value="">-- Select Internship --</option>
+                    {internships.map(internship => (
+                      <option key={internship.id} value={internship.id}>
+                        {internship.title} - {internship.company_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Plan Title *</label>
+                  <input
+                    type="text"
+                    value={newPlan.title}
+                    onChange={(e) => setNewPlan({...newPlan, title: e.target.value})}
+                    placeholder="e.g., Full Stack Development Training Plan"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    rows="3"
+                    value={newPlan.description}
+                    onChange={(e) => setNewPlan({...newPlan, description: e.target.value})}
+                    placeholder="Brief description of the training plan..."
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Duration (Weeks) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="52"
+                      value={newPlan.duration_weeks}
+                      onChange={(e) => setNewPlan({...newPlan, duration_weeks: parseInt(e.target.value)})}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Start Date</label>
+                    <input
+                      type="date"
+                      value={newPlan.start_date}
+                      onChange={(e) => setNewPlan({...newPlan, start_date: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>End Date</label>
+                    <input
+                      type="date"
+                      value={newPlan.end_date}
+                      onChange={(e) => setNewPlan({...newPlan, end_date: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      value={newPlan.status}
+                      onChange={(e) => setNewPlan({...newPlan, status: e.target.value})}
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Weekly Plan */}
+                <div className="weeks-section">
+                  <div className="weeks-header">
+                    <h4>Weekly Plan</h4>
+                    <button type="button" className="btn-secondary" onClick={handleAddWeek}>
+                      + Add Week
+                    </button>
+                  </div>
+
+                  {planWeeks.length === 0 ? (
+                    <div className="empty-state-small">
+                      <p>No weeks added yet. Click "Add Week" to start planning.</p>
+                    </div>
+                  ) : (
+                    <div className="weeks-list">
+                      {planWeeks.map((week, index) => (
+                        <div key={index} className="week-card">
+                          <div className="week-header">
+                            <h5>Week {week.week_number}</h5>
+                            <button
+                              type="button"
+                              className="btn-danger-small"
+                              onClick={() => handleRemoveWeek(index)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Week Title</label>
+                            <input
+                              type="text"
+                              value={week.title}
+                              onChange={(e) => handleUpdateWeek(index, 'title', e.target.value)}
+                              placeholder={`Week ${week.week_number} title`}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Description</label>
+                            <textarea
+                              rows="2"
+                              value={week.description}
+                              onChange={(e) => handleUpdateWeek(index, 'description', e.target.value)}
+                              placeholder="What will students learn this week?"
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Learning Objectives</label>
+                            <textarea
+                              rows="2"
+                              value={week.objectives}
+                              onChange={(e) => handleUpdateWeek(index, 'objectives', e.target.value)}
+                              placeholder="Key learning objectives for this week..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Tasks</label>
+                            <textarea
+                              rows="2"
+                              value={week.tasks}
+                              onChange={(e) => handleUpdateWeek(index, 'tasks', e.target.value)}
+                              placeholder="Tasks and activities for students..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Resources</label>
+                            <textarea
+                              rows="2"
+                              value={week.resources}
+                              onChange={(e) => handleUpdateWeek(index, 'resources', e.target.value)}
+                              placeholder="Learning resources, links, materials..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Deliverables</label>
+                            <textarea
+                              rows="2"
+                              value={week.deliverables}
+                              onChange={(e) => handleUpdateWeek(index, 'deliverables', e.target.value)}
+                              placeholder="Expected deliverables from students..."
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-actions">
+                  <button type="button" className="btn-secondary" onClick={() => {
+                    setNewPlan({
+                      internship_id: '',
+                      title: '',
+                      description: '',
+                      duration_weeks: 4,
+                      start_date: '',
+                      end_date: '',
+                      status: 'draft'
+                    });
+                    setPlanWeeks([]);
+                  }}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary" disabled={loading}>
+                    {loading ? 'Creating...' : 'Create Plan'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Existing Plans */}
+            <div className="table-section" style={{ marginTop: '2rem' }}>
+              <h2>My Training Plans ({plans.length})</h2>
+              {plans.length === 0 ? (
+                <div className="empty-state">
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  <h3>No Training Plans Yet</h3>
+                  <p>Create your first training plan above to get started.</p>
+                </div>
+              ) : (
+                <div className="plans-grid">
+                  {plans.map(plan => (
+                    <div key={plan.id} className="plan-card">
+                      <div className="plan-header">
+                        <h3>{plan.title}</h3>
+                        <span className={`status-badge status-${plan.status}`}>
+                          {plan.status}
+                        </span>
+                      </div>
+
+                      <div className="plan-info">
+                        <p className="internship-title">
+                          <strong>Internship:</strong> {plan.internship_title}
+                        </p>
+                        <p className="company-name">
+                          <strong>Company:</strong> {plan.company_name}
+                        </p>
+                      </div>
+
+                      {plan.description && (
+                        <p className="plan-description">{plan.description}</p>
+                      )}
+
+                      <div className="plan-stats">
+                        <div className="stat-item">
+                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                          </svg>
+                          <span>{plan.duration_weeks} weeks</span>
+                        </div>
+                        <div className="stat-item">
+                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"/>
+                          </svg>
+                          <span>{plan.weeks_count || 0} weeks planned</span>
+                        </div>
+                      </div>
+
+                      {(plan.start_date || plan.end_date) && (
+                        <div className="plan-dates">
+                          {plan.start_date && (
+                            <span>Start: {new Date(plan.start_date).toLocaleDateString()}</span>
+                          )}
+                          {plan.end_date && (
+                            <span>End: {new Date(plan.end_date).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="plan-actions">
+                        <button
+                          className="btn-secondary-small"
+                          onClick={() => loadPlanDetails(plan.id)}
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Plan Details Modal */}
+            {selectedPlan && (
+              <div className="modal-overlay" onClick={() => setSelectedPlan(null)}>
+                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                  <div className="modal-header">
+                    <h2>{selectedPlan.title}</h2>
+                    <button className="close-btn" onClick={() => setSelectedPlan(null)}>×</button>
+                  </div>
+
+                  <div className="modal-body">
+                    <div className="plan-detail-info">
+                      <p><strong>Internship:</strong> {selectedPlan.internship_title}</p>
+                      <p><strong>Company:</strong> {selectedPlan.company_name}</p>
+                      <p><strong>Duration:</strong> {selectedPlan.duration_weeks} weeks</p>
+                      <p><strong>Status:</strong> <span className={`status-badge status-${selectedPlan.status}`}>{selectedPlan.status}</span></p>
+                      {selectedPlan.description && (
+                        <p><strong>Description:</strong> {selectedPlan.description}</p>
+                      )}
+                    </div>
+
+                    <div className="weeks-timeline">
+                      <h3>Weekly Breakdown</h3>
+                      {selectedPlan.weeks && selectedPlan.weeks.length > 0 ? (
+                        selectedPlan.weeks.map(week => (
+                          <div key={week.id} className="week-detail-card">
+                            <h4>Week {week.week_number}: {week.title}</h4>
+                            {week.description && <p className="week-desc">{week.description}</p>}
+                            
+                            {week.objectives && (
+                              <div className="week-section">
+                                <strong>Objectives:</strong>
+                                <p>{week.objectives}</p>
+                              </div>
+                            )}
+                            
+                            {week.tasks && (
+                              <div className="week-section">
+                                <strong>Tasks:</strong>
+                                <p>{week.tasks}</p>
+                              </div>
+                            )}
+                            
+                            {week.resources && (
+                              <div className="week-section">
+                                <strong>Resources:</strong>
+                                <p>{week.resources}</p>
+                              </div>
+                            )}
+                            
+                            {week.deliverables && (
+                              <div className="week-section">
+                                <strong>Deliverables:</strong>
+                                <p>{week.deliverables}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p>No weekly breakdown available for this plan.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>

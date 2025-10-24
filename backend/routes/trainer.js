@@ -1,5 +1,6 @@
 import express from "express";
 import Trainer from "../models/Trainer.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
@@ -194,6 +195,94 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting trainer:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get accepted students for trainer's internships
+router.get("/:trainerId/students", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    console.log(`👥 Getting accepted students for trainer ${trainerId}...`);
+    
+    const query = `
+      SELECT DISTINCT
+        s.id as student_id,
+        u.full_name,
+        u.email,
+        s.major,
+        s.academic_year as year_of_study,
+        s.student_img,
+        s.gpa,
+        uni.name as university_name,
+        i.id as internship_id,
+        i.title as internship_title,
+        c.name as company_name,
+        im.status,
+        im.applied_at,
+        cv.analysis_data
+      FROM Internship_Trainers it
+      INNER JOIN Internships i ON it.internship_id = i.id
+      INNER JOIN Company c ON i.company_id = c.id
+      INNER JOIN Internship_Matches im ON i.id = im.internship_id
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      LEFT JOIN Universities uni ON s.university_id = uni.id
+      LEFT JOIN CVs cv ON s.id = cv.student_id
+      WHERE it.trainer_id = ? AND im.status = 'accepted'
+      ORDER BY im.applied_at DESC
+    `;
+    
+    db.query(query, [trainerId], (err, results) => {
+      if (err) {
+        console.error("❌ Error fetching trainer students:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      // Parse GPA from analysis_data if available
+      const studentsWithGPA = results.map(student => {
+        let gpa = student.gpa;
+        
+        if (!gpa && student.analysis_data) {
+          try {
+            const analysisData = typeof student.analysis_data === 'string'
+              ? JSON.parse(student.analysis_data)
+              : student.analysis_data;
+            
+            gpa = analysisData.gpa || 
+                  analysisData.GPA || 
+                  analysisData.grade_point_average ||
+                  analysisData.overall_gpa ||
+                  null;
+          } catch (e) {
+            console.warn('Failed to parse analysis_data:', e.message);
+          }
+        }
+        
+        return {
+          ...student,
+          gpa: gpa,
+          analysis_data: undefined // Remove from response
+        };
+      });
+      
+      console.log(`✅ Found ${studentsWithGPA.length} accepted students for trainer ${trainerId}`);
+      
+      res.json({
+        success: true,
+        students: studentsWithGPA
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Get trainer students error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

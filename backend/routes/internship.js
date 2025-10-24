@@ -517,4 +517,53 @@ async function notifyMatchingStudents(internshipId, internshipData) {
   }
 }
 
+// Get internships for a specific trainer
+router.get("/trainer/:trainerId", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    console.log(`📋 Getting internships for trainer ${trainerId}...`);
+    
+    const query = `
+      SELECT 
+        i.*,
+        c.name as company_name,
+        c.logo as company_logo,
+        COUNT(DISTINCT im.id) as applicants_count,
+        COUNT(DISTINCT CASE WHEN im.status = 'accepted' THEN im.id END) as accepted_count
+      FROM Internships i
+      INNER JOIN Internship_Trainers it ON i.id = it.internship_id
+      INNER JOIN Company c ON i.company_id = c.id
+      LEFT JOIN Internship_Matches im ON i.id = im.internship_id
+      WHERE it.trainer_id = ?
+      GROUP BY i.id, c.name, c.logo
+      ORDER BY i.created_at DESC
+    `;
+    
+    db.query(query, [trainerId], (err, results) => {
+      if (err) {
+        console.error("❌ Error fetching trainer internships:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      console.log(`✅ Found ${results.length} internships for trainer ${trainerId}`);
+      
+      res.json({
+        success: true,
+        internships: results
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Get trainer internships error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 export default router;
