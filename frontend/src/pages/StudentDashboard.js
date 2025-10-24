@@ -1,6 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/StudentDashboard.css';
+import { 
+  loadChatMessages, 
+  sendChatMessage, 
+  subscribeToMessages, 
+  unsubscribeFromMessages,
+  markMessagesAsRead,
+  getUnreadCount 
+} from '../utils/chatService';
 
 function StudentDashboard() {
   const [user, setUser] = useState(null);
@@ -30,6 +38,13 @@ function StudentDashboard() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [savedInternships, setSavedInternships] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [trainers, setTrainers] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [selectedTrainer, setSelectedTrainer] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [messagesChannel, setMessagesChannel] = useState(null);
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,6 +69,51 @@ function StudentDashboard() {
     loadSavedInternshipsWithUser(parsedUser);
     loadNotificationsOnLogin(parsedUser);
   }, [navigate]);
+
+  // Load trainers when user is available to show unread messages badge
+  useEffect(() => {
+    if (user) {
+      loadTrainers();
+    }
+  }, [user]);
+
+  // Setup real-time message subscription for student
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to real-time messages
+    const channel = subscribeToMessages(user.id, (newMessage) => {
+      // Only add message if it's from a trainer (received messages)
+      if (selectedTrainer && 
+          newMessage.sender_id === selectedTrainer.user_id && 
+          newMessage.receiver_id === user.id) {
+        // Check if message doesn't already exist
+        setMessages(prev => {
+          const exists = prev.some(msg => msg.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
+        setTimeout(() => scrollToBottom(), 100);
+      }
+      
+      // Update unread count for received messages
+      if (newMessage.sender_id !== user.id) {
+        loadTrainers();
+      }
+    });
+
+    setMessagesChannel(channel);
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeFromMessages(channel);
+    };
+  }, [user, selectedTrainer]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const loadSavedInternshipsWithUser = async (userData) => {
     if (!userData) return;
@@ -453,6 +513,89 @@ function StudentDashboard() {
     }
   };
 
+  // Load trainers (from accepted internships)
+  const loadTrainers = async () => {
+    if (!user) return;
+    try {
+      // Get student's accepted internships with trainer info
+      const response = await fetch(`http://localhost:5050/api/students/${user.id}/trainers`);
+      const data = await response.json();
+      if (data.success) {
+        const trainersWithUnread = await Promise.all(
+          (data.trainers || []).map(async (trainer) => {
+            const unreadCount = await getUnreadCount(user.id, trainer.user_id);
+            return {
+              ...trainer,
+              unread_count: unreadCount
+            };
+          })
+        );
+        setTrainers(trainersWithUnread);
+        
+        // Calculate total unread messages
+        const totalUnread = trainersWithUnread.reduce((sum, trainer) => sum + (trainer.unread_count || 0), 0);
+        setTotalUnreadMessages(totalUnread);
+      }
+    } catch (error) {
+      console.error('Error loading trainers:', error);
+    }
+  };
+
+  // Load messages for selected trainer
+  const loadMessagesWithTrainer = async (trainer) => {
+    if (!user || !trainer) return;
+    
+    try {
+      const chatMessages = await loadChatMessages(user.id, trainer.user_id);
+      setMessages(chatMessages);
+      setSelectedTrainer(trainer);
+      
+      // Mark messages as read
+      await markMessagesAsRead(trainer.user_id, user.id);
+      
+      // Scroll to bottom
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  // Send message using Supabase
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedTrainer || !user) return;
+
+    const messageText = newMessage.trim();
+    
+    try {
+      // Clear input immediately
+      setNewMessage('');
+      
+      const result = await sendChatMessage(user.id, selectedTrainer.user_id, messageText);
+      
+      if (result.success && result.data && result.data[0]) {
+        // Add message to state immediately
+        const newMsg = result.data[0];
+        setMessages(prev => [...prev, newMsg]);
+        
+        // Scroll to bottom
+        setTimeout(() => scrollToBottom(), 50);
+      } else {
+        setMessage({ type: 'error', text: 'Failed to send message' });
+        setNewMessage(messageText);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+      setNewMessage(messageText);
+    }
+  };
+
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('user');
     navigate('/login');
@@ -814,12 +957,17 @@ function StudentDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'messages' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('messages')}
+            onClick={() => { setActiveMenu('messages'); loadTrainers(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
             Messages/Chat
+            {totalUnreadMessages > 0 && (
+              <span className="notification-badge">
+                {totalUnreadMessages}
+              </span>
+            )}
           </button>
         </nav>
 
@@ -1568,7 +1716,7 @@ function StudentDashboard() {
           </div>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && (
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && activeMenu !== 'messages' && (
           <div className="placeholder-content">
             <h2>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)} Page</h2>
             <p>This section is under development</p>
@@ -1711,6 +1859,152 @@ function StudentDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Messages Section */}
+        {activeMenu === 'messages' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Messages</h1>
+              <p>Chat with your trainers</p>
+            </div>
+
+            <div className="chat-container">
+              {/* Trainers List */}
+              <div className="conversations-sidebar">
+                <h3>My Trainers</h3>
+                {trainers.length === 0 ? (
+                  <div className="empty-state-small">
+                    <p>No trainers yet</p>
+                  </div>
+                ) : (
+                  <div className="conversations-list">
+                    {trainers.map(trainer => (
+                      <div
+                        key={trainer.id}
+                        className={`conversation-item ${selectedTrainer?.id === trainer.id ? 'active' : ''}`}
+                        onClick={() => loadMessagesWithTrainer(trainer)}
+                      >
+                        <div className="conversation-avatar">
+                          {trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'}
+                        </div>
+                        <div className="conversation-info">
+                          <h4>{trainer.full_name || 'Trainer'}</h4>
+                          <p className="student-email">{trainer.email}</p>
+                        </div>
+                        {trainer.unread_count > 0 && (
+                          <span className="unread-count">{trainer.unread_count}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Area */}
+              <div className="chat-area">
+                {!selectedTrainer ? (
+                  <div className="empty-state">
+                    <h3>Select a Trainer</h3>
+                    <p>Choose a trainer from the list to start chatting</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Chat Header */}
+                    <div className="chat-header">
+                      <div className="conversation-avatar">
+                        {selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'}
+                      </div>
+                      <div>
+                        <h3>{selectedTrainer.full_name}</h3>
+                        <p className="student-info">{selectedTrainer.email}</p>
+                      </div>
+                    </div>
+
+                    {/* Messages List */}
+                    <div className="messages-list">
+                      {messages.length === 0 ? (
+                        <div className="empty-state-small">
+                          <p>No messages yet. Start the conversation!</p>
+                        </div>
+                      ) : (
+                        <>
+                          {messages.map(msg => (
+                            <div
+                              key={msg.id}
+                              className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                            >
+                              {/* Show avatar for receiver (trainer) on left */}
+                              {msg.sender_id !== user.id && selectedTrainer && (
+                                <div className="message-avatar">
+                                  {selectedTrainer.profile_image ? (
+                                    <img 
+                                      src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
+                                      alt={selectedTrainer.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                                      }}
+                                    />
+                                  ) : (
+                                    selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                                  )}
+                                </div>
+                              )}
+                              <div className="message-bubble">
+                                <p>{msg.message}</p>
+                                <span className="message-time">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </span>
+                              </div>
+                              {/* Show avatar for sender (student) on right */}
+                              {msg.sender_id === user.id && (
+                                <div className="message-avatar">
+                                  {studentData.student_img ? (
+                                    <img 
+                                      src={`http://localhost:5050${studentData.student_img}`} 
+                                      alt={user.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S';
+                                      }}
+                                    />
+                                  ) : (
+                                    user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S'
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <div ref={messagesEndRef} />
+                        </>
+                      )}
+                    </div>
+
+                    {/* Message Input */}
+                    <form className="message-input-form" onSubmit={handleSendMessage}>
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="message-input"
+                      />
+                      <button type="submit" className="send-button" disabled={!newMessage.trim()}>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                        Send
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Notifications Section */}
