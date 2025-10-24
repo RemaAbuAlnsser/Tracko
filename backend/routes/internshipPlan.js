@@ -1,5 +1,7 @@
 import express from "express";
 import InternshipPlan from "../models/InternshipPlan.js";
+import Notification from "../models/Notification.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
@@ -59,6 +61,45 @@ router.post("/", async (req, res) => {
           deliverables: week.deliverables
         });
       }
+    }
+
+    // Send notifications to students who applied to this internship
+    try {
+      console.log(`🔔 Sending training plan notifications for internship ${internship_id}...`);
+      
+      // Get all students who applied to this internship
+      const studentsQuery = `
+        SELECT DISTINCT u.id as user_id, u.full_name, u.email
+        FROM internship_matches im
+        JOIN Students s ON im.student_id = s.id
+        JOIN Users u ON s.user_id = u.id
+        WHERE im.internship_id = ? AND im.applied = TRUE
+      `;
+      
+      const students = await new Promise((resolve, reject) => {
+        db.query(studentsQuery, [internship_id], (err, results) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+
+      console.log(`📊 Found ${students.length} students to notify`);
+
+      if (students.length > 0) {
+        // Create notifications for all students
+        const notifications = students.map(student => ({
+          user_id: student.user_id,
+          title: 'New Training Plan Published',
+          message: `A new training plan has been published: ${title}`,
+          type: 'training_plan'
+        }));
+
+        await Notification.createBulk(notifications);
+        console.log(`✅ Sent ${notifications.length} training plan notifications`);
+      }
+    } catch (notifError) {
+      console.error('Error sending notifications:', notifError);
+      // Don't fail the request if notifications fail
     }
 
     res.status(201).json({
@@ -343,6 +384,69 @@ router.get("/:planId/weeks", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching weeks:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get plans for a student based on their internship applications
+router.get("/student/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    console.log(`📋 Getting training plans for student ${studentId}...`);
+    
+    // Get all plans for internships the student has applied to
+    const query = `
+      SELECT DISTINCT
+        ip.*,
+        i.title as internship_title,
+        c.name as company_name,
+        c.logo as company_logo,
+        t.specialization as trainer_specialization,
+        u.full_name as trainer_name
+      FROM Internship_Plans ip
+      JOIN Internships i ON ip.internship_id = i.id
+      JOIN Company c ON i.company_id = c.id
+      JOIN Trainers t ON ip.trainer_id = t.id
+      JOIN Users u ON t.user_id = u.id
+      JOIN Internship_Matches im ON i.id = im.internship_id
+      WHERE im.student_id = ? AND im.applied = TRUE
+      ORDER BY ip.created_at DESC
+    `;
+    
+    db.query(query, [studentId], async (err, results) => {
+      if (err) {
+        console.error("❌ Error fetching student plans:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      // Get weeks for each plan
+      const plansWithWeeks = await Promise.all(
+        results.map(async (plan) => {
+          const weeks = await InternshipPlan.getWeeks(plan.id);
+          return {
+            ...plan,
+            weeks
+          };
+        })
+      );
+      
+      console.log(`✅ Found ${plansWithWeeks.length} training plans for student ${studentId}`);
+      
+      res.json({
+        success: true,
+        plans: plansWithWeeks
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Get student plans error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

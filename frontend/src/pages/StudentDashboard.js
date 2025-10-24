@@ -30,6 +30,9 @@ function StudentDashboard() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [savedInternships, setSavedInternships] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [trainingPlans, setTrainingPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [studentId, setStudentId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -78,6 +81,7 @@ function StudentDashboard() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.student) {
+          setStudentId(data.student.id);
           // Load university name if university_id exists
           let universityName = '';
           if (data.student.university_id) {
@@ -317,6 +321,26 @@ function StudentDashboard() {
       }
     } catch (error) {
       console.error('Error loading saved internships:', error);
+    }
+  };
+
+  const loadTrainingPlans = async () => {
+    if (!studentId) {
+      console.log('No student ID found');
+      return;
+    }
+    
+    try {
+      console.log('📋 Loading training plans for student:', studentId);
+      const response = await fetch(`http://localhost:5050/api/plans/student/${studentId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Training plans loaded:', data.plans);
+        setTrainingPlans(data.plans || []);
+      }
+    } catch (error) {
+      console.error('Error loading training plans:', error);
     }
   };
 
@@ -820,6 +844,16 @@ function StudentDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
             Messages/Chat
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'plans' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('plans'); loadTrainingPlans(); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            Training Plans
           </button>
         </nav>
 
@@ -1775,6 +1809,134 @@ function StudentDashboard() {
                         <div className="unread-indicator"></div>
                       </>
                     )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Training Plans Section */}
+        {activeMenu === 'plans' && (
+          <div className="plans-section">
+            <div className="section-header">
+              <h2>Training Plans</h2>
+              <p>View training plans published by your trainers</p>
+            </div>
+
+            {trainingPlans.length === 0 ? (
+              <div className="empty-state">
+                <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                <h3>No Training Plans Yet</h3>
+                <p>No training plans have been published yet for your internships</p>
+              </div>
+            ) : (
+              <div className="plans-grid">
+                {trainingPlans.map(plan => (
+                  <div key={plan.id} className="plan-card">
+                    <div className="plan-header">
+                      <div className="plan-company-info">
+                        {plan.company_logo ? (
+                          <img 
+                            src={`http://localhost:5050${plan.company_logo}`} 
+                            alt={plan.company_name}
+                            className="plan-company-logo"
+                          />
+                        ) : (
+                          <div className="plan-company-placeholder">
+                            {plan.company_name?.charAt(0) || 'C'}
+                          </div>
+                        )}
+                        <div>
+                          <h3>{plan.title}</h3>
+                          <p className="plan-internship-title">{plan.internship_title}</p>
+                          <p className="plan-company-name">{plan.company_name}</p>
+                        </div>
+                      </div>
+                      <span className={`plan-status-badge status-${plan.status}`}>
+                        {plan.status === 'draft' ? 'Draft' : plan.status === 'active' ? 'Active' : 'Completed'}
+                      </span>
+                    </div>
+
+                    <div className="plan-info">
+                      <div className="plan-info-item">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+                        </svg>
+                        <span>Trainer: {plan.trainer_name}</span>
+                      </div>
+                      <div className="plan-info-item">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                        </svg>
+                        <span>Duration: {plan.duration_weeks} weeks</span>
+                      </div>
+                      {plan.start_date && (
+                        <div className="plan-info-item">
+                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                          </svg>
+                          <span>Start Date: {new Date(plan.start_date).toLocaleDateString('en-US')}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {plan.description && (
+                      <div className="plan-description">
+                        <p>{plan.description}</p>
+                      </div>
+                    )}
+
+                    {plan.weeks && plan.weeks.length > 0 && (
+                      <div className="plan-weeks">
+                        <h4>Plan Content ({plan.weeks.length} weeks)</h4>
+                        <div className="weeks-list">
+                          {plan.weeks.map(week => (
+                            <div key={week.id} className="week-item">
+                              <div className="week-header">
+                                <span className="week-number">Week {week.week_number}</span>
+                                <h5>{week.title}</h5>
+                              </div>
+                              {week.description && (
+                                <p className="week-description">{week.description}</p>
+                              )}
+                              {week.objectives && (
+                                <div className="week-detail">
+                                  <strong>Objectives:</strong>
+                                  <p>{week.objectives}</p>
+                                </div>
+                              )}
+                              {week.tasks && (
+                                <div className="week-detail">
+                                  <strong>Tasks:</strong>
+                                  <p>{week.tasks}</p>
+                                </div>
+                              )}
+                              {week.deliverables && (
+                                <div className="week-detail">
+                                  <strong>Deliverables:</strong>
+                                  <p>{week.deliverables}</p>
+                                </div>
+                              )}
+                              {week.resources && (
+                                <div className="week-detail">
+                                  <strong>Resources:</strong>
+                                  <p>{week.resources}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="plan-footer">
+                      <span className="plan-date">
+                        Published: {new Date(plan.created_at).toLocaleDateString('en-US')}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

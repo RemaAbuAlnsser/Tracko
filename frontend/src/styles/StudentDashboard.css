@@ -2301,3 +2301,301 @@
     font-size: 14px;
   }
 }
+
+/* Training Plans Section */
+.plans-section {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.plans-section .section-header {
+  margin-bottom: 32px;
+}
+
+.plans-section .section-header h2 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.plans-section .section-header p {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+  gap: 24px;
+}
+
+.plan-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 1px solid #e5e7eb;
+}
+
+.plan-card:hover {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.plan-company-info {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.plan-company-logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+}
+
+.plan-company-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.plan-company-info h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.plan-internship-title {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 4px 0;
+}
+
+.plan-company-name {
+  font-size: 14px;
+  color: #9ca3af;
+  margin: 4px 0;
+}
+
+.plan-status-badge {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.plan-status-badge.status-draft {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.plan-status-badge.status-active {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.plan-status-badge.status-completed {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.plan-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.plan-info-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.plan-info-item svg {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.plan-description {
+  background-color: #f9fafb;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.plan-description p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.plan-weeks {
+  margin-top: 24px;
+}
+
+.plan-weeks h4 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weeks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.week-item {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.week-item:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.week-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.week-number {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.week-header h5 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.week-description {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.week-detail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.week-detail:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.week-detail strong {
+  display: block;
+  color: #374151;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.week-detail p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.plan-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.plan-date {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* Responsive Design for Plans */
+@media (max-width: 1200px) {
+  .plans-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .plans-section {
+    padding: 16px;
+  }
+
+  .plan-card {
+    padding: 20px;
+  }
+
+  .plan-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .plan-company-info {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .plan-status-badge {
+    align-self: flex-start;
+  }
+
+  .week-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

@@ -10,7 +10,7 @@ async function createNotificationsTable() {
         user_id INT NOT NULL,
         title VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
-        type ENUM('appointment', 'submission', 'meeting', 'general') NOT NULL DEFAULT 'general',
+        type ENUM('appointment', 'submission', 'meeting', 'general', 'training_plan', 'training_report', 'application') NOT NULL DEFAULT 'general',
         is_read BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE,
@@ -32,7 +32,7 @@ async function createNotificationsTable() {
       console.log("   - user_id: FOREIGN KEY -> Users(id)");
       console.log("   - title: VARCHAR(255)");
       console.log("   - message: TEXT");
-      console.log("   - type: ENUM('appointment', 'submission', 'meeting', 'general')");
+      console.log("   - type: ENUM('appointment', 'submission', 'meeting', 'general', 'training_plan', 'training_report', 'application')");
       console.log("   - is_read: BOOLEAN (default: FALSE)");
       console.log("   - created_at: TIMESTAMP (default: CURRENT_TIMESTAMP)");
       process.exit(0);

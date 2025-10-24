@@ -201,7 +201,7 @@ function TrainerDashboard() {
   const loadReports = async () => {
     if (!trainerId) return;
     try {
-      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/reports`);
+      const response = await fetch(`http://localhost:5050/api/reports/trainer/${trainerId}`);
       const data = await response.json();
       if (data.success) {
         setReports(data.reports || []);
@@ -316,14 +316,14 @@ function TrainerDashboard() {
     }
 
     try {
-      const response = await fetch('http://localhost:5050/api/trainers/reports', {
+      const response = await fetch('http://localhost:5050/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newReport, trainer_id: trainerId })
       });
       const data = await response.json();
       if (data.success) {
-        setMessage({ type: 'success', text: 'Report submitted successfully!' });
+        setMessage({ type: 'success', text: 'Report submitted successfully! Student has been notified.' });
         setNewReport({
           student_id: '',
           report_type: 'weekly',
@@ -476,7 +476,7 @@ function TrainerDashboard() {
       });
       const data = await response.json();
       if (data.success) {
-        setMessage({ type: 'success', text: 'Plan created successfully!' });
+        setMessage({ type: 'success', text: 'Plan created successfully! Students have been notified.' });
         setNewPlan({
           internship_id: '',
           title: '',
