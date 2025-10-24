@@ -56,6 +56,8 @@ function StudentDashboard() {
   const [newMessage, setNewMessage] = useState('');
   const [messagesChannel, setMessagesChannel] = useState(null);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const [hasAcceptedInternship, setHasAcceptedInternship] = useState(false);
+  const [acceptedInternshipInfo, setAcceptedInternshipInfo] = useState(null);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -88,6 +90,13 @@ function StudentDashboard() {
       loadTrainers();
     }
   }, [user]);
+
+  // Load training plans when studentId is available
+  useEffect(() => {
+    if (studentId) {
+      loadTrainingPlans();
+    }
+  }, [studentId]);
 
   // Setup real-time message subscription for student
   useEffect(() => {
@@ -599,6 +608,19 @@ function StudentDashboard() {
         // Calculate total unread messages
         const totalUnread = trainersWithUnread.reduce((sum, trainer) => sum + (trainer.unread_count || 0), 0);
         setTotalUnreadMessages(totalUnread);
+        
+        // Check if student has accepted internship
+        if (trainersWithUnread.length > 0) {
+          setHasAcceptedInternship(true);
+          setAcceptedInternshipInfo({
+            internship_title: trainersWithUnread[0].internship_title,
+            company_name: trainersWithUnread[0].company_name,
+            company_logo: trainersWithUnread[0].company_logo
+          });
+        } else {
+          setHasAcceptedInternship(false);
+          setAcceptedInternshipInfo(null);
+        }
       }
     } catch (error) {
       console.error('Error loading trainers:', error);
@@ -1655,7 +1677,60 @@ function StudentDashboard() {
               <p>Internships matched to your skills and profile - sorted by compatibility</p>
             </div>
 
-            {loadingInternships ? (
+            {hasAcceptedInternship ? (
+              <div className="empty-state" style={{ 
+                background: 'white',
+                color: '#1f2937',
+                padding: '3rem',
+                borderRadius: '12px',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{ 
+                  width: '80px',
+                  height: '80px',
+                  background: '#10b981',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1.5rem',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                }}>
+                  <svg width="48" height="48" fill="white" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <h2 style={{ color: '#1f2937', fontSize: '2rem', marginBottom: '0.5rem', fontWeight: '700' }}>Congratulations!</h2>
+                <h3 style={{ color: '#10b981', fontSize: '1.3rem', marginBottom: '1.5rem', fontWeight: '600' }}>
+                  You have been accepted to an internship
+                </h3>
+                {acceptedInternshipInfo && (
+                  <div style={{ 
+                    background: '#f9fafb', 
+                    padding: '1.5rem', 
+                    borderRadius: '8px',
+                    marginTop: '1.5rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <p style={{ fontSize: '1rem', marginBottom: '0.75rem', color: '#4b5563' }}>
+                      <strong style={{ color: '#1f2937' }}>Internship:</strong> {acceptedInternshipInfo.internship_title}
+                    </p>
+                    <p style={{ fontSize: '1rem', color: '#4b5563' }}>
+                      <strong style={{ color: '#1f2937' }}>Company:</strong> {acceptedInternshipInfo.company_name}
+                    </p>
+                  </div>
+                )}
+                <p style={{ 
+                  marginTop: '1.5rem', 
+                  fontSize: '0.95rem',
+                  color: '#6b7280',
+                  lineHeight: '1.6'
+                }}>
+                  Check the <strong style={{ color: '#10b981' }}>Training Plans</strong> section to view your training schedule and tasks.
+                </p>
+              </div>
+            ) : loadingInternships ? (
               <div className="loading-container">
                 <p>Loading internships...</p>
               </div>
@@ -2281,7 +2356,7 @@ function StudentDashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
                 <h3>No Training Plans Yet</h3>
-                <p>No training plans have been published yet for your internships</p>
+                <p>Training plans will appear here once you are accepted to an internship and the company publishes a training plan</p>
               </div>
             ) : (
               <div className="plans-list">
