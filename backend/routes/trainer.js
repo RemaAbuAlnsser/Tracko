@@ -211,7 +211,8 @@ router.get("/:trainerId/students", async (req, res) => {
     
     const query = `
       SELECT DISTINCT
-        s.id as student_id,
+        s.id,
+        s.user_id,
         u.full_name,
         u.email,
         s.major,

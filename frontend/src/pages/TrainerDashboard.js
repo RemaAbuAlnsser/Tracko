@@ -1,6 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/TrainerDashboard.css';
+import { 
+  loadChatMessages, 
+  sendChatMessage, 
+  subscribeToMessages, 
+  unsubscribeFromMessages,
+  markMessagesAsRead,
+  getUnreadCount 
+} from '../utils/chatService';
 
 function TrainerDashboard() {
   const [user, setUser] = useState(null);
@@ -29,7 +37,11 @@ function TrainerDashboard() {
   const [internships, setInternships] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [newMessage, setNewMessage] = useState('');
+  const [messagesChannel, setMessagesChannel] = useState(null);
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const messagesEndRef = useRef(null);
   const [newReport, setNewReport] = useState({
     student_id: '',
     report_type: 'weekly',
@@ -95,6 +107,52 @@ function TrainerDashboard() {
     // Load notifications on login
     loadNotificationsOnLogin(parsedUser);
   }, [navigate]);
+
+  // Load conversations when trainerId is available
+  useEffect(() => {
+    if (trainerId) {
+      loadConversations(); // Load conversations to show unread messages badge
+    }
+  }, [trainerId]);
+
+  // Setup real-time message subscription
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to real-time messages
+    const channel = subscribeToMessages(user.id, (newMessage) => {
+      // Only add message if it's for the current conversation AND from the other person
+      // (our own messages are added immediately in handleSendMessage)
+      if (selectedStudent && 
+          newMessage.sender_id === selectedStudent.user_id && 
+          newMessage.receiver_id === user.id) {
+        // Check if message doesn't already exist (avoid duplicates)
+        setMessages(prev => {
+          const exists = prev.some(msg => msg.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
+        setTimeout(() => scrollToBottom(), 100);
+      }
+      
+      // Update unread count in conversations
+      if (newMessage.sender_id !== user.id) {
+        loadConversations();
+      }
+    });
+
+    setMessagesChannel(channel);
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeFromMessages(channel);
+    };
+  }, [user, selectedStudent]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const loadTrainerData = async (userId) => {
     try {
@@ -462,57 +520,89 @@ function TrainerDashboard() {
     }
   };
 
+  // Load students as conversations for chat
   const loadConversations = async () => {
-    if (!user) return;
+    if (!trainerId) return;
     try {
-      const response = await fetch(`http://localhost:5050/api/messages/conversations/${user.id}`);
+      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/students`);
       const data = await response.json();
       if (data.success) {
-        setConversations(data.conversations || []);
+        const studentsWithUnread = await Promise.all(
+          (data.students || []).map(async (student) => {
+            const unreadCount = await getUnreadCount(user.id, student.user_id);
+            return {
+              ...student,
+              unread_count: unreadCount
+            };
+          })
+        );
+        setConversations(studentsWithUnread);
+        
+        // Calculate total unread messages
+        const totalUnread = studentsWithUnread.reduce((sum, student) => sum + (student.unread_count || 0), 0);
+        setTotalUnreadMessages(totalUnread);
       }
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
   };
 
-  const loadMessages = async (conversationId) => {
+  // Load messages for selected student
+  const loadMessages = async (student) => {
+    if (!user || !student) return;
+    
     try {
-      const response = await fetch(`http://localhost:5050/api/messages/conversation/${conversationId}`);
-      const data = await response.json();
-      if (data.success) {
-        setMessages(data.messages || []);
-        setSelectedConversation(conversationId);
-      }
+      const chatMessages = await loadChatMessages(user.id, student.user_id);
+      setMessages(chatMessages);
+      setSelectedStudent(student);
+      setSelectedConversation(student.id);
+      
+      // Mark messages as read
+      await markMessagesAsRead(student.user_id, user.id);
+      
+      // Scroll to bottom
+      setTimeout(() => scrollToBottom(), 100);
     } catch (error) {
       console.error('Error loading messages:', error);
     }
   };
 
+  // Send message using Supabase
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedConversation || !user) return;
+    if (!newMessage.trim() || !selectedStudent || !user) return;
 
+    const messageText = newMessage.trim();
+    
     try {
-      const response = await fetch('http://localhost:5050/api/messages/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sender_id: user.id,
-          conversation_id: selectedConversation,
-          message: newMessage
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setNewMessage('');
-        loadMessages(selectedConversation);
+      // Clear input immediately for better UX
+      setNewMessage('');
+      
+      const result = await sendChatMessage(user.id, selectedStudent.user_id, messageText);
+      
+      if (result.success && result.data && result.data[0]) {
+        // Add message to state immediately
+        const newMsg = result.data[0];
+        setMessages(prev => [...prev, newMsg]);
+        
+        // Scroll to bottom
+        setTimeout(() => scrollToBottom(), 50);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to send message' });
+        setMessage({ type: 'error', text: 'Failed to send message' });
+        // Restore message text if failed
+        setNewMessage(messageText);
       }
     } catch (error) {
       console.error('Error sending message:', error);
       setMessage({ type: 'error', text: 'Server error' });
+      // Restore message text if failed
+      setNewMessage(messageText);
     }
+  };
+
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const loadPlans = async () => {
@@ -883,6 +973,11 @@ function TrainerDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             Messages
+            {totalUnreadMessages > 0 && (
+              <span className="notification-badge">
+                {totalUnreadMessages}
+              </span>
+            )}
           </button>
 
           <button 
@@ -1820,30 +1915,30 @@ function TrainerDashboard() {
             </div>
 
             <div className="chat-container">
-              {/* Conversations List */}
+              {/* Students List (Conversations) */}
               <div className="conversations-sidebar">
-                <h3>Conversations</h3>
+                <h3>My Students</h3>
                 {conversations.length === 0 ? (
                   <div className="empty-state-small">
-                    <p>No conversations yet</p>
+                    <p>No students yet</p>
                   </div>
                 ) : (
                   <div className="conversations-list">
-                    {conversations.map(conversation => (
+                    {conversations.map(student => (
                       <div
-                        key={conversation.id}
-                        className={`conversation-item ${selectedConversation === conversation.id ? 'active' : ''}`}
-                        onClick={() => loadMessages(conversation.id)}
+                        key={student.id}
+                        className={`conversation-item ${selectedConversation === student.id ? 'active' : ''}`}
+                        onClick={() => loadMessages(student)}
                       >
                         <div className="conversation-avatar">
-                          {conversation.participant_name ? conversation.participant_name.charAt(0).toUpperCase() : '?'}
+                          {student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S'}
                         </div>
                         <div className="conversation-info">
-                          <h4>{conversation.participant_name || 'Unknown'}</h4>
-                          <p>{conversation.last_message || 'No messages yet'}</p>
+                          <h4>{student.full_name || 'Student'}</h4>
+                          <p className="student-email">{student.email}</p>
                         </div>
-                        {conversation.unread_count > 0 && (
-                          <span className="unread-count">{conversation.unread_count}</span>
+                        {student.unread_count > 0 && (
+                          <span className="unread-count">{student.unread_count}</span>
                         )}
                       </div>
                     ))}
@@ -1855,11 +1950,24 @@ function TrainerDashboard() {
               <div className="chat-area">
                 {!selectedConversation ? (
                   <div className="empty-state">
-                    <h3>Select a Conversation</h3>
-                    <p>Choose a conversation from the list to start chatting</p>
+                    <h3>Select a Student</h3>
+                    <p>Choose a student from the list to start chatting</p>
                   </div>
                 ) : (
                   <>
+                    {/* Chat Header */}
+                    {selectedStudent && (
+                      <div className="chat-header">
+                        <div className="conversation-avatar">
+                          {selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S'}
+                        </div>
+                        <div>
+                          <h3>{selectedStudent.full_name}</h3>
+                          <p className="student-info">{selectedStudent.email}</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Messages List */}
                     <div className="messages-list">
                       {messages.length === 0 ? (
@@ -1867,22 +1975,59 @@ function TrainerDashboard() {
                           <p>No messages yet. Start the conversation!</p>
                         </div>
                       ) : (
-                        messages.map(msg => (
-                          <div
-                            key={msg.id}
-                            className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
-                          >
-                            <div className="message-bubble">
-                              <p>{msg.message}</p>
-                              <span className="message-time">
-                                {new Date(msg.created_at).toLocaleTimeString([], { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
-                                })}
-                              </span>
+                        <>
+                          {messages.map(msg => (
+                            <div
+                              key={msg.id}
+                              className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                            >
+                              {/* Show avatar for receiver (student) on left */}
+                              {msg.sender_id !== user.id && selectedStudent && (
+                                <div className="message-avatar">
+                                  {selectedStudent.student_img ? (
+                                    <img 
+                                      src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
+                                      alt={selectedStudent.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S';
+                                      }}
+                                    />
+                                  ) : (
+                                    selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S'
+                                  )}
+                                </div>
+                              )}
+                              <div className="message-bubble">
+                                <p>{msg.message}</p>
+                                <span className="message-time">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </span>
+                              </div>
+                              {/* Show avatar for sender (trainer) on right */}
+                              {msg.sender_id === user.id && (
+                                <div className="message-avatar">
+                                  {trainerData.profile_image ? (
+                                    <img 
+                                      src={`http://localhost:5050${trainerData.profile_image}`} 
+                                      alt={user.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'T';
+                                      }}
+                                    />
+                                  ) : (
+                                    user.full_name ? user.full_name.charAt(0).toUpperCase() : 'T'
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))
+                          ))}
+                          <div ref={messagesEndRef} />
+                        </>
                       )}
                     </div>
 

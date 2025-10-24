@@ -1,5 +1,6 @@
 import express from "express";
 import Student from "../models/Student.js";
+import db from "../config/database.js";
 
 const router = express.Router();
 
@@ -157,6 +158,83 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting student:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get trainers for student's accepted internships
+router.get("/:userId/trainers", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`👥 Getting trainers for student user ${userId}...`);
+    
+    // First get student_id from user_id
+    const studentQuery = `SELECT id FROM Students WHERE user_id = ?`;
+    
+    db.query(studentQuery, [userId], (err, studentResults) => {
+      if (err) {
+        console.error("❌ Error fetching student:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      if (studentResults.length === 0) {
+        return res.json({
+          success: true,
+          trainers: []
+        });
+      }
+      
+      const studentId = studentResults[0].id;
+      
+      // Get trainers from accepted internships
+      const query = `
+        SELECT DISTINCT
+          t.id,
+          t.user_id,
+          u.full_name,
+          u.email,
+          t.specialization,
+          t.profile_image,
+          i.id as internship_id,
+          i.title as internship_title,
+          c.name as company_name
+        FROM Internship_Matches im
+        INNER JOIN Internships i ON im.internship_id = i.id
+        INNER JOIN Internship_Trainers it ON i.id = it.internship_id
+        INNER JOIN Trainers t ON it.trainer_id = t.id
+        INNER JOIN Users u ON t.user_id = u.id
+        INNER JOIN Company c ON i.company_id = c.id
+        WHERE im.student_id = ? AND im.status = 'accepted'
+        ORDER BY u.full_name ASC
+      `;
+      
+      db.query(query, [studentId], (err, results) => {
+        if (err) {
+          console.error("❌ Error fetching trainers:", err);
+          return res.status(500).json({
+            success: false,
+            message: "Server error"
+          });
+        }
+        
+        console.log(`✅ Found ${results.length} trainers for student ${userId}`);
+        
+        res.json({
+          success: true,
+          trainers: results
+        });
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Get student trainers error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

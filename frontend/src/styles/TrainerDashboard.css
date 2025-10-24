@@ -716,6 +716,24 @@
   flex: 1;
 }
 
+/* Custom Scrollbar for Conversations */
+.conversations-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversations-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.conversations-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.conversations-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
 .conversation-item {
   display: flex;
   align-items: center;
@@ -787,6 +805,39 @@
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Chat Header */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #ffffff;
+}
+
+.chat-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.chat-header .student-info {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.student-email {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .messages-list {
@@ -799,51 +850,148 @@
   background-color: #f9fafb;
 }
 
+/* Custom Scrollbar for Messages */
+.messages-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-list::-webkit-scrollbar-track {
+  background: #f9fafb;
+}
+
+.messages-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.messages-list::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
 .message-item {
   display: flex;
-  margin-bottom: 8px;
+  width: 100%;
+  margin-bottom: 16px;
+  animation: messageSlideIn 0.3s ease-out;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message-item.sent {
   justify-content: flex-end;
+  text-align: right;
 }
 
 .message-item.received {
   justify-content: flex-start;
+  text-align: left;
+}
+
+/* Avatar for messages */
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+
+/* Avatar positioning for received messages (left side) */
+.message-item.received .message-avatar {
+  margin-right: 8px;
+  order: -1;
+}
+
+/* Avatar positioning for sent messages (right side) */
+.message-item.sent .message-avatar {
+  margin-left: 8px;
+  order: 1;
+}
+
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .message-bubble {
-  max-width: 60%;
+  max-width: 65%;
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: 16px;
   position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
 }
 
+.message-bubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* رسائل المرسل (Sender) - على اليمين بلون أزرق فاتح */
 .message-item.sent .message-bubble {
-  background-color: #1e88e5;
-  color: white;
+  background-color: #e3f2fd;
+  color: #1565c0;
   border-bottom-right-radius: 4px;
+  margin-left: auto;
+  border: 1px solid #90caf9;
 }
 
+/* رسائل المستقبل (Receiver) - على اليسار بلون سكني فاتح */
 .message-item.received .message-bubble {
-  background-color: white;
-  color: #1f2937;
-  border: 1px solid #e5e7eb;
+  background-color: #f5f5f5;
+  color: #424242;
+  border: 1px solid #e0e0e0;
   border-bottom-left-radius: 4px;
+  margin-right: auto;
 }
 
 .message-bubble p {
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
   font-size: 14px;
   line-height: 1.5;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .message-time {
   font-size: 11px;
-  opacity: 0.7;
+  opacity: 0.8;
   display: block;
+  margin-top: 4px;
+}
+
+/* وقت الرسالة للمرسل */
+.message-item.sent .message-time {
   text-align: right;
+  color: #1976d2;
+  opacity: 0.7;
+}
+
+/* وقت الرسالة للمستقبل */
+.message-item.received .message-time {
+  text-align: left;
+  color: #757575;
+  opacity: 0.7;
 }
 
 /* Message Input Form */
