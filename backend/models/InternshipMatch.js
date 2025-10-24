@@ -418,7 +418,9 @@ class InternshipMatch {
       INNER JOIN Students s ON im.student_id = s.id
       INNER JOIN Users u ON s.user_id = u.id
       LEFT JOIN Universities un ON s.university_id = un.id
-      LEFT JOIN CVs cv ON s.id = cv.student_id
+      LEFT JOIN CVs cv ON s.id = cv.student_id AND cv.id = (
+        SELECT MAX(id) FROM CVs WHERE student_id = s.id
+      )
       INNER JOIN Internships i ON im.internship_id = i.id
       WHERE im.internship_id = ? AND im.applied = TRUE AND im.status = 'pending'
       ORDER BY im.applied_at DESC
@@ -500,7 +502,9 @@ class InternshipMatch {
       INNER JOIN Students s ON im.student_id = s.id
       INNER JOIN Users u ON s.user_id = u.id
       LEFT JOIN Universities un ON s.university_id = un.id
-      LEFT JOIN CVs cv ON s.id = cv.student_id
+      LEFT JOIN CVs cv ON s.id = cv.student_id AND cv.id = (
+        SELECT MAX(id) FROM CVs WHERE student_id = s.id
+      )
       INNER JOIN Internships i ON im.internship_id = i.id
       WHERE i.company_id = ? AND im.status = 'accepted'
       ORDER BY im.applied_at DESC
@@ -579,7 +583,9 @@ class InternshipMatch {
       INNER JOIN Students s ON im.student_id = s.id
       INNER JOIN Users u ON s.user_id = u.id
       LEFT JOIN Universities un ON s.university_id = un.id
-      LEFT JOIN CVs cv ON s.id = cv.student_id
+      LEFT JOIN CVs cv ON s.id = cv.student_id AND cv.id = (
+        SELECT MAX(id) FROM CVs WHERE student_id = s.id
+      )
       INNER JOIN Internships i ON im.internship_id = i.id
       WHERE i.company_id = ? AND im.applied = TRUE AND im.status = 'pending'
       ORDER BY im.applied_at DESC
