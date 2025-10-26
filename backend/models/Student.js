@@ -12,7 +12,7 @@ class Student {
       cv_file = null,
       student_img = null,
       skills = null,
-      status = 'active'
+      status = 'not_started'
     } = studentData;
     
     const query = `
@@ -108,6 +108,16 @@ class Student {
       status
     } = studentData;
     
+    // Convert old status values to new ones
+    let updatedStatus = status;
+    if (status === 'active') {
+      updatedStatus = 'in_training';
+    } else if (status === 'inactive') {
+      updatedStatus = 'not_started';
+    } else if (status === 'graduated') {
+      updatedStatus = 'completed';
+    }
+    
     const query = `
       UPDATE Students 
       SET university_id = ?, major = ?, 
@@ -119,7 +129,7 @@ class Student {
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [university_id, major, academic_year, gpa, cv_file, student_img, skills, status, id], 
+        [university_id, major, academic_year, gpa, cv_file, student_img, skills, updatedStatus, id], 
         (err, result) => {
           if (err) {
             reject(err);

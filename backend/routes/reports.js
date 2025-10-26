@@ -30,11 +30,11 @@ router.post("/", async (req, res) => {
 
     // Insert report
     const insertQuery = `
-      INSERT INTO Trainer_Reports (
-        trainer_id, student_id, report_type, performance_rating,
-        attendance, technical_skills, communication_skills,
-        problem_solving, teamwork, comments
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Final_Reports (
+        trainer_id, student_id, overall_performance,
+        technical_skills_rating, communication_rating, teamwork_rating,
+        problem_solving_rating, attendance_rating
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await new Promise((resolve, reject) => {
@@ -43,14 +43,12 @@ router.post("/", async (req, res) => {
         [
           trainer_id,
           student_id,
-          report_type || 'weekly',
-          performance_rating || 5,
-          attendance !== undefined ? attendance : true,
+          comments || '',
           technical_skills || 5,
           communication_skills || 5,
-          problem_solving || 5,
           teamwork || 5,
-          comments || ''
+          problem_solving || 5,
+          attendance !== undefined ? (attendance ? 5 : 1) : 5
         ],
         (err, result) => {
           if (err) reject(err);
@@ -81,7 +79,7 @@ router.post("/", async (req, res) => {
       await Notification.create({
         user_id: student.user_id,
         title: 'تقرير تدريب جديد',
-        message: `تم نشر تقرير ${report_type === 'weekly' ? 'أسبوعي' : report_type === 'monthly' ? 'شهري' : 'نهائي'} جديد من المدرب`,
+        message: `تم نشر تقرير نهائي جديد من المدرب`,
         type: 'training_report'
       });
 
@@ -109,15 +107,15 @@ router.get("/trainer/:trainerId", async (req, res) => {
 
     const query = `
       SELECT 
-        tr.*,
+        fr.*,
         u.full_name as student_name,
         s.major,
         s.academic_year
-      FROM Trainer_Reports tr
-      JOIN Students s ON tr.student_id = s.id
+      FROM Final_Reports fr
+      JOIN Students s ON fr.student_id = s.id
       JOIN Users u ON s.user_id = u.id
-      WHERE tr.trainer_id = ?
-      ORDER BY tr.created_at DESC
+      WHERE fr.trainer_id = ?
+      ORDER BY fr.created_at DESC
     `;
 
     const reports = await new Promise((resolve, reject) => {
@@ -147,14 +145,14 @@ router.get("/student/:studentId", async (req, res) => {
 
     const query = `
       SELECT 
-        tr.*,
+        fr.*,
         t.specialization as trainer_specialization,
         u.full_name as trainer_name
-      FROM Trainer_Reports tr
-      JOIN Trainers t ON tr.trainer_id = t.id
+      FROM Final_Reports fr
+      JOIN Trainers t ON fr.trainer_id = t.id
       JOIN Users u ON t.user_id = u.id
-      WHERE tr.student_id = ?
-      ORDER BY tr.created_at DESC
+      WHERE fr.student_id = ?
+      ORDER BY fr.created_at DESC
     `;
 
     const reports = await new Promise((resolve, reject) => {
@@ -184,18 +182,18 @@ router.get("/:id", async (req, res) => {
 
     const query = `
       SELECT 
-        tr.*,
+        fr.*,
         u1.full_name as student_name,
         s.major,
         s.academic_year,
         u2.full_name as trainer_name,
         t.specialization as trainer_specialization
-      FROM Trainer_Reports tr
-      JOIN Students s ON tr.student_id = s.id
+      FROM Final_Reports fr
+      JOIN Students s ON fr.student_id = s.id
       JOIN Users u1 ON s.user_id = u1.id
-      JOIN Trainers t ON tr.trainer_id = t.id
+      JOIN Trainers t ON fr.trainer_id = t.id
       JOIN Users u2 ON t.user_id = u2.id
-      WHERE tr.id = ?
+      WHERE fr.id = ?
     `;
 
     const reports = await new Promise((resolve, reject) => {

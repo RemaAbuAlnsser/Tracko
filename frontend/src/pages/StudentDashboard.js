@@ -25,7 +25,8 @@ function StudentDashboard() {
     skills: '',
     university_id: '',
     university_name: '',
-    student_img: ''
+    student_img: '',
+    status: ''
   });
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -58,6 +59,11 @@ function StudentDashboard() {
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const [hasAcceptedInternship, setHasAcceptedInternship] = useState(false);
   const [acceptedInternshipInfo, setAcceptedInternshipInfo] = useState(null);
+  const [matchedInternshipsCount, setMatchedInternshipsCount] = useState(0);
+  const [interviewsCount, setInterviewsCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [certificate, setCertificate] = useState(null);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -95,6 +101,7 @@ function StudentDashboard() {
   useEffect(() => {
     if (studentId) {
       loadTrainingPlans();
+      loadDashboardStats();
     }
   }, [studentId]);
 
@@ -551,11 +558,49 @@ function StudentDashboard() {
       if (data.success) {
         console.log('Notifications loaded:', data.notifications.length);
         setNotifications(data.notifications || []);
+        // Count unread notifications
+        const unreadCount = (data.notifications || []).filter(n => !n.is_read).length;
+        setUnreadNotificationsCount(unreadCount);
       } else {
         console.log('API returned error:', data.message);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
+    }
+  };
+
+  // Load dashboard stats
+  const loadDashboardStats = async () => {
+    if (!studentId) {
+      console.log('⚠️ Cannot load dashboard stats: studentId is missing');
+      return;
+    }
+    
+    console.log('📊 Loading dashboard stats for student:', studentId);
+    
+    try {
+      // Get matched internships count
+      const matchesResponse = await fetch(`http://localhost:5050/api/matching/student/${studentId}`);
+      const matchesData = await matchesResponse.json();
+      if (matchesData.success) {
+        setMatchedInternshipsCount(matchesData.data.length);
+        // Count interviews (you can adjust this based on your interview status)
+        const interviewsScheduled = matchesData.data.filter(m => m.status === 'interview_scheduled').length;
+        setInterviewsCount(interviewsScheduled);
+      }
+
+      // Get certificate if exists
+      const certResponse = await fetch(`http://localhost:5050/api/students/${studentId}/certificate`);
+      const certData = await certResponse.json();
+      console.log('📜 Certificate data:', certData);
+      if (certData.success && certData.certificate) {
+        console.log('✅ Certificate found:', certData.certificate);
+        setCertificate(certData.certificate);
+      } else {
+        console.log('⚠️ No certificate found for student');
+      }
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
     }
   };
 
@@ -631,8 +676,16 @@ function StudentDashboard() {
   const loadMessagesWithTrainer = async (trainer) => {
     if (!user || !trainer) return;
     
+    console.log('📨 Loading messages with trainer:', {
+      trainer_name: trainer.full_name,
+      trainer_user_id: trainer.user_id,
+      student_user_id: user.id
+    });
+    
     try {
       const chatMessages = await loadChatMessages(user.id, trainer.user_id);
+      console.log('✅ Loaded messages:', chatMessages.length, 'messages');
+      console.log('First message sample:', chatMessages[0]);
       setMessages(chatMessages);
       setSelectedTrainer(trainer);
       
@@ -652,6 +705,12 @@ function StudentDashboard() {
     if (!newMessage.trim() || !selectedTrainer || !user) return;
 
     const messageText = newMessage.trim();
+    
+    console.log('📤 Sending message:', {
+      sender_id: user.id,
+      receiver_id: selectedTrainer.user_id,
+      message: messageText
+    });
     
     try {
       // Clear input immediately
@@ -1205,31 +1264,31 @@ function StudentDashboard() {
             {/* Welcome Banner */}
             <div className="welcome-banner">
               <h2>Welcome back, {user.full_name.split(' ')[0]}!</h2>
-              <p>You have 3 new internship matches and 2 application updates</p>
             </div>
 
             {/* Stats Cards */}
+            {console.log('🎓 Certificate state in render:', certificate)}
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-icon" style={{ backgroundColor: '#e3f2fd' }}>
                   <svg width="24" height="24" fill="#1e88e5" viewBox="0 0 24 24">
-                    <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
                   </svg>
                 </div>
                 <div className="stat-content">
-                  <h3>12</h3>
-                  <p>Applications Sent</p>
+                  <h3>{matchedInternshipsCount}</h3>
+                  <p>Matched Internships</p>
                 </div>
               </div>
 
               <div className="stat-card">
                 <div className="stat-icon" style={{ backgroundColor: '#e8f5e9' }}>
                   <svg width="24" height="24" fill="#43a047" viewBox="0 0 24 24">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
                   </svg>
                 </div>
                 <div className="stat-content">
-                  <h3>3</h3>
+                  <h3>{interviewsCount}</h3>
                   <p>Interviews Scheduled</p>
                 </div>
               </div>
@@ -1237,72 +1296,34 @@ function StudentDashboard() {
               <div className="stat-card">
                 <div className="stat-icon" style={{ backgroundColor: '#fff3e0' }}>
                   <svg width="24" height="24" fill="#fb8c00" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
                   </svg>
                 </div>
                 <div className="stat-content">
-                  <h3>5</h3>
-                  <p>Pending Reviews</p>
+                  <h3>{unreadNotificationsCount}</h3>
+                  <p>Unread Notifications</p>
                 </div>
               </div>
 
-              <div className="stat-card">
-                <div className="stat-icon" style={{ backgroundColor: '#f3e5f5' }}>
-                  <svg width="24" height="24" fill="#8e24aa" viewBox="0 0 24 24">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  </svg>
+              {certificate && (
+                <div 
+                  className="stat-card" 
+                  style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                  onClick={() => setShowCertificateModal(true)}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <div className="stat-icon" style={{ backgroundColor: '#f3e5f5' }}>
+                    <svg width="24" height="24" fill="#8e24aa" viewBox="0 0 24 24">
+                      <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                    </svg>
+                  </div>
+                  <div className="stat-content">
+                    <h3>✓</h3>
+                    <p>View Certificate</p>
+                  </div>
                 </div>
-                <div className="stat-content">
-                  <h3>87%</h3>
-                  <p>Profile Match Score</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Applications and Recommendations */}
-            <div className="content-grid">
-              {/* Recent Applications */}
-              <div className="content-section">
-                <h3 className="section-title">Recent Applications</h3>
-                <div className="applications-list">
-                  {applications.map(app => (
-                    <div key={app.id} className="application-item">
-                      <div className="app-avatar">
-                        {app.title.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="app-details">
-                        <h4>{app.title}</h4>
-                        <p>{app.company} • {app.timeAgo}</p>
-                      </div>
-                      <div className="app-status">
-                        {getStatusBadge(app.status)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recommended Matches */}
-              <div className="content-section">
-                <h3 className="section-title">Recommended Matches</h3>
-                <div className="recommendations-list">
-                  {recommendedInternships.map(internship => (
-                    <div key={internship.id} className="recommendation-item">
-                      <div className="rec-avatar">
-                        {internship.title.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="rec-details">
-                        <h4>{internship.title}</h4>
-                        <p>{internship.company} • {internship.location}</p>
-                      </div>
-                      <div className="rec-actions">
-                        <span className="match-score">{internship.match}% match</span>
-                        <button className="view-btn">View</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           </>
         )}
@@ -2195,13 +2216,22 @@ function StudentDashboard() {
                         </div>
                       ) : (
                         <>
-                          {messages.map(msg => (
+                          {messages.map(msg => {
+                            const isSentByStudent = Number(msg.sender_id) === Number(user.id);
+                            console.log('📧 Message:', {
+                              message: msg.message,
+                              sender_id: msg.sender_id,
+                              user_id: user.id,
+                              isSent: isSentByStudent,
+                              types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
+                            });
+                            return (
                             <div
                               key={msg.id}
-                              className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                              className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
                             >
                               {/* Show avatar for receiver (trainer) on left */}
-                              {msg.sender_id !== user.id && selectedTrainer && (
+                              {!isSentByStudent && selectedTrainer && (
                                 <div className="message-avatar">
                                   {selectedTrainer.profile_image ? (
                                     <img 
@@ -2227,7 +2257,7 @@ function StudentDashboard() {
                                 </span>
                               </div>
                               {/* Show avatar for sender (student) on right */}
-                              {msg.sender_id === user.id && (
+                              {isSentByStudent && (
                                 <div className="message-avatar">
                                   {studentData.student_img ? (
                                     <img 
@@ -2244,7 +2274,8 @@ function StudentDashboard() {
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                           <div ref={messagesEndRef} />
                         </>
                       )}
@@ -2622,6 +2653,181 @@ function StudentDashboard() {
                 <button className="btn-secondary" onClick={() => setShowTaskModal(false)}>
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Certificate Modal */}
+        {showCertificateModal && certificate && (
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+            onClick={() => setShowCertificateModal(false)}
+          >
+            <div 
+              style={{
+                background: 'white',
+                borderRadius: '16px',
+                maxWidth: '900px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                padding: '24px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '16px 16px 0 0'
+              }}>
+                <div>
+                  <h2 style={{ margin: 0, color: 'white', fontSize: '24px', fontWeight: '700' }}>
+                    🎓 Training Completion Certificate
+                  </h2>
+                  <p style={{ margin: '4px 0 0 0', color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px' }}>
+                    {certificate.internship_title} • {certificate.company_name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowCertificateModal(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '36px',
+                    height: '36px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.2s',
+                    color: 'white',
+                    fontSize: '24px'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '24px' }}>
+                <div style={{
+                  padding: '16px',
+                  background: '#f0fdf4',
+                  borderRadius: '12px',
+                  marginBottom: '20px',
+                  border: '2px solid #86efac'
+                }}>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="20" height="20" fill="#16a34a" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <strong>Congratulations!</strong> Your certificate was uploaded on {new Date(certificate.certificate_uploaded_at).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {/* Certificate Preview */}
+                <div style={{
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  background: '#f9fafb'
+                }}>
+                  {certificate.certificate_file.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                    <img 
+                      src={`http://localhost:5050${certificate.certificate_file}`}
+                      alt="Certificate"
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        display: 'block'
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      padding: '60px 20px',
+                      textAlign: 'center'
+                    }}>
+                      <svg width="64" height="64" fill="#9ca3af" viewBox="0 0 20 20" style={{ margin: '0 auto 16px' }}>
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                      </svg>
+                      <p style={{ margin: 0, color: '#6b7280', fontSize: '16px' }}>PDF Certificate</p>
+                      <p style={{ margin: '8px 0 0 0', color: '#9ca3af', fontSize: '14px' }}>Click download button below to view</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Download Button */}
+                <div style={{ marginTop: '20px', display: 'flex', gap: '12px' }}>
+                  <a
+                    href={`http://localhost:5050${certificate.certificate_file}`}
+                    download
+                    style={{
+                      flex: 1,
+                      padding: '14px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Download Certificate
+                  </a>
+                  <a
+                    href={`http://localhost:5050${certificate.certificate_file}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '14px 24px',
+                      background: 'white',
+                      color: '#667eea',
+                      border: '2px solid #667eea',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                    </svg>
+                    Open
+                  </a>
+                </div>
               </div>
             </div>
           </div>

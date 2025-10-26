@@ -460,19 +460,31 @@ function TrainerDashboard() {
     }
 
     try {
-      const response = await fetch('http://localhost:5050/api/reports', {
+      // Prepare final report data
+      const finalReportData = {
+        trainer_id: trainerId,
+        student_id: newReport.student_id,
+        overall_performance: newReport.comments || '',
+        technical_skills_rating: newReport.technical_skills || 5,
+        communication_rating: newReport.communication_skills || 5,
+        teamwork_rating: newReport.teamwork || 5,
+        problem_solving_rating: newReport.problem_solving || 5,
+        attendance_rating: newReport.performance_rating || 5
+      };
+
+      const response = await fetch('http://localhost:5050/api/final-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newReport, trainer_id: trainerId })
+        body: JSON.stringify(finalReportData)
       });
+      
       const data = await response.json();
+      
       if (data.success) {
-        setMessage({ type: 'success', text: 'Report submitted successfully! Student has been notified.' });
+        setMessage({ type: 'success', text: 'Final report submitted successfully!' });
         setNewReport({
           student_id: '',
-          report_type: 'weekly',
           performance_rating: 5,
-          attendance: true,
           technical_skills: 5,
           communication_skills: 5,
           problem_solving: 5,
@@ -551,11 +563,19 @@ function TrainerDashboard() {
   const loadMessages = async (student) => {
     if (!user || !student) return;
     
+    console.log('📨 Loading messages for student:', {
+      student_name: student.full_name,
+      student_user_id: student.user_id,
+      trainer_user_id: user.id
+    });
+    
     try {
       const chatMessages = await loadChatMessages(user.id, student.user_id);
+      console.log('✅ Loaded messages:', chatMessages.length, 'messages');
+      console.log('First message sample:', chatMessages[0]);
       setMessages(chatMessages);
       setSelectedStudent(student);
-      setSelectedConversation(student.id);
+      setSelectedConversation(student.student_id);
       
       // Mark messages as read
       await markMessagesAsRead(student.user_id, user.id);
@@ -573,6 +593,12 @@ function TrainerDashboard() {
     if (!newMessage.trim() || !selectedStudent || !user) return;
 
     const messageText = newMessage.trim();
+    
+    console.log('📤 Sending message:', {
+      sender_id: user.id,
+      receiver_id: selectedStudent.user_id,
+      message: messageText
+    });
     
     try {
       // Clear input immediately for better UX
@@ -1386,8 +1412,18 @@ function TrainerDashboard() {
                           )}
                         </td>
                         <td>
-                          <span className="badge badge-accepted">
-                            {student.status}
+                          <span 
+                            className="badge"
+                            style={{
+                              backgroundColor: student.training_status === 'complete' ? '#22c55e' : '#3b82f6',
+                              color: 'white',
+                              padding: '0.4rem 0.8rem',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {student.training_status === 'complete' ? '✓ Complete' : '🔄 In Training'}
                           </span>
                         </td>
                         <td>
@@ -1442,40 +1478,17 @@ function TrainerDashboard() {
                     <label>Select Student *</label>
                     <select
                       value={newReport.student_id}
-                      onChange={(e) => setNewReport({ ...newReport, student_id: e.target.value })}
+                      onChange={(e) => setNewReport({ ...newReport, student_id: parseInt(e.target.value) })}
                       required
                     >
                       <option value="">Choose a student...</option>
                       {students.map(student => (
-                        <option key={student.id} value={student.id}>
+                        <option key={student.student_id} value={student.student_id}>
                           {student.full_name}
                         </option>
                       ))}
                     </select>
                   </div>
-
-                  <div className="form-group">
-                    <label>Report Type</label>
-                    <select
-                      value={newReport.report_type}
-                      onChange={(e) => setNewReport({ ...newReport, report_type: e.target.value })}
-                    >
-                      <option value="weekly">Weekly Report</option>
-                      <option value="monthly">Monthly Report</option>
-                      <option value="final">Final Report</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={newReport.attendance}
-                      onChange={(e) => setNewReport({ ...newReport, attendance: e.target.checked })}
-                    />
-                    {' '}Attendance Confirmed
-                  </label>
                 </div>
 
                 <h4 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>Performance Evaluation</h4>
@@ -1926,8 +1939,8 @@ function TrainerDashboard() {
                   <div className="conversations-list">
                     {conversations.map(student => (
                       <div
-                        key={student.id}
-                        className={`conversation-item ${selectedConversation === student.id ? 'active' : ''}`}
+                        key={student.student_id}
+                        className={`conversation-item ${selectedConversation === student.student_id ? 'active' : ''}`}
                         onClick={() => loadMessages(student)}
                       >
                         <div className="conversation-avatar">
@@ -1976,13 +1989,22 @@ function TrainerDashboard() {
                         </div>
                       ) : (
                         <>
-                          {messages.map(msg => (
+                          {messages.map(msg => {
+                            const isSentByTrainer = Number(msg.sender_id) === Number(user.id);
+                            console.log('📧 Message:', {
+                              message: msg.message,
+                              sender_id: msg.sender_id,
+                              user_id: user.id,
+                              isSent: isSentByTrainer,
+                              types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
+                            });
+                            return (
                             <div
                               key={msg.id}
-                              className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                              className={`message-item ${isSentByTrainer ? 'sent' : 'received'}`}
                             >
                               {/* Show avatar for receiver (student) on left */}
-                              {msg.sender_id !== user.id && selectedStudent && (
+                              {!isSentByTrainer && selectedStudent && (
                                 <div className="message-avatar">
                                   {selectedStudent.student_img ? (
                                     <img 
@@ -2008,7 +2030,7 @@ function TrainerDashboard() {
                                 </span>
                               </div>
                               {/* Show avatar for sender (trainer) on right */}
-                              {msg.sender_id === user.id && (
+                              {isSentByTrainer && (
                                 <div className="message-avatar">
                                   {trainerData.profile_image ? (
                                     <img 
@@ -2025,7 +2047,8 @@ function TrainerDashboard() {
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                           <div ref={messagesEndRef} />
                         </>
                       )}

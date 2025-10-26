@@ -225,7 +225,8 @@ router.get("/:trainerId/students", async (req, res) => {
         MAX(c.name) as company_name,
         MAX(im.status) as status,
         MAX(im.applied_at) as applied_at,
-        (SELECT analysis_data FROM CVs WHERE student_id = s.id ORDER BY id DESC LIMIT 1) as analysis_data
+        (SELECT analysis_data FROM CVs WHERE student_id = s.id ORDER BY id DESC LIMIT 1) as analysis_data,
+        (SELECT certificate_file FROM Final_Reports WHERE student_id = s.id AND trainer_id = ? ORDER BY created_at DESC LIMIT 1) as certificate_file
       FROM Internship_Trainers it
       INNER JOIN Internships i ON it.internship_id = i.id
       INNER JOIN Company c ON i.company_id = c.id
@@ -238,7 +239,7 @@ router.get("/:trainerId/students", async (req, res) => {
       ORDER BY applied_at DESC
     `;
     
-    db.query(query, [trainerId], (err, results) => {
+    db.query(query, [trainerId, trainerId], (err, results) => {
       if (err) {
         console.error("❌ Error fetching trainer students:", err);
         return res.status(500).json({
@@ -270,7 +271,8 @@ router.get("/:trainerId/students", async (req, res) => {
         return {
           ...student,
           gpa: gpa,
-          analysis_data: undefined // Remove from response
+          analysis_data: undefined, // Remove from response
+          training_status: student.certificate_file ? 'complete' : 'in_training'
         };
       });
       

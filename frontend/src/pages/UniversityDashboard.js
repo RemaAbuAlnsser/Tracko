@@ -39,6 +39,11 @@ function UniversityDashboard() {
     activePartnershipsCount: 0,
     internshipsCount: 0
   });
+  const [students, setStudents] = useState([]);
+  const [studentsSearchTerm, setStudentsSearchTerm] = useState('');
+  const [studentsFilterStatus, setStudentsFilterStatus] = useState('all');
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -227,6 +232,13 @@ function UniversityDashboard() {
     }
   }, [activeMenu, universityData.id]);
 
+  // Load students when students menu is active
+  useEffect(() => {
+    if (activeMenu === 'students' && universityData.id) {
+      loadStudents();
+    }
+  }, [activeMenu, universityData.id]);
+
   const loadPartnerships = async () => {
     if (!universityData.id) return;
     
@@ -384,6 +396,28 @@ function UniversityDashboard() {
     }
   };
 
+  const loadStudents = async () => {
+    if (!universityData.id) {
+      console.log('⚠️ Cannot load students: university ID is missing');
+      console.log('Current universityData:', universityData);
+      return;
+    }
+    
+    try {
+      console.log(`📚 Loading students for university ID: ${universityData.id}`);
+      const response = await fetch(`http://localhost:5050/api/students/university/${universityData.id}`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log('✅ Loaded students:', data.data);
+        setStudents(data.data || []);
+      } else {
+        console.error('❌ Failed to load students:', data);
+      }
+    } catch (error) {
+      console.error('Error loading students:', error);
+    }
+  };
+
   // Filter partnerships
   const filteredPartnerships = partnerships.filter(partnership => {
     const matchesSearch = partnership.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -400,6 +434,67 @@ function UniversityDashboard() {
     const matchesStatus = internshipFilterStatus === 'all' || internship.status === internshipFilterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  // Filter students
+  const filteredStudents = students.filter(student => {
+    const matchesSearch = student.full_name?.toLowerCase().includes(studentsSearchTerm.toLowerCase()) ||
+                         student.email?.toLowerCase().includes(studentsSearchTerm.toLowerCase()) ||
+                         student.major?.toLowerCase().includes(studentsSearchTerm.toLowerCase());
+    
+    // Filter by training status
+    let matchesStatus = true;
+    if (studentsFilterStatus === 'completed') {
+      // Show only students who have completed training (have certificate)
+      const hasCertificate = student.certificate_file != null && student.certificate_file !== '';
+      matchesStatus = hasCertificate;
+    } else if (studentsFilterStatus === 'in_training') {
+      // Show only students who are in training (have match but no certificate)
+      const hasMatch = student.match_id != null;
+      const hasCertificate = student.certificate_file != null && student.certificate_file !== '';
+      matchesStatus = hasMatch && !hasCertificate;
+    }
+    // 'all' shows everyone
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Approve final report
+  const handleApproveFinalReport = async (reportId) => {
+    if (!window.confirm('Are you sure you want to approve this final report? This will mark the student\'s training as completed.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/final-reports/${reportId}/approve`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          university_id: universityData.id
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Final report approved successfully!' });
+        setShowReportModal(false);
+        loadStudents(); // Reload students to get updated data
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to approve report' });
+      }
+    } catch (error) {
+      console.error('Approve error:', error);
+      setMessage({ type: 'error', text: 'Failed to approve report' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!user) {
     return <div>Loading...</div>;
@@ -1098,10 +1193,252 @@ function UniversityDashboard() {
         )}
 
         {activeMenu === 'students' && (
-          <div className="dashboard-content">
-            <h2>Students Management</h2>
-            <p>Student management page coming soon...</p>
-          </div>
+          <>
+            <div className="manage-header">
+              <div>
+                <h1>Students Management</h1>
+                <p>View and manage all students from your university</p>
+              </div>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="manage-filters" style={{ marginTop: '30px' }}>
+              <div className="search-box">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input 
+                  type="text"
+                  placeholder="Search students by name, email, or major..."
+                  value={studentsSearchTerm}
+                  onChange={(e) => setStudentsSearchTerm(e.target.value)}
+                />
+              </div>
+              <select 
+                className="filter-select"
+                value={studentsFilterStatus}
+                onChange={(e) => setStudentsFilterStatus(e.target.value)}
+              >
+                <option value="all">All Students</option>
+                <option value="completed">Training Completed</option>
+                <option value="in_training">In Training</option>
+              </select>
+            </div>
+
+            {/* Students Table */}
+            <div className="internships-table-container">
+              <div className="table-header-section">
+                <h3>University Students</h3>
+                <span className="posts-count">{filteredStudents.length} students</span>
+              </div>
+
+              {filteredStudents.length === 0 ? (
+                <div className="empty-state">
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <h3>No students found</h3>
+                  <p>No students are registered from your university yet</p>
+                </div>
+              ) : (
+                <div className="internships-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Major</th>
+                        <th>Academic Year</th>
+                        <th>GPA</th>
+                        <th>Training Status</th>
+                        <th>Current Internship</th>
+                        <th>Final Report</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredStudents.map((student) => {
+                        // Get the most recent internship (accepted or pending)
+                        const currentInternship = student.internships?.find(i => 
+                          i.match_status === 'accepted' || i.match_status === 'pending'
+                        ) || student.internships?.[0];
+                        
+                        return (
+                          <tr key={student.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {student.student_img ? (
+                                  <img 
+                                    src={`http://localhost:5050${student.student_img}`}
+                                    alt={student.full_name}
+                                    style={{ 
+                                      width: '40px', 
+                                      height: '40px', 
+                                      borderRadius: '50%', 
+                                      objectFit: 'cover' 
+                                    }}
+                                  />
+                                ) : (
+                                  <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'white',
+                                    fontSize: '16px',
+                                    fontWeight: '600'
+                                  }}>
+                                    {student.full_name?.charAt(0)}
+                                  </div>
+                                )}
+                                <div>
+                                  <strong>{student.full_name}</strong>
+                                  <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                    {student.email}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>{student.major || 'N/A'}</td>
+                            <td>{student.academic_year || 'N/A'}</td>
+                            <td>
+                              {student.gpa ? (
+                                <span style={{
+                                  padding: '4px 8px',
+                                  background: student.gpa >= 3.5 ? '#dcfce7' : student.gpa >= 3.0 ? '#fef3c7' : '#fee2e2',
+                                  color: student.gpa >= 3.5 ? '#15803d' : student.gpa >= 3.0 ? '#92400e' : '#991b1b',
+                                  borderRadius: '6px',
+                                  fontSize: '13px',
+                                  fontWeight: '600'
+                                }}>
+                                  {student.gpa}
+                                </span>
+                              ) : 'N/A'}
+                            </td>
+                            <td>
+                              {student.final_report && student.final_report.university_approved ? (
+                                <span style={{
+                                  padding: '6px 12px',
+                                  background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                                  color: '#15803d',
+                                  borderRadius: '8px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}>
+                                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                  Training Completed
+                                </span>
+                              ) : currentInternship && currentInternship.match_status === 'accepted' ? (
+                                <span style={{
+                                  padding: '6px 12px',
+                                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                                  color: '#92400e',
+                                  borderRadius: '8px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}>
+                                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                  </svg>
+                                  In Training
+                                </span>
+                              ) : (
+                                <span style={{
+                                  padding: '6px 12px',
+                                  background: '#f3f4f6',
+                                  color: '#6b7280',
+                                  borderRadius: '8px',
+                                  fontSize: '13px',
+                                  fontWeight: '600'
+                                }}>
+                                  Not Started
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              {currentInternship ? (
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                    {currentInternship.company_logo ? (
+                                      <img 
+                                        src={`http://localhost:5050${currentInternship.company_logo}`}
+                                        alt={currentInternship.company_name}
+                                        style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
+                                      />
+                                    ) : null}
+                                    <strong style={{ fontSize: '13px' }}>{currentInternship.internship_title}</strong>
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                    {currentInternship.company_name}
+                                  </div>
+                                  <span className={`status-badge status-${currentInternship.match_status}`} style={{ marginTop: '4px', display: 'inline-block' }}>
+                                    {currentInternship.match_status}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span style={{ color: '#9ca3af', fontSize: '13px' }}>No active internship</span>
+                              )}
+                            </td>
+                            <td>
+                              {student.final_report ? (
+                                <button
+                                  onClick={() => {
+                                    setSelectedReport({ ...student.final_report, student_name: student.full_name });
+                                    setShowReportModal(true);
+                                  }}
+                                  style={{
+                                    padding: '8px 16px',
+                                    background: student.final_report.university_approved 
+                                      ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                                      : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                    <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                  </svg>
+                                  {student.final_report.university_approved ? 'View Report' : 'Review Report'}
+                                </button>
+                              ) : (
+                                <span style={{ color: '#9ca3af', fontSize: '13px' }}>No report yet</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {activeMenu === 'internships' && (
@@ -1271,6 +1608,235 @@ function UniversityDashboard() {
           <div className="dashboard-content">
             <h2>Messages</h2>
             <p>No new messages</p>
+          </div>
+        )}
+
+        {/* Final Report Modal */}
+        {showReportModal && selectedReport && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setShowReportModal(false)}
+          >
+            <div style={{
+              background: 'white',
+              borderRadius: '16px',
+              maxWidth: '700px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                padding: '24px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '16px 16px 0 0'
+              }}>
+                <div>
+                  <h2 style={{ margin: 0, color: 'white', fontSize: '24px', fontWeight: '700' }}>
+                    Final Training Report
+                  </h2>
+                  <p style={{ margin: '4px 0 0 0', color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px' }}>
+                    Student: {selectedReport.student_name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '36px',
+                    height: '36px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                >
+                  <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '24px' }}>
+                {/* Trainer Info */}
+                <div style={{
+                  padding: '16px',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  marginBottom: '24px'
+                }}>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                    <strong style={{ color: '#111827' }}>Trainer:</strong> {selectedReport.trainer_name}
+                  </p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                    <strong style={{ color: '#111827' }}>Submitted:</strong> {new Date(selectedReport.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {/* Overall Performance */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '12px' }}>
+                    Overall Performance
+                  </h3>
+                  <p style={{
+                    padding: '16px',
+                    background: '#f0f9ff',
+                    borderRadius: '8px',
+                    color: '#0c4a6e',
+                    fontSize: '14px',
+                    lineHeight: '1.6',
+                    margin: 0
+                  }}>
+                    {selectedReport.overall_performance || 'No comments provided'}
+                  </p>
+                </div>
+
+                {/* Ratings Grid */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
+                    Performance Ratings
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '16px'
+                  }}>
+                    {[
+                      { label: 'Technical Skills', value: selectedReport.technical_skills_rating, color: '#3b82f6' },
+                      { label: 'Communication', value: selectedReport.communication_rating, color: '#8b5cf6' },
+                      { label: 'Teamwork', value: selectedReport.teamwork_rating, color: '#10b981' },
+                      { label: 'Problem Solving', value: selectedReport.problem_solving_rating, color: '#f59e0b' },
+                      { label: 'Attendance', value: selectedReport.attendance_rating, color: '#ef4444' }
+                    ].map((rating, index) => (
+                      <div key={index} style={{
+                        padding: '16px',
+                        background: 'white',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '12px',
+                        textAlign: 'center'
+                      }}>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
+                          {rating.label}
+                        </p>
+                        <div style={{
+                          fontSize: '32px',
+                          fontWeight: '700',
+                          color: rating.color,
+                          marginBottom: '4px'
+                        }}>
+                          {rating.value || 'N/A'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>out of 10</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Overall Rating */}
+                {selectedReport.overall_rating && (
+                  <div style={{
+                    padding: '20px',
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                    borderRadius: '12px',
+                    textAlign: 'center',
+                    marginBottom: '24px'
+                  }}>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#92400e', fontWeight: '600' }}>
+                      Overall Rating
+                    </p>
+                    <div style={{ fontSize: '48px', fontWeight: '700', color: '#78350f' }}>
+                      {selectedReport.overall_rating}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#92400e' }}>out of 10</div>
+                  </div>
+                )}
+
+                {/* Approval Status */}
+                {selectedReport.university_approved ? (
+                  <div style={{
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <svg width="24" height="24" fill="#15803d" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#15803d' }}>
+                        Report Approved
+                      </p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#166534' }}>
+                        Approved on {new Date(selectedReport.approved_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleApproveFinalReport(selectedReport.id)}
+                    disabled={loading}
+                    style={{
+                      width: '100%',
+                      padding: '16px',
+                      background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '12px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s',
+                      opacity: loading ? 0.6 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!loading) {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 8px 20px rgba(34, 197, 94, 0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    {loading ? 'Approving...' : 'Approve Final Report'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </main>
