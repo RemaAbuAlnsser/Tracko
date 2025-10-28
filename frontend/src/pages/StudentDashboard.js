@@ -44,6 +44,13 @@ function StudentDashboard() {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [studentId, setStudentId] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [weeklyReports, setWeeklyReports] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [newReport, setNewReport] = useState({
+    week_number: 1,
+    report_text: '',
+    report_file: null
+  });
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedSolutionFile, setSelectedSolutionFile] = useState(null);
   const [solutionText, setSolutionText] = useState('');
@@ -102,6 +109,7 @@ function StudentDashboard() {
     if (studentId) {
       loadTrainingPlans();
       loadDashboardStats();
+      loadWeeklyReports();
     }
   }, [studentId]);
 
@@ -190,7 +198,8 @@ function StudentDashboard() {
             skills: data.student.skills || '',
             university_id: data.student.university_id || '',
             university_name: universityName,
-            student_img: data.student.student_img || ''
+            student_img: data.student.student_img || '',
+            status: data.student.status || ''
           });
           
           // Set image preview if exists
@@ -460,6 +469,123 @@ function StudentDashboard() {
     }
   };
 
+  // Load weekly reports
+  const loadWeeklyReports = async () => {
+    if (!studentId) return;
+    
+    try {
+      console.log('📚 Loading weekly reports for student:', studentId);
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/student/${studentId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Weekly reports loaded:', data.reports);
+        setWeeklyReports(data.reports || []);
+      }
+    } catch (error) {
+      console.error('Error loading weekly reports:', error);
+    }
+  };
+
+  // Submit weekly report
+  const handleSubmitWeeklyReport = async (e) => {
+    e.preventDefault();
+    
+    if (!studentId) {
+      setMessage({ type: 'error', text: 'Student ID not found' });
+      return;
+    }
+
+    if (!newReport.report_text && !newReport.report_file) {
+      setMessage({ type: 'error', text: 'Please provide report text or upload a file' });
+      return;
+    }
+
+    try {
+      let reportFileUrl = null;
+
+      // Upload file if provided
+      if (newReport.report_file) {
+        const formData = new FormData();
+        formData.append('file', newReport.report_file);
+
+        const uploadResponse = await fetch('http://localhost:5050/api/upload/file', {
+          method: 'POST',
+          body: formData
+        });
+
+        const uploadData = await uploadResponse.json();
+        
+        if (uploadData.success) {
+          reportFileUrl = uploadData.filePath;
+        } else {
+          throw new Error('File upload failed');
+        }
+      }
+
+      // Get active plan for this student
+      let activePlanId = null;
+      let trainerId = null;
+      let weekId = null;
+
+      if (trainingPlans && trainingPlans.length > 0) {
+        // Use the first active plan
+        const activePlan = trainingPlans.find(plan => plan.status === 'active') || trainingPlans[0];
+        activePlanId = activePlan.id;
+
+        // Get trainer_id from plan
+        const planResponse = await fetch(`http://localhost:5050/api/plans/${activePlanId}`);
+        const planData = await planResponse.json();
+        
+        if (planData.success && planData.plan) {
+          trainerId = planData.plan.trainer_id;
+          
+          // Find week_id if matching week number exists in plan
+          if (activePlan.weeks && activePlan.weeks.length > 0) {
+            const matchingWeek = activePlan.weeks.find(w => w.week_number === newReport.week_number);
+            if (matchingWeek) {
+              weekId = matchingWeek.id;
+            }
+          }
+        }
+      }
+
+      // Submit report
+      const reportData = {
+        student_id: studentId,
+        trainer_id: trainerId,
+        plan_id: activePlanId,
+        week_number: newReport.week_number,
+        report_text: newReport.report_text || '',
+        report_file: reportFileUrl
+      };
+
+      const response = await fetch('http://localhost:5050/api/weekly-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportData)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Weekly report submitted successfully!' });
+        setShowReportModal(false);
+        setNewReport({
+          week_number: 1,
+          report_text: '',
+          report_file: null
+        });
+        loadWeeklyReports();
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to submit report' });
+      }
+    } catch (error) {
+      console.error('Error submitting weekly report:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
+  };
+
   const loadDashboardData = async () => {
     // Load applications and recommended internships
     // This is placeholder data - replace with actual API calls
@@ -569,6 +695,31 @@ function StudentDashboard() {
     }
   };
 
+  // Load certificate
+  const loadCertificate = async () => {
+    if (!studentId) {
+      console.log('⚠️ Cannot load certificate: studentId is missing');
+      return;
+    }
+    
+    try {
+      console.log('📜 Loading certificate for student:', studentId);
+      const certResponse = await fetch(`http://localhost:5050/api/students/${studentId}/certificate`);
+      const certData = await certResponse.json();
+      console.log('📜 Certificate data:', certData);
+      if (certData.success && certData.certificate) {
+        console.log('✅ Certificate found:', certData.certificate);
+        setCertificate(certData.certificate);
+      } else {
+        console.log('⚠️ No certificate found for student');
+        setCertificate(null);
+      }
+    } catch (error) {
+      console.error('Error loading certificate:', error);
+      setCertificate(null);
+    }
+  };
+
   // Load dashboard stats
   const loadDashboardStats = async () => {
     if (!studentId) {
@@ -589,16 +740,8 @@ function StudentDashboard() {
         setInterviewsCount(interviewsScheduled);
       }
 
-      // Get certificate if exists
-      const certResponse = await fetch(`http://localhost:5050/api/students/${studentId}/certificate`);
-      const certData = await certResponse.json();
-      console.log('📜 Certificate data:', certData);
-      if (certData.success && certData.certificate) {
-        console.log('✅ Certificate found:', certData.certificate);
-        setCertificate(certData.certificate);
-      } else {
-        console.log('⚠️ No certificate found for student');
-      }
+      // Load certificate
+      await loadCertificate();
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     }
@@ -1234,7 +1377,7 @@ function StudentDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'plans' ? 'active' : ''}`}
-            onClick={() => { setActiveMenu('plans'); loadTrainingPlans(); }}
+            onClick={() => { setActiveMenu('plans'); loadTrainingPlans(); loadWeeklyReports(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -1305,11 +1448,14 @@ function StudentDashboard() {
                 </div>
               </div>
 
-              {certificate && (
+              {studentData.status === 'completed' && (
                 <div 
                   className="stat-card" 
                   style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                  onClick={() => setShowCertificateModal(true)}
+                  onClick={async () => {
+                    setShowCertificateModal(true);
+                    await loadCertificate();
+                  }}
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
@@ -2003,7 +2149,7 @@ function StudentDashboard() {
           </div>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && activeMenu !== 'messages' && (
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && activeMenu !== 'messages' && activeMenu !== 'plans' && (
           <div className="placeholder-content">
             <h2>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)} Page</h2>
             <p>This section is under development</p>
@@ -2463,6 +2609,287 @@ function StudentDashboard() {
                 ))}
               </div>
             )}
+
+            {/* Weekly Reports Section */}
+            <div className="weekly-reports-section" style={{ marginTop: '40px' }}>
+              <div className="section-header" style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '20px'
+              }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '20px', color: '#1f2937' }}>Weekly Reports</h3>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                    Submit your weekly training reports
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  style={{
+                    padding: '12px 24px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                >
+                  <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
+                  </svg>
+                  Submit Report
+                </button>
+              </div>
+
+              {/* Reports List */}
+              {weeklyReports.length > 0 ? (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '16px'
+                }}>
+                  {weeklyReports.map((report) => (
+                    <div key={report.id} style={{
+                      padding: '20px',
+                      background: 'white',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                        <h4 style={{ margin: 0, fontSize: '16px', color: '#1f2937' }}>
+                          Week {report.week_number}
+                        </h4>
+                        <span style={{
+                          padding: '4px 12px',
+                          background: '#dcfce7',
+                          color: '#166534',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Submitted
+                        </span>
+                      </div>
+                      {report.plan_title && (
+                        <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#6b7280' }}>
+                          {report.plan_title}
+                        </p>
+                      )}
+                      {report.report_text && (
+                        <p style={{ 
+                          margin: '0 0 12px 0', 
+                          fontSize: '14px', 
+                          color: '#4b5563',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {report.report_text}
+                        </p>
+                      )}
+                      {report.report_file && (
+                        <a
+                          href={`http://localhost:5050${report.report_file}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            background: '#f3f4f6',
+                            color: '#667eea',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            textDecoration: 'none',
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#e5e7eb'}
+                          onMouseLeave={(e) => e.target.style.background = '#f3f4f6'}
+                        >
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd"/>
+                          </svg>
+                          View File
+                        </a>
+                      )}
+                      <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: '#9ca3af' }}>
+                        Submitted on {new Date(report.submitted_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  padding: '40px',
+                  textAlign: 'center',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  border: '2px dashed #d1d5db'
+                }}>
+                  <svg width="48" height="48" fill="#9ca3af" viewBox="0 0 20 20" style={{ margin: '0 auto 16px' }}>
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
+                  </svg>
+                  <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+                    No weekly reports submitted yet. Click "Submit Report" to add your first report.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Weekly Report Modal */}
+        {showReportModal && (
+          <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
+            <div className="modal-content" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Submit Weekly Report</h2>
+                <button className="modal-close" onClick={() => setShowReportModal(false)}>
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitWeeklyReport}>
+                <div className="modal-body">
+                  {/* Week Number */}
+                  <div className="form-group">
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                      Week Number
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="52"
+                      value={newReport.week_number}
+                      onChange={(e) => setNewReport({ ...newReport, week_number: parseInt(e.target.value) })}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+
+                  {/* Report Text */}
+                  <div className="form-group" style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                      Report Text (Optional)
+                    </label>
+                    <textarea
+                      value={newReport.report_text}
+                      onChange={(e) => setNewReport({ ...newReport, report_text: e.target.value })}
+                      placeholder="Describe your progress and learnings this week..."
+                      rows="6"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+
+                  {/* File Upload */}
+                  <div className="form-group" style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                      Upload File (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      onChange={(e) => setNewReport({ ...newReport, report_file: e.target.files[0] })}
+                      accept=".pdf,.doc,.docx,.txt"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '2px dashed #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+                      Supported formats: PDF, DOC, DOCX, TXT (Max 10MB)
+                    </p>
+                  </div>
+
+                  {message.text && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+                      color: message.type === 'success' ? '#166534' : '#991b1b',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}>
+                      {message.text}
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer" style={{ 
+                  display: 'flex', 
+                  gap: '12px', 
+                  justifyContent: 'flex-end',
+                  padding: '20px 24px',
+                  borderTop: '1px solid #e5e7eb'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    style={{
+                      padding: '10px 20px',
+                      background: 'white',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '10px 20px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Submit Report
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
@@ -2659,7 +3086,7 @@ function StudentDashboard() {
         )}
 
         {/* Certificate Modal */}
-        {showCertificateModal && certificate && (
+        {showCertificateModal && (
           <div 
             style={{
               position: 'fixed',
@@ -2667,7 +3094,7 @@ function StudentDashboard() {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0, 0, 0, 0.7)',
+              background: 'rgba(0, 0, 0, 0.5)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -2679,31 +3106,42 @@ function StudentDashboard() {
             <div 
               style={{
                 background: 'white',
-                borderRadius: '16px',
-                maxWidth: '900px',
+                borderRadius: '12px',
+                maxWidth: '1000px',
                 width: '100%',
                 maxHeight: '90vh',
-                overflow: 'auto',
-                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+                overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
               }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
               <div style={{
-                padding: '24px',
-                borderBottom: '1px solid #e5e7eb',
+                padding: '32px 40px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '16px 16px 0 0'
+                borderRadius: '12px 12px 0 0'
               }}>
                 <div>
-                  <h2 style={{ margin: 0, color: 'white', fontSize: '24px', fontWeight: '700' }}>
+                  <h2 style={{ 
+                    margin: 0, 
+                    color: 'white', 
+                    fontSize: '28px', 
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
                     🎓 Training Completion Certificate
                   </h2>
-                  <p style={{ margin: '4px 0 0 0', color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px' }}>
-                    {certificate.internship_title} • {certificate.company_name}
+                  <p style={{ 
+                    margin: '8px 0 0 0', 
+                    color: 'rgba(255, 255, 255, 0.9)', 
+                    fontSize: '16px' 
+                  }}>
+                    Certificate details
                   </p>
                 </div>
                 <button
@@ -2712,122 +3150,162 @@ function StudentDashboard() {
                     background: 'rgba(255, 255, 255, 0.2)',
                     border: 'none',
                     borderRadius: '8px',
-                    width: '36px',
-                    height: '36px',
+                    width: '40px',
+                    height: '40px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'background 0.2s',
                     color: 'white',
-                    fontSize: '24px'
+                    fontSize: '28px',
+                    fontWeight: '300',
+                    transition: 'background 0.2s'
                   }}
+                  onMouseEnter={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.3)'}
+                  onMouseLeave={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
                 >
                   ×
                 </button>
               </div>
 
               {/* Modal Body */}
-              <div style={{ padding: '24px' }}>
-                <div style={{
-                  padding: '16px',
-                  background: '#f0fdf4',
-                  borderRadius: '12px',
-                  marginBottom: '20px',
-                  border: '2px solid #86efac'
-                }}>
-                  <p style={{ margin: 0, fontSize: '14px', color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <svg width="20" height="20" fill="#16a34a" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              <div style={{ padding: '32px 40px' }}>
+                {!certificate ? (
+                  <div style={{
+                    padding: '16px 20px',
+                    background: '#fff7ed',
+                    borderRadius: '8px',
+                    border: '1px solid #fed7aa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <svg width="20" height="20" fill="#f59e0b" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <strong>Congratulations!</strong> Your certificate was uploaded on {new Date(certificate.certificate_uploaded_at).toLocaleDateString()}
-                  </p>
-                </div>
-
-                {/* Certificate Preview */}
-                <div style={{
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  background: '#f9fafb'
-                }}>
-                  {certificate.certificate_file.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                    <img 
-                      src={`http://localhost:5050${certificate.certificate_file}`}
-                      alt="Certificate"
-                      style={{
-                        width: '100%',
-                        height: 'auto',
-                        display: 'block'
-                      }}
-                    />
-                  ) : (
+                    <p style={{ margin: 0, fontSize: '15px', color: '#c2410c' }}>
+                      No certificate is available yet. Please check back later.
+                    </p>
+                  </div>
+                ) : (
+                  <>
                     <div style={{
-                      padding: '60px 20px',
-                      textAlign: 'center'
+                      padding: '16px 20px',
+                      background: '#f0fdf4',
+                      borderRadius: '8px',
+                      marginBottom: '24px',
+                      border: '1px solid #86efac',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
                     }}>
-                      <svg width="64" height="64" fill="#9ca3af" viewBox="0 0 20 20" style={{ margin: '0 auto 16px' }}>
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                      <svg width="20" height="20" fill="#16a34a" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <p style={{ margin: 0, color: '#6b7280', fontSize: '16px' }}>PDF Certificate</p>
-                      <p style={{ margin: '8px 0 0 0', color: '#9ca3af', fontSize: '14px' }}>Click download button below to view</p>
+                      <p style={{ margin: 0, fontSize: '15px', color: '#166534' }}>
+                        <strong>Congratulations!</strong> Your certificate was uploaded on {new Date(certificate.certificate_uploaded_at).toLocaleDateString()}
+                      </p>
                     </div>
-                  )}
-                </div>
 
-                {/* Download Button */}
-                <div style={{ marginTop: '20px', display: 'flex', gap: '12px' }}>
-                  <a
-                    href={`http://localhost:5050${certificate.certificate_file}`}
-                    download
-                    style={{
-                      flex: 1,
-                      padding: '14px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      border: 'none',
+                    {/* Certificate Preview */}
+                    <div style={{
+                      border: '2px solid #e5e7eb',
                       borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    Download Certificate
-                  </a>
-                  <a
-                    href={`http://localhost:5050${certificate.certificate_file}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      padding: '14px 24px',
-                      background: 'white',
-                      color: '#667eea',
-                      border: '2px solid #667eea',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                    </svg>
-                    Open
-                  </a>
-                </div>
+                      overflow: 'hidden',
+                      background: '#f9fafb',
+                      marginBottom: '24px'
+                    }}>
+                      {certificate.certificate_file.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                        <img 
+                          src={`http://localhost:5050${certificate.certificate_file}`}
+                          alt="Certificate"
+                          style={{
+                            width: '100%',
+                            height: 'auto',
+                            display: 'block'
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          padding: '60px 20px',
+                          textAlign: 'center'
+                        }}>
+                          <svg width="64" height="64" fill="#9ca3af" viewBox="0 0 20 20" style={{ margin: '0 auto 16px' }}>
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                          </svg>
+                          <p style={{ margin: 0, color: '#6b7280', fontSize: '16px' }}>PDF Certificate</p>
+                          <p style={{ margin: '8px 0 0 0', color: '#9ca3af', fontSize: '14px' }}>Click download button below to view</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Download Buttons */}
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <a
+                        href={`http://localhost:5050${certificate.certificate_file}`}
+                        download
+                        style={{
+                          flex: 1,
+                          padding: '14px',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          transition: 'transform 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                      >
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Download Certificate
+                      </a>
+                      <a
+                        href={`http://localhost:5050${certificate.certificate_file}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '14px 24px',
+                          background: 'white',
+                          color: '#667eea',
+                          border: '2px solid #667eea',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = '#667eea';
+                          e.target.style.color = 'white';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'white';
+                          e.target.style.color = '#667eea';
+                        }}
+                      >
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                          <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                        </svg>
+                        Open
+                      </a>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

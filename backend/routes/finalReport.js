@@ -100,45 +100,56 @@ router.post("/", async (req, res) => {
         db.query(getDetailsQuery, [internship_id, student_id], async (detailsErr, detailsResults) => {
           if (detailsErr) {
             console.error("❌ Error getting details for notifications:", detailsErr);
-          } else if (detailsResults.length > 0) {
-            const details = detailsResults[0];
-            console.log("📋 Details for notifications:", details);
-
-            // Send notification to university
-            if (details.university_user_id) {
-              try {
-                await Notification.create({
-                  user_id: details.university_user_id,
-                  title: 'New Final Report',
-                  message: `A final report has been submitted for student ${details.student_name}`,
-                  type: 'final_report'
-                });
-                console.log(`✅ Notification sent to university (user_id: ${details.university_user_id})`);
-              } catch (notifErr) {
-                console.error("❌ Error sending notification to university:", notifErr);
-              }
-            } else {
-              console.log("⚠️ No university_user_id found");
-            }
-
-            // Send notification to company
-            if (details.company_user_id) {
-              try {
-                await Notification.create({
-                  user_id: details.company_user_id,
-                  title: 'New Final Report',
-                  message: `A final report has been submitted for student ${details.student_name} from ${details.company_name}`,
-                  type: 'final_report'
-                });
-                console.log(`✅ Notification sent to company (user_id: ${details.company_user_id})`);
-              } catch (notifErr) {
-                console.error("❌ Error sending notification to company:", notifErr);
-              }
-            } else {
-              console.log("⚠️ No company_user_id found");
-            }
           } else {
-            console.log("⚠️ No details found for notifications");
+            console.log(`📊 Query returned ${detailsResults.length} results`);
+            
+            if (detailsResults.length > 0) {
+              const details = detailsResults[0];
+              console.log("📋 Details for notifications:", JSON.stringify(details, null, 2));
+
+              // Send notification to university
+              if (details.university_user_id) {
+                try {
+                  console.log(`🔔 Attempting to send notification to university (user_id: ${details.university_user_id})...`);
+                  const notifResult = await Notification.create({
+                    user_id: details.university_user_id,
+                    title: 'New Final Report',
+                    message: `A final report has been submitted for student ${details.student_name}`,
+                    type: 'final_report'
+                  });
+                  console.log(`✅ Notification saved to database! Insert ID: ${notifResult.insertId}`);
+                } catch (notifErr) {
+                  console.error("❌ Error sending notification to university:", notifErr);
+                  console.error("❌ Full error details:", JSON.stringify(notifErr, null, 2));
+                }
+              } else {
+                console.log("⚠️ No university_user_id found in details");
+                console.log("⚠️ Available fields:", Object.keys(details));
+              }
+
+              // Send notification to company
+              if (details.company_user_id) {
+                try {
+                  console.log(`🔔 Attempting to send notification to company (user_id: ${details.company_user_id})...`);
+                  const notifResult = await Notification.create({
+                    user_id: details.company_user_id,
+                    title: 'New Final Report',
+                    message: `A final report has been submitted for student ${details.student_name} from ${details.company_name}`,
+                    type: 'final_report'
+                  });
+                  console.log(`✅ Notification saved to database! Insert ID: ${notifResult.insertId}`);
+                } catch (notifErr) {
+                  console.error("❌ Error sending notification to company:", notifErr);
+                  console.error("❌ Full error details:", JSON.stringify(notifErr, null, 2));
+                }
+              } else {
+                console.log("⚠️ No company_user_id found in details");
+                console.log("⚠️ Available fields:", Object.keys(details));
+              }
+            } else {
+              console.log("⚠️ No details found for notifications");
+              console.log("⚠️ Query parameters: internship_id =", internship_id, "student_id =", student_id);
+            }
           }
         });
 

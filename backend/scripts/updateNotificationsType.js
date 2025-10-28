@@ -1,37 +1,61 @@
 import db from "../config/database.js";
 
 async function updateNotificationsType() {
+  console.log("🔧 Updating Notifications table type column...");
+
   try {
-    console.log("🔧 Updating notifications table type column...");
-    
-    // Modify the type column to include new values
-    const alterTableQuery = `
-      ALTER TABLE notifications 
-      MODIFY COLUMN type ENUM('appointment', 'submission', 'meeting', 'general', 'training_plan', 'training_report', 'application') 
-      NOT NULL DEFAULT 'general';
+    // First, update any existing invalid types to 'general'
+    console.log("📝 Step 1: Cleaning up invalid notification types...");
+    const cleanupQuery = `
+      UPDATE notifications 
+      SET type = 'general' 
+      WHERE type NOT IN (
+        'general', 'task_submission', 'task_review', 
+        'plan_assigned', 'schedule', 'message', 'application'
+      )
     `;
     
-    db.query(alterTableQuery, (err, result) => {
-      if (err) {
-        console.error("❌ Error updating notifications table:", err);
-        process.exit(1);
-      }
-      
-      console.log("✅ notifications table updated successfully!");
-      console.log("📋 Updated type column values:");
-      console.log("   - appointment");
-      console.log("   - submission");
-      console.log("   - meeting");
-      console.log("   - general");
-      console.log("   - training_plan ✨ NEW");
-      console.log("   - training_report ✨ NEW");
-      console.log("   - application ✨ NEW");
-      
-      process.exit(0);
+    await new Promise((resolve, reject) => {
+      db.query(cleanupQuery, (err, result) => {
+        if (err) reject(err);
+        else {
+          console.log(`✅ Updated ${result.affectedRows} notifications to 'general'`);
+          resolve();
+        }
+      });
     });
+
+    // Now update the ENUM to include new types
+    console.log("📝 Step 2: Updating type column ENUM...");
+    const updateQuery = `
+      ALTER TABLE notifications 
+      MODIFY COLUMN type ENUM(
+        'general',
+        'task_submission',
+        'task_review',
+        'weekly_report',
+        'weekly_report_review',
+        'plan_assigned',
+        'schedule',
+        'message',
+        'application',
+        'training_complete'
+      ) DEFAULT 'general'
+    `;
+
+    await new Promise((resolve, reject) => {
+      db.query(updateQuery, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    console.log("✅ Notifications type column updated successfully!");
+    console.log("✅ Added support for: weekly_report, weekly_report_review");
     
+    process.exit(0);
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error("❌ Error updating notifications type:", error);
     process.exit(1);
   }
 }

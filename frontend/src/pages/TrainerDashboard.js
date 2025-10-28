@@ -81,6 +81,16 @@ function TrainerDashboard() {
   const [reviewStatus, setReviewStatus] = useState('approved');
   const [reviewComment, setReviewComment] = useState('');
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  
+  // Weekly Reports State
+  const [showWeeklyReportsModal, setShowWeeklyReportsModal] = useState(false);
+  const [weeklyReports, setWeeklyReports] = useState([]);
+  const [selectedWeeklyReport, setSelectedWeeklyReport] = useState(null);
+  const [showReportReviewModal, setShowReportReviewModal] = useState(false);
+  const [reportReviewStatus, setReportReviewStatus] = useState('approved');
+  const [reportReviewComment, setReportReviewComment] = useState('');
+  const [loadingReports, setLoadingReports] = useState(false);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -250,13 +260,25 @@ function TrainerDashboard() {
         const studentsWithPendingCount = await Promise.all(
           (data.students || []).map(async (student) => {
             try {
-              const countResponse = await fetch(
+              // Get pending tasks count
+              const tasksCountResponse = await fetch(
                 `http://localhost:5050/api/task-submissions/student/${student.student_id}/trainer/${trainerId}/pending-count`
               );
-              const countData = await countResponse.json();
+              const tasksCountData = await tasksCountResponse.json();
+              const pendingTasks = tasksCountData.success ? tasksCountData.count : 0;
+
+              // Get pending weekly reports count
+              console.log(`🔍 Fetching weekly reports count for student ${student.student_id}`);
+              const reportsCountResponse = await fetch(
+                `http://localhost:5050/api/weekly-reports/student/${student.student_id}/trainer/${trainerId}/pending-count`
+              );
+              const reportsCountData = await reportsCountResponse.json();
+              console.log(`📊 Weekly reports count for student ${student.student_id}:`, reportsCountData);
+              const pendingReports = reportsCountData.success ? reportsCountData.count : 0;
+
               return {
                 ...student,
-                pendingSubmissions: countData.success ? countData.count : 0
+                pendingSubmissions: pendingTasks + pendingReports // Total pending (tasks + reports)
               };
             } catch (error) {
               console.error(`Error loading pending count for student ${student.student_id}:`, error);
@@ -820,21 +842,29 @@ function TrainerDashboard() {
             setSubmissions(reloadData.submissions || []);
           }
 
-          // Update pending count for this student in the students list
+          // Update pending count for this student in the students list (tasks + reports)
           try {
-            const countResponse = await fetch(
+            // Get pending tasks
+            const tasksCountResponse = await fetch(
               `http://localhost:5050/api/task-submissions/student/${selectedStudent.student_id}/trainer/${trainerId}/pending-count`
             );
-            const countData = await countResponse.json();
-            if (countData.success) {
-              setStudents(prevStudents => 
-                prevStudents.map(student => 
-                  student.student_id === selectedStudent.student_id
-                    ? { ...student, pendingSubmissions: countData.count }
-                    : student
-                )
-              );
-            }
+            const tasksCountData = await tasksCountResponse.json();
+            const pendingTasks = tasksCountData.success ? tasksCountData.count : 0;
+
+            // Get pending weekly reports
+            const reportsCountResponse = await fetch(
+              `http://localhost:5050/api/weekly-reports/student/${selectedStudent.student_id}/trainer/${trainerId}/pending-count`
+            );
+            const reportsCountData = await reportsCountResponse.json();
+            const pendingReports = reportsCountData.success ? reportsCountData.count : 0;
+
+            setStudents(prevStudents => 
+              prevStudents.map(student => 
+                student.student_id === selectedStudent.student_id
+                  ? { ...student, pendingSubmissions: pendingTasks + pendingReports }
+                  : student
+              )
+            );
           } catch (error) {
             console.error('Error updating pending count:', error);
           }
@@ -882,6 +912,120 @@ function TrainerDashboard() {
   const downloadFile = (filePath) => {
     if (filePath) {
       window.open(`http://localhost:5050${filePath}`, '_blank');
+    }
+  };
+
+  // Weekly Reports Functions
+  const handleViewWeeklyReports = async (student) => {
+    setSelectedStudent(student);
+    setShowWeeklyReportsModal(true);
+    setLoadingReports(true);
+    
+    try {
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/trainer/${trainerId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Filter reports for this specific student
+        const studentReports = (data.reports || []).filter(
+          report => report.student_id === student.student_id
+        );
+        setWeeklyReports(studentReports);
+      }
+    } catch (error) {
+      console.error('Error loading weekly reports:', error);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const handleReviewWeeklyReport = (report) => {
+    setSelectedWeeklyReport(report);
+    setReportReviewStatus(report.status === 'pending' ? 'approved' : report.status);
+    setReportReviewComment(report.trainer_comment || '');
+    setShowReportReviewModal(true);
+  };
+
+  const handleSubmitReportReview = async () => {
+    if (!selectedWeeklyReport) return;
+
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/${selectedWeeklyReport.id}/review`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: reportReviewStatus,
+          trainer_comment: reportReviewComment
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setMessage({ 
+          type: 'success', 
+          text: 'Review submitted successfully! Student has been notified.' 
+        });
+        
+        // Reload weekly reports
+        if (selectedStudent) {
+          const reloadResponse = await fetch(`http://localhost:5050/api/weekly-reports/trainer/${trainerId}`);
+          const reloadData = await reloadResponse.json();
+          if (reloadData.success) {
+            const studentReports = (reloadData.reports || []).filter(
+              report => report.student_id === selectedStudent.student_id
+            );
+            setWeeklyReports(studentReports);
+          }
+
+          // Update pending count for this student in the students list (tasks + reports)
+          try {
+            // Get pending tasks
+            const tasksCountResponse = await fetch(
+              `http://localhost:5050/api/task-submissions/student/${selectedStudent.student_id}/trainer/${trainerId}/pending-count`
+            );
+            const tasksCountData = await tasksCountResponse.json();
+            const pendingTasks = tasksCountData.success ? tasksCountData.count : 0;
+
+            // Get pending weekly reports
+            const reportsCountResponse = await fetch(
+              `http://localhost:5050/api/weekly-reports/student/${selectedStudent.student_id}/trainer/${trainerId}/pending-count`
+            );
+            const reportsCountData = await reportsCountResponse.json();
+            const pendingReports = reportsCountData.success ? reportsCountData.count : 0;
+
+            setStudents(prevStudents => 
+              prevStudents.map(student => 
+                student.student_id === selectedStudent.student_id
+                  ? { ...student, pendingSubmissions: pendingTasks + pendingReports }
+                  : student
+              )
+            );
+          } catch (error) {
+            console.error('Error updating pending count:', error);
+          }
+        }
+        
+        setTimeout(() => {
+          setShowReportReviewModal(false);
+          setMessage({ type: '', text: '' });
+        }, 1500);
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: data.message || 'Failed to submit review' 
+        });
+      }
+    } catch (error) {
+      console.error('Submit report review error:', error);
+      setMessage({ type: 'error', text: 'Failed to submit review' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1353,7 +1497,7 @@ function TrainerDashboard() {
                       <th>University</th>
                       <th>Major</th>
                       <th>GPA</th>
-                      <th>Pending Tasks</th>
+                      <th>Pending Items</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1407,7 +1551,7 @@ function TrainerDashboard() {
                             </span>
                           ) : (
                             <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                              ✓ No pending tasks
+                              ✓ All up to date
                             </span>
                           )}
                         </td>
@@ -1427,22 +1571,50 @@ function TrainerDashboard() {
                           </span>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ 
+                            display: 'flex', 
+                            gap: '0.4rem', 
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            flexWrap: 'nowrap'
+                          }}>
                             <button 
                               className="btn-view"
+                              style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '0.35rem 0.6rem',
+                                whiteSpace: 'nowrap'
+                              }}
                               onClick={() => {
                                 setNewReport({ ...newReport, student_id: student.student_id });
                                 setActiveMenu('reports');
                               }}
                             >
-                              Create Report
+                              📋 Report
                             </button>
                             <button 
                               className="btn-primary"
-                              style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+                              style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '0.35rem 0.6rem',
+                                whiteSpace: 'nowrap'
+                              }}
                               onClick={() => handleViewStudentTasks(student)}
                             >
-                              📝 View Tasks
+                              📝 Tasks
+                            </button>
+                            <button 
+                              className="btn-primary"
+                              style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '0.35rem 0.6rem',
+                                backgroundColor: '#10b981',
+                                borderColor: '#10b981',
+                                whiteSpace: 'nowrap'
+                              }}
+                              onClick={() => handleViewWeeklyReports(student)}
+                            >
+                              📊 Weekly
                             </button>
                           </div>
                         </td>
@@ -2686,6 +2858,239 @@ function TrainerDashboard() {
                 disabled={loading}
                 style={{
                   backgroundColor: loading ? '#9ca3af' : '#1e88e5',
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {loading ? 'Submitting...' : '📤 Submit Review & Notify Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Weekly Reports Modal */}
+      {showWeeklyReportsModal && selectedStudent && (
+        <div className="modal-overlay" onClick={() => setShowWeeklyReportsModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📊 Weekly Reports - {selectedStudent.full_name}</h2>
+              <button className="modal-close" onClick={() => setShowWeeklyReportsModal(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {loadingReports ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <p>Loading weekly reports...</p>
+                </div>
+              ) : weeklyReports.length === 0 ? (
+                <div className="empty-state">
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3>No Weekly Reports Yet</h3>
+                  <p>This student hasn't submitted any weekly reports yet.</p>
+                </div>
+              ) : (
+                <div className="table-section">
+                  <h3>All Weekly Reports ({weeklyReports.length})</h3>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Week</th>
+                        <th>Plan</th>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weeklyReports.map((report) => (
+                        <tr key={report.id}>
+                          <td><strong>Week {report.week_number}</strong></td>
+                          <td>{report.plan_title || 'N/A'}</td>
+                          <td>{new Date(report.submitted_at).toLocaleString()}</td>
+                          <td>{getStatusBadge(report.status)}</td>
+                          <td>
+                            <button 
+                              className="btn-primary"
+                              onClick={() => handleReviewWeeklyReport(report)}
+                              style={{ 
+                                fontSize: '0.85rem', 
+                                padding: '0.4rem 0.8rem',
+                                backgroundColor: '#10b981',
+                                borderColor: '#10b981'
+                              }}
+                            >
+                              {report.status === 'pending' ? 'Review' : 'View Review'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowWeeklyReportsModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Weekly Report Review Modal */}
+      {showReportReviewModal && selectedWeeklyReport && (
+        <div className="modal-overlay" onClick={() => setShowReportReviewModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '700px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📊 Review Weekly Report</h2>
+              <button className="modal-close" onClick={() => setShowReportReviewModal(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="task-detail-section">
+                <h3>Week {selectedWeeklyReport.week_number} Report</h3>
+                <p><strong>Student:</strong> {selectedWeeklyReport.student_name}</p>
+                {selectedWeeklyReport.plan_title && (
+                  <p><strong>Plan:</strong> {selectedWeeklyReport.plan_title}</p>
+                )}
+                <p><strong>Submitted:</strong> {new Date(selectedWeeklyReport.submitted_at).toLocaleString()}</p>
+              </div>
+
+              <div className="task-detail-section">
+                <h4>Report Content</h4>
+                
+                {selectedWeeklyReport.report_file && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>File:</strong>
+                    <button 
+                      onClick={() => downloadFile(selectedWeeklyReport.report_file)}
+                      style={{
+                        marginLeft: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      📥 Download File
+                    </button>
+                  </div>
+                )}
+
+                {selectedWeeklyReport.report_text && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <strong>Report Text:</strong>
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '1rem',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '8px',
+                      whiteSpace: 'pre-wrap',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      {selectedWeeklyReport.report_text}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {selectedWeeklyReport.status !== 'pending' && (
+                <div className="task-detail-section">
+                  <h4>Previous Review</h4>
+                  <p><strong>Status:</strong> {getStatusBadge(selectedWeeklyReport.status)}</p>
+                  {selectedWeeklyReport.trainer_comment && (
+                    <p><strong>Comment:</strong> {selectedWeeklyReport.trainer_comment}</p>
+                  )}
+                  {selectedWeeklyReport.reviewed_at && (
+                    <p><strong>Reviewed:</strong> {new Date(selectedWeeklyReport.reviewed_at).toLocaleString()}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="task-detail-section">
+                <h4>Your Review</h4>
+                
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Status
+                  </label>
+                  <select
+                    value={reportReviewStatus}
+                    onChange={(e) => setReportReviewStatus(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    <option value="approved">✅ Approve</option>
+                    <option value="rejected">📝 Request Revision</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Comment for Student
+                  </label>
+                  <textarea
+                    value={reportReviewComment}
+                    onChange={(e) => setReportReviewComment(e.target.value)}
+                    placeholder="Provide feedback to the student..."
+                    rows="5"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                  />
+                  <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                    💡 This comment will be sent as a notification to the student
+                  </p>
+                </div>
+
+                {message.text && (
+                  <div className={`alert alert-${message.type}`} style={{ marginTop: '1rem' }}>
+                    {message.text}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowReportReviewModal(false)}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={handleSubmitReportReview}
+                disabled={loading}
+                style={{
+                  backgroundColor: loading ? '#9ca3af' : '#10b981',
+                  borderColor: loading ? '#9ca3af' : '#10b981',
                   cursor: loading ? 'not-allowed' : 'pointer'
                 }}
               >
