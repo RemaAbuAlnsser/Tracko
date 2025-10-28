@@ -74,7 +74,7 @@ function TrainerDashboard() {
   });
   const [planWeeks, setPlanWeeks] = useState([]);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  // selectedStudent is already defined above for chat system (line 40)
   const [submissions, setSubmissions] = useState([]);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
