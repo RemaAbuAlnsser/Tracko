@@ -398,7 +398,7 @@ router.get("/student/:studentId", async (req, res) => {
     
     console.log(`📋 Getting training plans for student ${studentId}...`);
     
-    // Get all plans for internships the student has applied to
+    // Get all plans for internships the student has been accepted to
     const query = `
       SELECT DISTINCT
         ip.*,
@@ -413,7 +413,7 @@ router.get("/student/:studentId", async (req, res) => {
       JOIN Trainers t ON ip.trainer_id = t.id
       JOIN Users u ON t.user_id = u.id
       JOIN Internship_Matches im ON i.id = im.internship_id
-      WHERE im.student_id = ? AND im.applied = TRUE
+      WHERE im.student_id = ? AND im.status = 'accepted'
       ORDER BY ip.created_at DESC
     `;
     

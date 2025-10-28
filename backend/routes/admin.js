@@ -419,7 +419,7 @@ router.post("/registration-requests/approve", isAdmin, async (req, res) => {
       await Student.create({
         user_id: userId,
         university_id: university ? university.id : null,
-        status: 'active'
+        status: 'not_started'
       });
     } else if (request.user_type === 'trainer') {
       const domain = request.email.split('@')[1];

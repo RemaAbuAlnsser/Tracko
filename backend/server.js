@@ -18,6 +18,9 @@ import notificationRoutes from "./routes/notifications.js";
 import internshipPlanRoutes from "./routes/internshipPlan.js";
 import reportsRoutes from "./routes/reports.js";
 import taskSubmissionRoutes from "./routes/taskSubmission.js";
+import finalReportRoutes from "./routes/finalReport.js";
+import weeklyReportRoutes from "./routes/weeklyReport.js";
+import WeeklyReport from "./models/WeeklyReport.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +56,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/plans", internshipPlanRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/task-submissions", taskSubmissionRoutes);
+app.use("/api/final-reports", finalReportRoutes);
+app.use("/api/weekly-reports", weeklyReportRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -72,6 +77,17 @@ app.use((req, res) => {
 });
 */
 
-app.listen(PORT, () => {
+// Initialize database tables
+async function initializeDatabase() {
+  try {
+    await WeeklyReport.createTable();
+    console.log("✅ Weekly_Reports table initialized");
+  } catch (error) {
+    console.error("❌ Error initializing database tables:", error);
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  await initializeDatabase();
 });

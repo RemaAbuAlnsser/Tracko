@@ -4,14 +4,15 @@ class TaskSubmission {
   // Create table if it doesn't exist
   static async createTable() {
     return new Promise((resolve, reject) => {
+      // First create base table
       const createTableQuery = `
         CREATE TABLE IF NOT EXISTS Task_Submissions (
           id INT AUTO_INCREMENT PRIMARY KEY,
           student_id INT NOT NULL,
-          trainer_id INT NOT NULL,
-          week_id INT NOT NULL,
-          plan_id INT NOT NULL,
-          task_title VARCHAR(255) NOT NULL,
+          trainer_id INT NULL,
+          week_id INT NULL,
+          plan_id INT NULL,
+          task_title VARCHAR(255) NULL,
           submission_file VARCHAR(500),
           submission_text TEXT,
           submission_link VARCHAR(500),
@@ -22,13 +23,7 @@ class TaskSubmission {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (student_id) REFERENCES Students(id) ON DELETE CASCADE,
-          FOREIGN KEY (trainer_id) REFERENCES Trainers(id) ON DELETE CASCADE,
-          FOREIGN KEY (week_id) REFERENCES Plan_Weeks(id) ON DELETE CASCADE,
-          FOREIGN KEY (plan_id) REFERENCES Internship_Plans(id) ON DELETE CASCADE,
           INDEX idx_student_id (student_id),
-          INDEX idx_trainer_id (trainer_id),
-          INDEX idx_week_id (week_id),
-          INDEX idx_plan_id (plan_id),
           INDEX idx_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `;
@@ -68,8 +63,12 @@ class TaskSubmission {
         query,
         [student_id, trainer_id, week_id, plan_id, task_title, submission_file, submission_text, submission_link],
         (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
+          if (err) {
+            console.error('❌ Error inserting task submission:', err);
+            reject(err);
+          } else {
+            resolve(result);
+          }
         }
       );
     });
@@ -86,15 +85,15 @@ class TaskSubmission {
           u.full_name as student_name,
           u.email as student_email,
           pw.title as week_title,
-          pw.week_number,
+          pw.week_number as pw_week_number,
           ip.title as plan_title,
           i.title as internship_title
         FROM Task_Submissions ts
         JOIN Students s ON ts.student_id = s.id
         JOIN Users u ON s.user_id = u.id
-        JOIN Plan_Weeks pw ON ts.week_id = pw.id
-        JOIN Internship_Plans ip ON ts.plan_id = ip.id
-        JOIN Internships i ON ip.internship_id = i.id
+        LEFT JOIN Plan_Weeks pw ON ts.week_id = pw.id
+        LEFT JOIN Internship_Plans ip ON ts.plan_id = ip.id
+        LEFT JOIN Internships i ON ip.internship_id = i.id
         WHERE ts.trainer_id = ?
         ORDER BY ts.submitted_at DESC
       `;
@@ -372,6 +371,7 @@ class TaskSubmission {
       });
     });
   }
+
 }
 
 export default TaskSubmission;

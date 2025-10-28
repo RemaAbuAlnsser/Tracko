@@ -210,8 +210,8 @@ router.get("/:trainerId/students", async (req, res) => {
     console.log(`👥 Getting accepted students for trainer ${trainerId}...`);
     
     const query = `
-      SELECT DISTINCT
-        s.id,
+      SELECT 
+        s.id as student_id,
         s.user_id,
         u.full_name,
         u.email,
@@ -220,12 +220,13 @@ router.get("/:trainerId/students", async (req, res) => {
         s.student_img,
         s.gpa,
         uni.name as university_name,
-        i.id as internship_id,
-        i.title as internship_title,
-        c.name as company_name,
-        im.status,
-        im.applied_at,
-        cv.analysis_data
+        MAX(i.id) as internship_id,
+        MAX(i.title) as internship_title,
+        MAX(c.name) as company_name,
+        MAX(im.status) as status,
+        MAX(im.applied_at) as applied_at,
+        (SELECT analysis_data FROM CVs WHERE student_id = s.id ORDER BY id DESC LIMIT 1) as analysis_data,
+        (SELECT certificate_file FROM Final_Reports WHERE student_id = s.id AND trainer_id = ? ORDER BY created_at DESC LIMIT 1) as certificate_file
       FROM Internship_Trainers it
       INNER JOIN Internships i ON it.internship_id = i.id
       INNER JOIN Company c ON i.company_id = c.id
@@ -233,12 +234,12 @@ router.get("/:trainerId/students", async (req, res) => {
       INNER JOIN Students s ON im.student_id = s.id
       INNER JOIN Users u ON s.user_id = u.id
       LEFT JOIN Universities uni ON s.university_id = uni.id
-      LEFT JOIN CVs cv ON s.id = cv.student_id
       WHERE it.trainer_id = ? AND im.status = 'accepted'
-      ORDER BY im.applied_at DESC
+      GROUP BY s.id, s.user_id, u.full_name, u.email, s.major, s.academic_year, s.student_img, s.gpa, uni.name
+      ORDER BY applied_at DESC
     `;
     
-    db.query(query, [trainerId], (err, results) => {
+    db.query(query, [trainerId, trainerId], (err, results) => {
       if (err) {
         console.error("❌ Error fetching trainer students:", err);
         return res.status(500).json({
@@ -270,7 +271,8 @@ router.get("/:trainerId/students", async (req, res) => {
         return {
           ...student,
           gpa: gpa,
-          analysis_data: undefined // Remove from response
+          analysis_data: undefined, // Remove from response
+          training_status: student.certificate_file ? 'complete' : 'in_training'
         };
       });
       

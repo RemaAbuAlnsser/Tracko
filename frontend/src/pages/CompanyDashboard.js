@@ -44,6 +44,10 @@ function CompanyDashboard() {
   const [matchScoreFilter, setMatchScoreFilter] = useState('all');
   const [newApplicantsCount, setNewApplicantsCount] = useState(0);
   const [lastViewedTime, setLastViewedTime] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [certificateFile, setCertificateFile] = useState(null);
+  const [uploadingCertificate, setUploadingCertificate] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -605,6 +609,82 @@ function CompanyDashboard() {
       }
     } catch (error) {
       console.error('❌ Error loading accepted applicants:', error);
+    }
+  };
+
+  // Handle certificate upload
+  const handleCertificateUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage({ type: 'error', text: 'Certificate file size should be less than 10MB' });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('certificate', file);
+
+    try {
+      setUploadingCertificate(true);
+      const response = await fetch('http://localhost:5050/api/upload/certificate', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCertificateFile(data.certificatePath);
+        setMessage({ type: 'success', text: 'Certificate uploaded successfully!' });
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to upload certificate' });
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setMessage({ type: 'error', text: 'Failed to upload certificate' });
+    } finally {
+      setUploadingCertificate(false);
+    }
+  };
+
+  // Submit certificate to final report
+  const handleSubmitCertificate = async () => {
+    if (!certificateFile) {
+      setMessage({ type: 'error', text: 'Please upload a certificate first' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/final-reports/${selectedReport.id}/certificate`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          certificate_file: certificateFile
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Certificate uploaded successfully! Student has been notified.' });
+        setShowReportModal(false);
+        setCertificateFile(null);
+        loadAcceptedApplicants(); // Reload to get updated data
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to submit certificate' });
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
+      setMessage({ type: 'error', text: 'Failed to submit certificate' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1798,6 +1878,50 @@ function CompanyDashboard() {
                         </div>
                       </div>
                     )}
+
+                    {/* Final Report Button */}
+                    {applicant.final_report && (
+                      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+                        <button
+                          onClick={() => {
+                            setSelectedReport({ ...applicant.final_report, student_name: applicant.full_name });
+                            setShowReportModal(true);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: applicant.final_report.certificate_file 
+                              ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                              : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                          </svg>
+                          {applicant.final_report.certificate_file ? '✓ Certificate Uploaded' : 'View Final Report & Upload Certificate'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
                   </div>
@@ -1811,6 +1935,295 @@ function CompanyDashboard() {
           <div className="dashboard-header">
             <h1>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)}</h1>
             <p>This section is under development</p>
+          </div>
+        )}
+
+        {/* Final Report Modal */}
+        {showReportModal && selectedReport && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => {
+            setShowReportModal(false);
+            setCertificateFile(null);
+          }}
+          >
+            <div style={{
+              background: 'white',
+              borderRadius: '16px',
+              maxWidth: '700px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                padding: '24px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '16px 16px 0 0'
+              }}>
+                <div>
+                  <h2 style={{ margin: 0, color: 'white', fontSize: '24px', fontWeight: '700' }}>
+                    Final Training Report
+                  </h2>
+                  <p style={{ margin: '4px 0 0 0', color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px' }}>
+                    Student: {selectedReport.student_name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setCertificateFile(null);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '36px',
+                    height: '36px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                >
+                  <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '24px' }}>
+                {/* Trainer Info */}
+                <div style={{
+                  padding: '16px',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  marginBottom: '24px'
+                }}>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                    <strong style={{ color: '#111827' }}>Trainer:</strong> {selectedReport.trainer_name}
+                  </p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                    <strong style={{ color: '#111827' }}>Submitted:</strong> {new Date(selectedReport.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {/* Overall Performance */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '12px' }}>
+                    Overall Performance
+                  </h3>
+                  <p style={{
+                    padding: '16px',
+                    background: '#f0f9ff',
+                    borderRadius: '8px',
+                    color: '#0c4a6e',
+                    fontSize: '14px',
+                    lineHeight: '1.6',
+                    margin: 0
+                  }}>
+                    {selectedReport.overall_performance || 'No comments provided'}
+                  </p>
+                </div>
+
+                {/* Ratings Grid */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
+                    Performance Ratings
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {[
+                      { label: 'Technical Skills', value: selectedReport.technical_skills_rating, color: '#3b82f6' },
+                      { label: 'Communication', value: selectedReport.communication_rating, color: '#8b5cf6' },
+                      { label: 'Teamwork', value: selectedReport.teamwork_rating, color: '#10b981' },
+                      { label: 'Problem Solving', value: selectedReport.problem_solving_rating, color: '#f59e0b' },
+                      { label: 'Attendance', value: selectedReport.attendance_rating, color: '#ef4444' }
+                    ].map((rating, index) => (
+                      <div key={index} style={{
+                        padding: '12px',
+                        background: 'white',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '12px',
+                        textAlign: 'center'
+                      }}>
+                        <p style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#6b7280', fontWeight: '600' }}>
+                          {rating.label}
+                        </p>
+                        <div style={{
+                          fontSize: '28px',
+                          fontWeight: '700',
+                          color: rating.color,
+                          marginBottom: '2px'
+                        }}>
+                          {rating.value || 'N/A'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>out of 10</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Overall Rating */}
+                {selectedReport.overall_rating && (
+                  <div style={{
+                    padding: '20px',
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                    borderRadius: '12px',
+                    textAlign: 'center',
+                    marginBottom: '24px'
+                  }}>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#92400e', fontWeight: '600' }}>
+                      Overall Rating
+                    </p>
+                    <div style={{ fontSize: '48px', fontWeight: '700', color: '#78350f' }}>
+                      {selectedReport.overall_rating}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#92400e' }}>out of 10</div>
+                  </div>
+                )}
+
+                {/* Certificate Section */}
+                {selectedReport.certificate_file ? (
+                  <div style={{
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <svg width="24" height="24" fill="#15803d" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#15803d' }}>
+                        Certificate Uploaded
+                      </p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#166534' }}>
+                        Uploaded on {new Date(selectedReport.certificate_uploaded_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '20px',
+                    background: '#f9fafb',
+                    borderRadius: '12px',
+                    border: '2px dashed #d1d5db'
+                  }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '12px' }}>
+                      Upload Certificate
+                    </h3>
+                    <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                      Upload the training completion certificate for this student
+                    </p>
+                    
+                    <input 
+                      type="file" 
+                      id="certificate-upload" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      onChange={handleCertificateUpload}
+                      style={{ display: 'none' }}
+                    />
+                    
+                    {certificateFile ? (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{
+                          padding: '12px',
+                          background: '#e0f2fe',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <span style={{ fontSize: '14px', color: '#0c4a6e' }}>✓ Certificate ready to upload</span>
+                          <button
+                            onClick={() => setCertificateFile(null)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#0c4a6e',
+                              cursor: 'pointer',
+                              fontSize: '18px'
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button
+                        onClick={() => document.getElementById('certificate-upload').click()}
+                        disabled={uploadingCertificate}
+                        style={{
+                          flex: 1,
+                          padding: '12px',
+                          background: 'white',
+                          color: '#3b82f6',
+                          border: '2px solid #3b82f6',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: uploadingCertificate ? 'not-allowed' : 'pointer',
+                          opacity: uploadingCertificate ? 0.6 : 1
+                        }}
+                      >
+                        {uploadingCertificate ? 'Uploading...' : 'Choose File'}
+                      </button>
+                      
+                      {certificateFile && (
+                        <button
+                          onClick={handleSubmitCertificate}
+                          disabled={loading}
+                          style={{
+                            flex: 1,
+                            padding: '12px',
+                            background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            opacity: loading ? 0.6 : 1
+                          }}
+                        >
+                          {loading ? 'Submitting...' : 'Submit Certificate'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </main>

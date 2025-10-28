@@ -15,6 +15,7 @@ const uploadsDir = path.join(__dirname, "../uploads/logos");
 const imagesDir = path.join(__dirname, "../uploads/images");
 const cvsDir = path.join(__dirname, "../uploads/cvs");
 const filesDir = path.join(__dirname, "../uploads/files");
+const certificatesDir = path.join(__dirname, "../uploads/certificates");
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -30,6 +31,10 @@ if (!fs.existsSync(cvsDir)) {
 
 if (!fs.existsSync(filesDir)) {
   fs.mkdirSync(filesDir, { recursive: true });
+}
+
+if (!fs.existsSync(certificatesDir)) {
+  fs.mkdirSync(certificatesDir, { recursive: true });
 }
 
 // Configure multer for file upload
@@ -324,6 +329,68 @@ router.post("/file", fileUpload.single('file'), (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to upload file"
+    });
+  }
+});
+
+// Configure multer for certificate uploads
+const certificateStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, certificatesDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'certificate-' + uniqueSuffix + ext);
+  }
+});
+
+// File filter for certificates
+const certificateFileFilter = (req, file, cb) => {
+  const allowedTypes = /pdf|jpg|jpeg|png/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = /pdf|jpeg|jpg|png/.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only PDF, JPG, and PNG files are allowed for certificates!'));
+  }
+};
+
+const certificateUpload = multer({
+  storage: certificateStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB max file size
+  },
+  fileFilter: certificateFileFilter
+});
+
+// Upload certificate endpoint
+router.post("/certificate", certificateUpload.single('certificate'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded"
+      });
+    }
+
+    const certificatePath = `/uploads/certificates/${req.file.filename}`;
+    
+    console.log("✅ Certificate uploaded:", certificatePath);
+
+    res.status(200).json({
+      success: true,
+      message: "Certificate uploaded successfully",
+      certificatePath: certificatePath
+    });
+
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to upload certificate"
     });
   }
 });

@@ -497,7 +497,20 @@ class InternshipMatch {
         un.name as university_name,
         cv.analysis_data,
         i.title as internship_title,
-        i.id as internship_id
+        i.id as internship_id,
+        fr.id as final_report_id,
+        fr.overall_performance,
+        fr.technical_skills_rating,
+        fr.communication_rating,
+        fr.teamwork_rating,
+        fr.problem_solving_rating,
+        fr.attendance_rating,
+        fr.overall_rating,
+        fr.certificate_file,
+        fr.certificate_uploaded_at,
+        fr.created_at as report_created_at,
+        t.id as trainer_id,
+        ut.full_name as trainer_name
       FROM Internship_Matches im
       INNER JOIN Students s ON im.student_id = s.id
       INNER JOIN Users u ON s.user_id = u.id
@@ -506,6 +519,9 @@ class InternshipMatch {
         SELECT MAX(id) FROM CVs WHERE student_id = s.id
       )
       INNER JOIN Internships i ON im.internship_id = i.id
+      LEFT JOIN Final_Reports fr ON s.id = fr.student_id AND fr.internship_id = i.id
+      LEFT JOIN Trainers t ON fr.trainer_id = t.id
+      LEFT JOIN Users ut ON t.user_id = ut.id
       WHERE i.company_id = ? AND im.status = 'accepted'
       ORDER BY im.applied_at DESC
     `;
@@ -555,7 +571,22 @@ class InternshipMatch {
             return {
               ...row,
               matched_skills: matchedSkills,
-              gpa: gpa
+              gpa: gpa,
+              final_report: row.final_report_id ? {
+                id: row.final_report_id,
+                overall_performance: row.overall_performance,
+                technical_skills_rating: row.technical_skills_rating,
+                communication_rating: row.communication_rating,
+                teamwork_rating: row.teamwork_rating,
+                problem_solving_rating: row.problem_solving_rating,
+                attendance_rating: row.attendance_rating,
+                overall_rating: row.overall_rating,
+                certificate_file: row.certificate_file,
+                certificate_uploaded_at: row.certificate_uploaded_at,
+                created_at: row.report_created_at,
+                trainer_id: row.trainer_id,
+                trainer_name: row.trainer_name
+              } : null
             };
           });
           resolve(parsedResults);

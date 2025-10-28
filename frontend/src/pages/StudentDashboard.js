@@ -25,7 +25,8 @@ function StudentDashboard() {
     skills: '',
     university_id: '',
     university_name: '',
-    student_img: ''
+    student_img: '',
+    status: ''
   });
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -43,6 +44,13 @@ function StudentDashboard() {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [studentId, setStudentId] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [weeklyReports, setWeeklyReports] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [newReport, setNewReport] = useState({
+    week_number: 1,
+    report_text: '',
+    report_file: null
+  });
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedSolutionFile, setSelectedSolutionFile] = useState(null);
   const [solutionText, setSolutionText] = useState('');
@@ -56,6 +64,13 @@ function StudentDashboard() {
   const [newMessage, setNewMessage] = useState('');
   const [messagesChannel, setMessagesChannel] = useState(null);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const [hasAcceptedInternship, setHasAcceptedInternship] = useState(false);
+  const [acceptedInternshipInfo, setAcceptedInternshipInfo] = useState(null);
+  const [matchedInternshipsCount, setMatchedInternshipsCount] = useState(0);
+  const [interviewsCount, setInterviewsCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [certificate, setCertificate] = useState(null);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -88,6 +103,15 @@ function StudentDashboard() {
       loadTrainers();
     }
   }, [user]);
+
+  // Load training plans when studentId is available
+  useEffect(() => {
+    if (studentId) {
+      loadTrainingPlans();
+      loadDashboardStats();
+      loadWeeklyReports();
+    }
+  }, [studentId]);
 
   // Setup real-time message subscription for student
   useEffect(() => {
@@ -174,7 +198,8 @@ function StudentDashboard() {
             skills: data.student.skills || '',
             university_id: data.student.university_id || '',
             university_name: universityName,
-            student_img: data.student.student_img || ''
+            student_img: data.student.student_img || '',
+            status: data.student.status || ''
           });
           
           // Set image preview if exists
@@ -444,6 +469,123 @@ function StudentDashboard() {
     }
   };
 
+  // Load weekly reports
+  const loadWeeklyReports = async () => {
+    if (!studentId) return;
+    
+    try {
+      console.log('📚 Loading weekly reports for student:', studentId);
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/student/${studentId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Weekly reports loaded:', data.reports);
+        setWeeklyReports(data.reports || []);
+      }
+    } catch (error) {
+      console.error('Error loading weekly reports:', error);
+    }
+  };
+
+  // Submit weekly report
+  const handleSubmitWeeklyReport = async (e) => {
+    e.preventDefault();
+    
+    if (!studentId) {
+      setMessage({ type: 'error', text: 'Student ID not found' });
+      return;
+    }
+
+    if (!newReport.report_text && !newReport.report_file) {
+      setMessage({ type: 'error', text: 'Please provide report text or upload a file' });
+      return;
+    }
+
+    try {
+      let reportFileUrl = null;
+
+      // Upload file if provided
+      if (newReport.report_file) {
+        const formData = new FormData();
+        formData.append('file', newReport.report_file);
+
+        const uploadResponse = await fetch('http://localhost:5050/api/upload/file', {
+          method: 'POST',
+          body: formData
+        });
+
+        const uploadData = await uploadResponse.json();
+        
+        if (uploadData.success) {
+          reportFileUrl = uploadData.filePath;
+        } else {
+          throw new Error('File upload failed');
+        }
+      }
+
+      // Get active plan for this student
+      let activePlanId = null;
+      let trainerId = null;
+      let weekId = null;
+
+      if (trainingPlans && trainingPlans.length > 0) {
+        // Use the first active plan
+        const activePlan = trainingPlans.find(plan => plan.status === 'active') || trainingPlans[0];
+        activePlanId = activePlan.id;
+
+        // Get trainer_id from plan
+        const planResponse = await fetch(`http://localhost:5050/api/plans/${activePlanId}`);
+        const planData = await planResponse.json();
+        
+        if (planData.success && planData.plan) {
+          trainerId = planData.plan.trainer_id;
+          
+          // Find week_id if matching week number exists in plan
+          if (activePlan.weeks && activePlan.weeks.length > 0) {
+            const matchingWeek = activePlan.weeks.find(w => w.week_number === newReport.week_number);
+            if (matchingWeek) {
+              weekId = matchingWeek.id;
+            }
+          }
+        }
+      }
+
+      // Submit report
+      const reportData = {
+        student_id: studentId,
+        trainer_id: trainerId,
+        plan_id: activePlanId,
+        week_number: newReport.week_number,
+        report_text: newReport.report_text || '',
+        report_file: reportFileUrl
+      };
+
+      const response = await fetch('http://localhost:5050/api/weekly-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportData)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Weekly report submitted successfully!' });
+        setShowReportModal(false);
+        setNewReport({
+          week_number: 1,
+          report_text: '',
+          report_file: null
+        });
+        loadWeeklyReports();
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to submit report' });
+      }
+    } catch (error) {
+      console.error('Error submitting weekly report:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
+  };
+
   const loadDashboardData = async () => {
     // Load applications and recommended internships
     // This is placeholder data - replace with actual API calls
@@ -542,11 +684,66 @@ function StudentDashboard() {
       if (data.success) {
         console.log('Notifications loaded:', data.notifications.length);
         setNotifications(data.notifications || []);
+        // Count unread notifications
+        const unreadCount = (data.notifications || []).filter(n => !n.is_read).length;
+        setUnreadNotificationsCount(unreadCount);
       } else {
         console.log('API returned error:', data.message);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
+    }
+  };
+
+  // Load certificate
+  const loadCertificate = async () => {
+    if (!studentId) {
+      console.log('⚠️ Cannot load certificate: studentId is missing');
+      return;
+    }
+    
+    try {
+      console.log('📜 Loading certificate for student:', studentId);
+      const certResponse = await fetch(`http://localhost:5050/api/students/${studentId}/certificate`);
+      const certData = await certResponse.json();
+      console.log('📜 Certificate data:', certData);
+      if (certData.success && certData.certificate) {
+        console.log('✅ Certificate found:', certData.certificate);
+        setCertificate(certData.certificate);
+      } else {
+        console.log('⚠️ No certificate found for student');
+        setCertificate(null);
+      }
+    } catch (error) {
+      console.error('Error loading certificate:', error);
+      setCertificate(null);
+    }
+  };
+
+  // Load dashboard stats
+  const loadDashboardStats = async () => {
+    if (!studentId) {
+      console.log('⚠️ Cannot load dashboard stats: studentId is missing');
+      return;
+    }
+    
+    console.log('📊 Loading dashboard stats for student:', studentId);
+    
+    try {
+      // Get matched internships count
+      const matchesResponse = await fetch(`http://localhost:5050/api/matching/student/${studentId}`);
+      const matchesData = await matchesResponse.json();
+      if (matchesData.success) {
+        setMatchedInternshipsCount(matchesData.data.length);
+        // Count interviews (you can adjust this based on your interview status)
+        const interviewsScheduled = matchesData.data.filter(m => m.status === 'interview_scheduled').length;
+        setInterviewsCount(interviewsScheduled);
+      }
+
+      // Load certificate
+      await loadCertificate();
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
     }
   };
 
@@ -599,6 +796,19 @@ function StudentDashboard() {
         // Calculate total unread messages
         const totalUnread = trainersWithUnread.reduce((sum, trainer) => sum + (trainer.unread_count || 0), 0);
         setTotalUnreadMessages(totalUnread);
+        
+        // Check if student has accepted internship
+        if (trainersWithUnread.length > 0) {
+          setHasAcceptedInternship(true);
+          setAcceptedInternshipInfo({
+            internship_title: trainersWithUnread[0].internship_title,
+            company_name: trainersWithUnread[0].company_name,
+            company_logo: trainersWithUnread[0].company_logo
+          });
+        } else {
+          setHasAcceptedInternship(false);
+          setAcceptedInternshipInfo(null);
+        }
       }
     } catch (error) {
       console.error('Error loading trainers:', error);
@@ -609,8 +819,16 @@ function StudentDashboard() {
   const loadMessagesWithTrainer = async (trainer) => {
     if (!user || !trainer) return;
     
+    console.log('📨 Loading messages with trainer:', {
+      trainer_name: trainer.full_name,
+      trainer_user_id: trainer.user_id,
+      student_user_id: user.id
+    });
+    
     try {
       const chatMessages = await loadChatMessages(user.id, trainer.user_id);
+      console.log('✅ Loaded messages:', chatMessages.length, 'messages');
+      console.log('First message sample:', chatMessages[0]);
       setMessages(chatMessages);
       setSelectedTrainer(trainer);
       
@@ -630,6 +848,12 @@ function StudentDashboard() {
     if (!newMessage.trim() || !selectedTrainer || !user) return;
 
     const messageText = newMessage.trim();
+    
+    console.log('📤 Sending message:', {
+      sender_id: user.id,
+      receiver_id: selectedTrainer.user_id,
+      message: messageText
+    });
     
     try {
       // Clear input immediately
@@ -1153,7 +1377,7 @@ function StudentDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'plans' ? 'active' : ''}`}
-            onClick={() => { setActiveMenu('plans'); loadTrainingPlans(); }}
+            onClick={() => { setActiveMenu('plans'); loadTrainingPlans(); loadWeeklyReports(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -1183,31 +1407,31 @@ function StudentDashboard() {
             {/* Welcome Banner */}
             <div className="welcome-banner">
               <h2>Welcome back, {user.full_name.split(' ')[0]}!</h2>
-              <p>You have 3 new internship matches and 2 application updates</p>
             </div>
 
             {/* Stats Cards */}
+            {console.log('🎓 Certificate state in render:', certificate)}
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-icon" style={{ backgroundColor: '#e3f2fd' }}>
                   <svg width="24" height="24" fill="#1e88e5" viewBox="0 0 24 24">
-                    <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
                   </svg>
                 </div>
                 <div className="stat-content">
-                  <h3>12</h3>
-                  <p>Applications Sent</p>
+                  <h3>{matchedInternshipsCount}</h3>
+                  <p>Matched Internships</p>
                 </div>
               </div>
 
               <div className="stat-card">
                 <div className="stat-icon" style={{ backgroundColor: '#e8f5e9' }}>
                   <svg width="24" height="24" fill="#43a047" viewBox="0 0 24 24">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
                   </svg>
                 </div>
                 <div className="stat-content">
-                  <h3>3</h3>
+                  <h3>{interviewsCount}</h3>
                   <p>Interviews Scheduled</p>
                 </div>
               </div>
@@ -1215,72 +1439,37 @@ function StudentDashboard() {
               <div className="stat-card">
                 <div className="stat-icon" style={{ backgroundColor: '#fff3e0' }}>
                   <svg width="24" height="24" fill="#fb8c00" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
                   </svg>
                 </div>
                 <div className="stat-content">
-                  <h3>5</h3>
-                  <p>Pending Reviews</p>
+                  <h3>{unreadNotificationsCount}</h3>
+                  <p>Unread Notifications</p>
                 </div>
               </div>
 
-              <div className="stat-card">
-                <div className="stat-icon" style={{ backgroundColor: '#f3e5f5' }}>
-                  <svg width="24" height="24" fill="#8e24aa" viewBox="0 0 24 24">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  </svg>
+              {studentData.status === 'completed' && (
+                <div 
+                  className="stat-card" 
+                  style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                  onClick={async () => {
+                    setShowCertificateModal(true);
+                    await loadCertificate();
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <div className="stat-icon" style={{ backgroundColor: '#f3e5f5' }}>
+                    <svg width="24" height="24" fill="#8e24aa" viewBox="0 0 24 24">
+                      <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                    </svg>
+                  </div>
+                  <div className="stat-content">
+                    <h3>✓</h3>
+                    <p>View Certificate</p>
+                  </div>
                 </div>
-                <div className="stat-content">
-                  <h3>87%</h3>
-                  <p>Profile Match Score</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Applications and Recommendations */}
-            <div className="content-grid">
-              {/* Recent Applications */}
-              <div className="content-section">
-                <h3 className="section-title">Recent Applications</h3>
-                <div className="applications-list">
-                  {applications.map(app => (
-                    <div key={app.id} className="application-item">
-                      <div className="app-avatar">
-                        {app.title.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="app-details">
-                        <h4>{app.title}</h4>
-                        <p>{app.company} • {app.timeAgo}</p>
-                      </div>
-                      <div className="app-status">
-                        {getStatusBadge(app.status)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recommended Matches */}
-              <div className="content-section">
-                <h3 className="section-title">Recommended Matches</h3>
-                <div className="recommendations-list">
-                  {recommendedInternships.map(internship => (
-                    <div key={internship.id} className="recommendation-item">
-                      <div className="rec-avatar">
-                        {internship.title.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="rec-details">
-                        <h4>{internship.title}</h4>
-                        <p>{internship.company} • {internship.location}</p>
-                      </div>
-                      <div className="rec-actions">
-                        <span className="match-score">{internship.match}% match</span>
-                        <button className="view-btn">View</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           </>
         )}
@@ -1655,7 +1844,60 @@ function StudentDashboard() {
               <p>Internships matched to your skills and profile - sorted by compatibility</p>
             </div>
 
-            {loadingInternships ? (
+            {hasAcceptedInternship ? (
+              <div className="empty-state" style={{ 
+                background: 'white',
+                color: '#1f2937',
+                padding: '3rem',
+                borderRadius: '12px',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{ 
+                  width: '80px',
+                  height: '80px',
+                  background: '#10b981',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1.5rem',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                }}>
+                  <svg width="48" height="48" fill="white" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <h2 style={{ color: '#1f2937', fontSize: '2rem', marginBottom: '0.5rem', fontWeight: '700' }}>Congratulations!</h2>
+                <h3 style={{ color: '#10b981', fontSize: '1.3rem', marginBottom: '1.5rem', fontWeight: '600' }}>
+                  You have been accepted to an internship
+                </h3>
+                {acceptedInternshipInfo && (
+                  <div style={{ 
+                    background: '#f9fafb', 
+                    padding: '1.5rem', 
+                    borderRadius: '8px',
+                    marginTop: '1.5rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <p style={{ fontSize: '1rem', marginBottom: '0.75rem', color: '#4b5563' }}>
+                      <strong style={{ color: '#1f2937' }}>Internship:</strong> {acceptedInternshipInfo.internship_title}
+                    </p>
+                    <p style={{ fontSize: '1rem', color: '#4b5563' }}>
+                      <strong style={{ color: '#1f2937' }}>Company:</strong> {acceptedInternshipInfo.company_name}
+                    </p>
+                  </div>
+                )}
+                <p style={{ 
+                  marginTop: '1.5rem', 
+                  fontSize: '0.95rem',
+                  color: '#6b7280',
+                  lineHeight: '1.6'
+                }}>
+                  Check the <strong style={{ color: '#10b981' }}>Training Plans</strong> section to view your training schedule and tasks.
+                </p>
+              </div>
+            ) : loadingInternships ? (
               <div className="loading-container">
                 <p>Loading internships...</p>
               </div>
@@ -1907,7 +2149,7 @@ function StudentDashboard() {
           </div>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && activeMenu !== 'messages' && (
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'cv-upload' && activeMenu !== 'internships' && activeMenu !== 'details' && activeMenu !== 'notifications' && activeMenu !== 'messages' && activeMenu !== 'plans' && (
           <div className="placeholder-content">
             <h2>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)} Page</h2>
             <p>This section is under development</p>
@@ -2120,13 +2362,22 @@ function StudentDashboard() {
                         </div>
                       ) : (
                         <>
-                          {messages.map(msg => (
+                          {messages.map(msg => {
+                            const isSentByStudent = Number(msg.sender_id) === Number(user.id);
+                            console.log('📧 Message:', {
+                              message: msg.message,
+                              sender_id: msg.sender_id,
+                              user_id: user.id,
+                              isSent: isSentByStudent,
+                              types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
+                            });
+                            return (
                             <div
                               key={msg.id}
-                              className={`message-item ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+                              className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
                             >
                               {/* Show avatar for receiver (trainer) on left */}
-                              {msg.sender_id !== user.id && selectedTrainer && (
+                              {!isSentByStudent && selectedTrainer && (
                                 <div className="message-avatar">
                                   {selectedTrainer.profile_image ? (
                                     <img 
@@ -2152,7 +2403,7 @@ function StudentDashboard() {
                                 </span>
                               </div>
                               {/* Show avatar for sender (student) on right */}
-                              {msg.sender_id === user.id && (
+                              {isSentByStudent && (
                                 <div className="message-avatar">
                                   {studentData.student_img ? (
                                     <img 
@@ -2169,7 +2420,8 @@ function StudentDashboard() {
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                           <div ref={messagesEndRef} />
                         </>
                       )}
@@ -2281,7 +2533,7 @@ function StudentDashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
                 <h3>No Training Plans Yet</h3>
-                <p>No training plans have been published yet for your internships</p>
+                <p>Training plans will appear here once you are accepted to an internship and the company publishes a training plan</p>
               </div>
             ) : (
               <div className="plans-list">
@@ -2357,6 +2609,287 @@ function StudentDashboard() {
                 ))}
               </div>
             )}
+
+            {/* Weekly Reports Section */}
+            <div className="weekly-reports-section" style={{ marginTop: '40px' }}>
+              <div className="section-header" style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '20px'
+              }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '20px', color: '#1f2937' }}>Weekly Reports</h3>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                    Submit your weekly training reports
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  style={{
+                    padding: '12px 24px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                >
+                  <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
+                  </svg>
+                  Submit Report
+                </button>
+              </div>
+
+              {/* Reports List */}
+              {weeklyReports.length > 0 ? (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '16px'
+                }}>
+                  {weeklyReports.map((report) => (
+                    <div key={report.id} style={{
+                      padding: '20px',
+                      background: 'white',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                        <h4 style={{ margin: 0, fontSize: '16px', color: '#1f2937' }}>
+                          Week {report.week_number}
+                        </h4>
+                        <span style={{
+                          padding: '4px 12px',
+                          background: '#dcfce7',
+                          color: '#166534',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Submitted
+                        </span>
+                      </div>
+                      {report.plan_title && (
+                        <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#6b7280' }}>
+                          {report.plan_title}
+                        </p>
+                      )}
+                      {report.report_text && (
+                        <p style={{ 
+                          margin: '0 0 12px 0', 
+                          fontSize: '14px', 
+                          color: '#4b5563',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {report.report_text}
+                        </p>
+                      )}
+                      {report.report_file && (
+                        <a
+                          href={`http://localhost:5050${report.report_file}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            background: '#f3f4f6',
+                            color: '#667eea',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            textDecoration: 'none',
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#e5e7eb'}
+                          onMouseLeave={(e) => e.target.style.background = '#f3f4f6'}
+                        >
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd"/>
+                          </svg>
+                          View File
+                        </a>
+                      )}
+                      <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: '#9ca3af' }}>
+                        Submitted on {new Date(report.submitted_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  padding: '40px',
+                  textAlign: 'center',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  border: '2px dashed #d1d5db'
+                }}>
+                  <svg width="48" height="48" fill="#9ca3af" viewBox="0 0 20 20" style={{ margin: '0 auto 16px' }}>
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
+                  </svg>
+                  <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+                    No weekly reports submitted yet. Click "Submit Report" to add your first report.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Weekly Report Modal */}
+        {showReportModal && (
+          <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
+            <div className="modal-content" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Submit Weekly Report</h2>
+                <button className="modal-close" onClick={() => setShowReportModal(false)}>
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitWeeklyReport}>
+                <div className="modal-body">
+                  {/* Week Number */}
+                  <div className="form-group">
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                      Week Number
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="52"
+                      value={newReport.week_number}
+                      onChange={(e) => setNewReport({ ...newReport, week_number: parseInt(e.target.value) })}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+
+                  {/* Report Text */}
+                  <div className="form-group" style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                      Report Text (Optional)
+                    </label>
+                    <textarea
+                      value={newReport.report_text}
+                      onChange={(e) => setNewReport({ ...newReport, report_text: e.target.value })}
+                      placeholder="Describe your progress and learnings this week..."
+                      rows="6"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+
+                  {/* File Upload */}
+                  <div className="form-group" style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                      Upload File (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      onChange={(e) => setNewReport({ ...newReport, report_file: e.target.files[0] })}
+                      accept=".pdf,.doc,.docx,.txt"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '2px dashed #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+                      Supported formats: PDF, DOC, DOCX, TXT (Max 10MB)
+                    </p>
+                  </div>
+
+                  {message.text && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+                      color: message.type === 'success' ? '#166534' : '#991b1b',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}>
+                      {message.text}
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer" style={{ 
+                  display: 'flex', 
+                  gap: '12px', 
+                  justifyContent: 'flex-end',
+                  padding: '20px 24px',
+                  borderTop: '1px solid #e5e7eb'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    style={{
+                      padding: '10px 20px',
+                      background: 'white',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '10px 20px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Submit Report
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
@@ -2547,6 +3080,232 @@ function StudentDashboard() {
                 <button className="btn-secondary" onClick={() => setShowTaskModal(false)}>
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Certificate Modal */}
+        {showCertificateModal && (
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+            onClick={() => setShowCertificateModal(false)}
+          >
+            <div 
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                maxWidth: '1000px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                padding: '32px 40px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '12px 12px 0 0'
+              }}>
+                <div>
+                  <h2 style={{ 
+                    margin: 0, 
+                    color: 'white', 
+                    fontSize: '28px', 
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    🎓 Training Completion Certificate
+                  </h2>
+                  <p style={{ 
+                    margin: '8px 0 0 0', 
+                    color: 'rgba(255, 255, 255, 0.9)', 
+                    fontSize: '16px' 
+                  }}>
+                    Certificate details
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowCertificateModal(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '40px',
+                    height: '40px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '28px',
+                    fontWeight: '300',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.3)'}
+                  onMouseLeave={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '32px 40px' }}>
+                {!certificate ? (
+                  <div style={{
+                    padding: '16px 20px',
+                    background: '#fff7ed',
+                    borderRadius: '8px',
+                    border: '1px solid #fed7aa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <svg width="20" height="20" fill="#f59e0b" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <p style={{ margin: 0, fontSize: '15px', color: '#c2410c' }}>
+                      No certificate is available yet. Please check back later.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{
+                      padding: '16px 20px',
+                      background: '#f0fdf4',
+                      borderRadius: '8px',
+                      marginBottom: '24px',
+                      border: '1px solid #86efac',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}>
+                      <svg width="20" height="20" fill="#16a34a" viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <p style={{ margin: 0, fontSize: '15px', color: '#166534' }}>
+                        <strong>Congratulations!</strong> Your certificate was uploaded on {new Date(certificate.certificate_uploaded_at).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    {/* Certificate Preview */}
+                    <div style={{
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      background: '#f9fafb',
+                      marginBottom: '24px'
+                    }}>
+                      {certificate.certificate_file.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                        <img 
+                          src={`http://localhost:5050${certificate.certificate_file}`}
+                          alt="Certificate"
+                          style={{
+                            width: '100%',
+                            height: 'auto',
+                            display: 'block'
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          padding: '60px 20px',
+                          textAlign: 'center'
+                        }}>
+                          <svg width="64" height="64" fill="#9ca3af" viewBox="0 0 20 20" style={{ margin: '0 auto 16px' }}>
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                          </svg>
+                          <p style={{ margin: 0, color: '#6b7280', fontSize: '16px' }}>PDF Certificate</p>
+                          <p style={{ margin: '8px 0 0 0', color: '#9ca3af', fontSize: '14px' }}>Click download button below to view</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Download Buttons */}
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <a
+                        href={`http://localhost:5050${certificate.certificate_file}`}
+                        download
+                        style={{
+                          flex: 1,
+                          padding: '14px',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          transition: 'transform 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                      >
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Download Certificate
+                      </a>
+                      <a
+                        href={`http://localhost:5050${certificate.certificate_file}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '14px 24px',
+                          background: 'white',
+                          color: '#667eea',
+                          border: '2px solid #667eea',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = '#667eea';
+                          e.target.style.color = 'white';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'white';
+                          e.target.style.color = '#667eea';
+                        }}
+                      >
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                          <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                        </svg>
+                        Open
+                      </a>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
