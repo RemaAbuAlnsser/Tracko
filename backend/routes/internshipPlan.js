@@ -48,8 +48,14 @@ router.post("/", async (req, res) => {
     const planId = result.insertId;
 
     // Add weeks if provided
+    console.log(`🔍 Received weeks data:`, weeks);
+    console.log(`🔍 Is array?`, Array.isArray(weeks));
+    console.log(`🔍 Length:`, weeks?.length);
+    
     if (weeks && Array.isArray(weeks) && weeks.length > 0) {
+      console.log(`📅 Adding ${weeks.length} weeks to plan...`);
       for (const week of weeks) {
+        console.log(`  Week ${week.week_number}: due_date = ${week.due_date || 'null'}`);
         await InternshipPlan.addWeek({
           plan_id: planId,
           week_number: week.week_number,
@@ -57,8 +63,10 @@ router.post("/", async (req, res) => {
           description: week.description,
           objectives: week.objectives,
           tasks: week.tasks,
+          task_description: week.task_description,
           resources: week.resources,
-          deliverables: week.deliverables
+          deliverables: week.deliverables,
+          due_date: week.due_date || null
         });
       }
     }
@@ -262,8 +270,10 @@ router.post("/:planId/weeks", async (req, res) => {
       description, 
       objectives,
       tasks,
+      task_description,
       resources,
-      deliverables
+      deliverables,
+      due_date
     } = req.body;
 
     // Validate required fields
@@ -290,8 +300,10 @@ router.post("/:planId/weeks", async (req, res) => {
       description,
       objectives,
       tasks,
+      task_description,
       resources,
-      deliverables
+      deliverables,
+      due_date
     });
 
     res.status(201).json({
@@ -326,17 +338,23 @@ router.put("/weeks/:weekId", async (req, res) => {
       description, 
       objectives,
       tasks,
+      task_description,
       resources,
-      deliverables
+      deliverables,
+      due_date
     } = req.body;
+
+    console.log(`📝 Updating week ${weekId} with due_date: ${due_date}`);
 
     await InternshipPlan.updateWeek(weekId, {
       title,
       description,
       objectives,
       tasks,
+      task_description,
       resources,
-      deliverables
+      deliverables,
+      due_date
     });
 
     res.json({

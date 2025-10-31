@@ -2582,7 +2582,62 @@ function StudentDashboard() {
                               {index < plan.weeks.length - 1 && <div className="timeline-line"></div>}
                               <div className="timeline-content">
                                 <div className="timeline-task-header">
-                                  <span className="timeline-task-name">{week.tasks || `Week ${week.week_number}`}</span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                                    <span className="timeline-task-name">{week.tasks || `Week ${week.week_number}`}</span>
+                                    {week.due_date && (() => {
+                                      const now = new Date();
+                                      const dueDate = new Date(week.due_date);
+                                      const diffMs = dueDate - now;
+                                      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                      const diffDays = Math.floor(diffHours / 24);
+                                      const remainingHours = diffHours % 24;
+                                      const isOverdue = diffMs < 0;
+                                      const isUrgent = diffHours <= 24 && diffHours > 0; // Less than or equal to 1 day
+                                      
+                                      return (
+                                        <div style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          fontSize: '13px',
+                                          color: isOverdue ? '#dc2626' : isUrgent ? '#dc2626' : '#6b7280',
+                                          fontWeight: '500',
+                                          background: isUrgent ? '#fee2e2' : 'transparent',
+                                          padding: isUrgent ? '4px 8px' : '0',
+                                          borderRadius: isUrgent ? '6px' : '0',
+                                          border: isUrgent ? '1px solid #fca5a5' : 'none'
+                                        }}>
+                                          <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                                          </svg>
+                                          Due: {dueDate.toLocaleDateString('en-US', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                          {isOverdue ? (
+                                            <span style={{ 
+                                              color: '#dc2626', 
+                                              fontWeight: '700',
+                                              fontSize: '12px'
+                                            }}>
+                                              (Overdue)
+                                            </span>
+                                          ) : (
+                                            <span style={{ 
+                                              color: isUrgent ? '#dc2626' : '#059669',
+                                              fontWeight: '600',
+                                              fontSize: '12px'
+                                            }}>
+                                              ({diffDays > 0 ? `${diffDays}d ${remainingHours}h` : `${diffHours}h`} left)
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                   <button 
                                     className="btn-view-task-details"
                                     onClick={() => {
@@ -2970,6 +3025,107 @@ function StudentDashboard() {
                       Resources
                     </h4>
                     <p className="task-content">{selectedTask.resources}</p>
+                  </div>
+                )}
+
+                {selectedTask.due_date && (
+                  <div style={{ 
+                    background: new Date(selectedTask.due_date) < new Date() 
+                      ? 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)' 
+                      : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    border: new Date(selectedTask.due_date) < new Date() ? '2px solid #ef4444' : '2px solid #3b82f6',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    marginTop: '16px'
+                  }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px',
+                      marginBottom: '12px'
+                    }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: new Date(selectedTask.due_date) < new Date() ? '#ef4444' : '#3b82f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 style={{ 
+                          margin: 0,
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          color: new Date(selectedTask.due_date) < new Date() ? '#dc2626' : '#1e40af'
+                        }}>
+                          {new Date(selectedTask.due_date) < new Date() ? '⚠️ Overdue Submission' : '📅 Submission Deadline'}
+                        </h4>
+                        <p style={{ 
+                          margin: '4px 0 0 0',
+                          fontSize: '13px',
+                          color: new Date(selectedTask.due_date) < new Date() ? '#991b1b' : '#1e3a8a',
+                          opacity: 0.8
+                        }}>
+                          {new Date(selectedTask.due_date) < new Date() ? 'Please submit as soon as possible' : 'Make sure to submit before this date'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.5)',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      marginBottom: '12px'
+                    }}>
+                      <p style={{ 
+                        margin: 0,
+                        fontWeight: '600',
+                        fontSize: '18px',
+                        color: new Date(selectedTask.due_date) < new Date() ? '#dc2626' : '#1e40af'
+                      }}>
+                        {new Date(selectedTask.due_date).toLocaleString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+
+                    {new Date(selectedTask.due_date) > new Date() && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: 'rgba(255, 255, 255, 0.7)',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#1e40af'
+                      }}>
+                        <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                        </svg>
+                        {(() => {
+                          const days = Math.ceil((new Date(selectedTask.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+                          const hours = Math.ceil((new Date(selectedTask.due_date) - new Date()) / (1000 * 60 * 60));
+                          if (days > 1) return `${days} days remaining`;
+                          if (hours > 1) return `${hours} hours remaining`;
+                          return 'Less than 1 hour remaining!';
+                        })()}
+                      </div>
+                    )}
                   </div>
                 )}
 

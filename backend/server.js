@@ -20,7 +20,9 @@ import reportsRoutes from "./routes/reports.js";
 import taskSubmissionRoutes from "./routes/taskSubmission.js";
 import finalReportRoutes from "./routes/finalReport.js";
 import weeklyReportRoutes from "./routes/weeklyReport.js";
+import taskDeadlineRoutes from "./routes/taskDeadlines.js";
 import WeeklyReport from "./models/WeeklyReport.js";
+import { setupTaskDeadlineCron } from "./cron/taskDeadlineCron.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +60,7 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/task-submissions", taskSubmissionRoutes);
 app.use("/api/final-reports", finalReportRoutes);
 app.use("/api/weekly-reports", weeklyReportRoutes);
+app.use("/api/task-deadlines", taskDeadlineRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -90,4 +93,7 @@ async function initializeDatabase() {
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await initializeDatabase();
+  
+  // Setup cron jobs for task deadline notifications
+  setupTaskDeadlineCron();
 });

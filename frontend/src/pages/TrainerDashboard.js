@@ -73,6 +73,8 @@ function TrainerDashboard() {
     status: 'draft'
   });
   const [planWeeks, setPlanWeeks] = useState([]);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [showEditPlanModal, setShowEditPlanModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
   // selectedStudent is already defined above for chat system (line 40)
   const [submissions, setSubmissions] = useState([]);
@@ -731,7 +733,8 @@ function TrainerDashboard() {
       tasks: '',
       task_description: '',
       resources: '',
-      deliverables: ''
+      deliverables: '',
+      due_date: ''
     }]);
   };
 
@@ -748,6 +751,119 @@ function TrainerDashboard() {
       week.week_number = i + 1;
     });
     setPlanWeeks(updatedWeeks);
+  };
+
+  const handleEditPlan = async (plan) => {
+    setEditingPlan(plan);
+    setNewPlan({
+      internship_id: plan.internship_id,
+      title: plan.title,
+      description: plan.description,
+      duration_weeks: plan.duration_weeks,
+      start_date: plan.start_date ? plan.start_date.split('T')[0] : '',
+      end_date: plan.end_date ? plan.end_date.split('T')[0] : '',
+      status: plan.status
+    });
+    
+    // Load weeks for this plan
+    try {
+      const response = await fetch(`http://localhost:5050/api/plans/${plan.id}/weeks`);
+      const data = await response.json();
+      if (data.success) {
+        // Format due_date for datetime-local input
+        const formattedWeeks = data.weeks.map(week => ({
+          ...week,
+          due_date: week.due_date ? new Date(week.due_date).toISOString().slice(0, 16) : ''
+        }));
+        setPlanWeeks(formattedWeeks);
+      }
+    } catch (error) {
+      console.error('Error loading plan weeks:', error);
+    }
+    
+    setShowEditPlanModal(true);
+  };
+
+  const handleUpdatePlan = async (e) => {
+    e.preventDefault();
+    if (!editingPlan || !trainerId) {
+      setMessage({ type: 'error', text: 'Missing required information' });
+      return;
+    }
+
+    try {
+      // Update plan basic info
+      const planResponse = await fetch(`http://localhost:5050/api/plans/${editingPlan.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newPlan,
+          trainer_id: trainerId
+        })
+      });
+      const planData = await planResponse.json();
+      
+      if (!planData.success) {
+        setMessage({ type: 'error', text: planData.message || 'Failed to update plan' });
+        return;
+      }
+
+      // Update each week
+      for (const week of planWeeks) {
+        if (week.id) {
+          // Update existing week
+          await fetch(`http://localhost:5050/api/plans/weeks/${week.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: week.title,
+              description: week.description,
+              objectives: week.objectives,
+              tasks: week.tasks,
+              task_description: week.task_description,
+              resources: week.resources,
+              deliverables: week.deliverables,
+              due_date: week.due_date || null
+            })
+          });
+        } else {
+          // Add new week
+          await fetch(`http://localhost:5050/api/plans/${editingPlan.id}/weeks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              week_number: week.week_number,
+              title: week.title,
+              description: week.description,
+              objectives: week.objectives,
+              tasks: week.tasks,
+              task_description: week.task_description,
+              resources: week.resources,
+              deliverables: week.deliverables,
+              due_date: week.due_date || null
+            })
+          });
+        }
+      }
+
+      setMessage({ type: 'success', text: 'Plan updated successfully!' });
+      setShowEditPlanModal(false);
+      setEditingPlan(null);
+      setNewPlan({
+        internship_id: '',
+        title: '',
+        description: '',
+        duration_weeks: 4,
+        start_date: '',
+        end_date: '',
+        status: 'draft'
+      });
+      setPlanWeeks([]);
+      loadPlans();
+    } catch (error) {
+      console.error('Error updating plan:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    }
   };
 
   const handleViewStudentTasks = async (student) => {
@@ -2446,6 +2562,62 @@ function TrainerDashboard() {
                               placeholder="Expected deliverables from students..."
                             />
                           </div>
+
+                          <div className="form-group" style={{ marginTop: '16px' }}>
+                            <label style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#374151',
+                              marginBottom: '8px'
+                            }}>
+                              <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#ef4444' }}>
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                              </svg>
+                              Submission Deadline
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={week.due_date}
+                              onChange={(e) => handleUpdateWeek(index, 'due_date', e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                border: '2px solid #e5e7eb',
+                                borderRadius: '8px',
+                                fontSize: '14px',
+                                fontFamily: 'inherit',
+                                transition: 'all 0.2s',
+                                backgroundColor: '#f9fafb'
+                              }}
+                              onFocus={(e) => {
+                                e.target.style.borderColor = '#3b82f6';
+                                e.target.style.backgroundColor = '#ffffff';
+                              }}
+                              onBlur={(e) => {
+                                e.target.style.borderColor = '#e5e7eb';
+                                e.target.style.backgroundColor = '#f9fafb';
+                              }}
+                            />
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginTop: '8px',
+                              padding: '8px 12px',
+                              backgroundColor: '#dbeafe',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              color: '#1e40af'
+                            }}>
+                              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                              </svg>
+                              Students will be notified 24 hours before the deadline
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2536,12 +2708,77 @@ function TrainerDashboard() {
                         </div>
                       )}
 
-                      <div className="plan-actions">
+                      <div className="plan-actions" style={{ 
+                        display: 'flex', 
+                        gap: '10px',
+                        marginTop: '16px'
+                      }}>
                         <button
                           className="btn-secondary-small"
                           onClick={() => loadPlanDetails(plan.id)}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            border: '2px solid #e5e7eb',
+                            background: 'white',
+                            color: '#374151',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.borderColor = '#9ca3af';
+                            e.target.style.background = '#f9fafb';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.borderColor = '#e5e7eb';
+                            e.target.style.background = 'white';
+                          }}
                         >
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
+                          </svg>
                           View Details
+                        </button>
+                        <button
+                          onClick={() => handleEditPlan(plan)}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            border: '2px solid #3b82f6',
+                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            color: 'white',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'translateY(-2px)';
+                            e.target.style.boxShadow = '0 4px 8px rgba(59, 130, 246, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'translateY(0)';
+                            e.target.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.3)';
+                          }}
+                        >
+                          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                          Edit Plan
                         </button>
                       </div>
                     </div>
@@ -3096,6 +3333,391 @@ function TrainerDashboard() {
               >
                 {loading ? 'Submitting...' : '📤 Submit Review & Notify Student'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Plan Modal */}
+      {showEditPlanModal && editingPlan && (
+        <div className="modal-overlay" onClick={() => setShowEditPlanModal(false)} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div className="modal-content large-modal" onClick={(e) => e.stopPropagation()} style={{
+            background: 'white',
+            borderRadius: '16px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}>
+            <div className="modal-header" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '24px 28px',
+              borderBottom: '2px solid #e5e7eb',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '16px 16px 0 0'
+            }}>
+              <h2 style={{
+                margin: 0,
+                fontSize: '24px',
+                fontWeight: '700',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <svg width="28" height="28" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+                Edit Training Plan
+              </h2>
+              <button 
+                onClick={() => setShowEditPlanModal(false)}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '2px solid rgba(255, 255, 255, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  lineHeight: 1
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.3)';
+                  e.target.style.transform = 'rotate(90deg)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                  e.target.style.transform = 'rotate(0deg)';
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body" style={{
+              padding: '28px',
+              maxHeight: 'calc(90vh - 180px)',
+              overflowY: 'auto'
+            }}>
+              <form onSubmit={handleUpdatePlan}>
+                <div className="form-group">
+                  <label>Plan Title *</label>
+                  <input
+                    type="text"
+                    value={newPlan.title}
+                    onChange={(e) => setNewPlan({...newPlan, title: e.target.value})}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    rows="3"
+                    value={newPlan.description}
+                    onChange={(e) => setNewPlan({...newPlan, description: e.target.value})}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Duration (Weeks) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="52"
+                      value={newPlan.duration_weeks}
+                      onChange={(e) => setNewPlan({...newPlan, duration_weeks: parseInt(e.target.value)})}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Start Date</label>
+                    <input
+                      type="date"
+                      value={newPlan.start_date}
+                      onChange={(e) => setNewPlan({...newPlan, start_date: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>End Date</label>
+                    <input
+                      type="date"
+                      value={newPlan.end_date}
+                      onChange={(e) => setNewPlan({...newPlan, end_date: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      value={newPlan.status}
+                      onChange={(e) => setNewPlan({...newPlan, status: e.target.value})}
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Weekly Plan */}
+                <div className="weeks-section">
+                  <div className="weeks-header">
+                    <h4>Weekly Plan</h4>
+                    <button type="button" className="btn-add-week" onClick={handleAddWeek}>
+                      + Add Week
+                    </button>
+                  </div>
+
+                  {planWeeks.length > 0 && (
+                    <div className="weeks-list">
+                      {planWeeks.map((week, index) => (
+                        <div key={index} className="week-item">
+                          <div className="week-header">
+                            <h5>Week {week.week_number}</h5>
+                            <button 
+                              type="button" 
+                              className="btn-remove-week"
+                              onClick={() => handleRemoveWeek(index)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Week Title</label>
+                            <input
+                              type="text"
+                              value={week.title}
+                              onChange={(e) => handleUpdateWeek(index, 'title', e.target.value)}
+                              placeholder="e.g., Introduction to React"
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Description</label>
+                            <textarea
+                              rows="2"
+                              value={week.description}
+                              onChange={(e) => handleUpdateWeek(index, 'description', e.target.value)}
+                              placeholder="Brief description of this week..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Learning Objectives</label>
+                            <textarea
+                              rows="2"
+                              value={week.objectives}
+                              onChange={(e) => handleUpdateWeek(index, 'objectives', e.target.value)}
+                              placeholder="What students should learn..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Tasks Title</label>
+                            <input
+                              type="text"
+                              value={week.tasks}
+                              onChange={(e) => handleUpdateWeek(index, 'tasks', e.target.value)}
+                              placeholder="e.g., Build a Todo App"
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Task Description</label>
+                            <textarea
+                              rows="3"
+                              value={week.task_description}
+                              onChange={(e) => handleUpdateWeek(index, 'task_description', e.target.value)}
+                              placeholder="Detailed description of the task..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Resources</label>
+                            <textarea
+                              rows="2"
+                              value={week.resources}
+                              onChange={(e) => handleUpdateWeek(index, 'resources', e.target.value)}
+                              placeholder="Links, documentation, tutorials..."
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Deliverables</label>
+                            <textarea
+                              rows="2"
+                              value={week.deliverables}
+                              onChange={(e) => handleUpdateWeek(index, 'deliverables', e.target.value)}
+                              placeholder="Expected deliverables from students..."
+                            />
+                          </div>
+
+                          <div className="form-group" style={{ marginTop: '16px' }}>
+                            <label style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#374151',
+                              marginBottom: '8px'
+                            }}>
+                              <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#ef4444' }}>
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                              </svg>
+                              Submission Deadline
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={week.due_date}
+                              onChange={(e) => handleUpdateWeek(index, 'due_date', e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                border: '2px solid #e5e7eb',
+                                borderRadius: '8px',
+                                fontSize: '14px',
+                                fontFamily: 'inherit',
+                                transition: 'all 0.2s',
+                                backgroundColor: '#f9fafb'
+                              }}
+                              onFocus={(e) => {
+                                e.target.style.borderColor = '#3b82f6';
+                                e.target.style.backgroundColor = '#ffffff';
+                              }}
+                              onBlur={(e) => {
+                                e.target.style.borderColor = '#e5e7eb';
+                                e.target.style.backgroundColor = '#f9fafb';
+                              }}
+                            />
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginTop: '8px',
+                              padding: '8px 12px',
+                              backgroundColor: '#dbeafe',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              color: '#1e40af'
+                            }}>
+                              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                              </svg>
+                              Students will be notified 24 hours before the deadline
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-actions" style={{
+                  display: 'flex',
+                  gap: '12px',
+                  padding: '24px 28px',
+                  borderTop: '2px solid #e5e7eb',
+                  background: '#f9fafb',
+                  marginTop: '24px',
+                  borderRadius: '0 0 16px 16px'
+                }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowEditPlanModal(false)}
+                    style={{
+                      flex: 1,
+                      padding: '14px 24px',
+                      border: '2px solid #e5e7eb',
+                      background: 'white',
+                      color: '#374151',
+                      borderRadius: '10px',
+                      fontSize: '15px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.borderColor = '#9ca3af';
+                      e.target.style.background = '#f3f4f6';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.borderColor = '#e5e7eb';
+                      e.target.style.background = 'white';
+                    }}
+                  >
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                    </svg>
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      padding: '14px 24px',
+                      border: '2px solid #10b981',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: 'white',
+                      borderRadius: '10px',
+                      fontSize: '15px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.3)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.transform = 'translateY(-2px)';
+                      e.target.style.boxShadow = '0 6px 10px -1px rgba(16, 185, 129, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.transform = 'translateY(0)';
+                      e.target.style.boxShadow = '0 4px 6px -1px rgba(16, 185, 129, 0.3)';
+                    }}
+                  >
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/>
+                    </svg>
+                    Save Changes
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
