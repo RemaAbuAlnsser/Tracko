@@ -443,66 +443,121 @@ function AdminDashboard() {
       <div className="overview-section">
         <div className="stats-grid">
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalUsers}</h3>
               <p>Total Users</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalCompanies}</h3>
               <p>Companies</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalUniversities}</h3>
               <p>Universities</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalStudents}</h3>
               <p>Students</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalTrainers}</h3>
               <p>Trainers</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalInternships}</h3>
               <p>Total Internships</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.activeInternships}</h3>
               <p>Active Internships</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.totalPartnerships || 0}</h3>
               <p>Total Partnerships</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.activePartnerships || 0}</h3>
               <p>Active Partnerships</p>
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3>{stats.pendingCompanies}</h3>
               <p>Pending Companies</p>
             </div>
           </div>
           <div className="stat-card" style={{borderLeft: '4px solid #f59e0b'}}>
+            <div className="stat-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
             <div className="stat-content">
               <h3 style={{color: '#f59e0b'}}>{stats.pendingRequests || 0}</h3>
               <p>Pending Registrations</p>
@@ -516,7 +571,6 @@ function AdminDashboard() {
   const renderUsers = () => {
     return (
       <div className="table-section">
-        <h2>All Users</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (
@@ -565,7 +619,6 @@ function AdminDashboard() {
   const renderCompanies = () => {
     return (
       <div className="table-section">
-        <h2>All Companies</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (
@@ -623,7 +676,6 @@ function AdminDashboard() {
   const renderUniversities = () => {
     return (
       <div className="table-section">
-        <h2>All Universities</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (
@@ -671,7 +723,6 @@ function AdminDashboard() {
   const renderStudents = () => {
     return (
       <div className="table-section">
-        <h2>All Students</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (
@@ -721,7 +772,6 @@ function AdminDashboard() {
   const renderTrainers = () => {
     return (
       <div className="table-section">
-        <h2>All Trainers</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : trainers.length === 0 ? (
@@ -791,7 +841,6 @@ function AdminDashboard() {
   const renderInternships = () => {
     return (
       <div className="table-section">
-        <h2>All Internships</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : internships.length === 0 ? (
@@ -845,7 +894,6 @@ function AdminDashboard() {
   const renderPartnerships = () => {
     return (
       <div className="table-section">
-        <h2>All Partnerships</h2>
         {loading ? (
           <div className="loading">Loading...</div>
         ) : partnerships.length === 0 ? (
@@ -897,10 +945,13 @@ function AdminDashboard() {
   };
 
   const renderNotifications = () => {
+    // Filter notifications to show only admin notifications
+    const adminNotifications = notifications.filter(notification => 
+      notification.user_id === null || notification.user_id === user?.id
+    );
+
     return (
       <div className="table-section">
-        <h2>Registration Requests & Notifications</h2>
-        
         {/* Registration Requests Section */}
         <div style={{ marginBottom: '40px' }}>
           <h3 style={{ marginBottom: '16px', color: '#1f2937', fontSize: '18px' }}>Pending Registration Requests</h3>
@@ -980,12 +1031,12 @@ function AdminDashboard() {
           )}
         </div>
 
-        {/* All Notifications Section */}
+        {/* Admin Notifications Section */}
         <div>
-          <h3 style={{ marginBottom: '16px', color: '#1f2937', fontSize: '18px' }}>All Notifications</h3>
+          <h3 style={{ marginBottom: '16px', color: '#1f2937', fontSize: '18px' }}>Admin Notifications</h3>
           {loading ? (
             <div className="loading">Loading...</div>
-          ) : notifications.length === 0 ? (
+          ) : adminNotifications.length === 0 ? (
             <div className="loading">No notifications found</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -1001,7 +1052,7 @@ function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {notifications.map((notification) => (
+                  {adminNotifications.map((notification) => (
                     <tr key={notification.id}>
                       <td>{notification.id}</td>
                       <td>{notification.title}</td>
@@ -1160,7 +1211,17 @@ function AdminDashboard() {
       {/* Main Content */}
       <div className="admin-content">
         <div className="main-header">
-          <h1>Admin Dashboard</h1>
+          <h1>
+            {activeTab === 'overview' && 'Admin Dashboard'}
+            {activeTab === 'users' && 'All Users'}
+            {activeTab === 'companies' && 'Companies'}
+            {activeTab === 'universities' && 'Universities'}
+            {activeTab === 'students' && 'Students'}
+            {activeTab === 'trainers' && 'Trainers'}
+            {activeTab === 'internships' && 'Internships'}
+            {activeTab === 'partnerships' && 'Partnerships'}
+            {activeTab === 'notifications' && 'Notifications'}
+          </h1>
         </div>
 
         {error && <div className="error-message">{error}</div>}

@@ -382,15 +382,15 @@ class InternshipMatch {
   }
 
   // Apply to internship
-  static applyToInternship(studentId, internshipId) {
+  static applyToInternship(studentId, internshipId, hoursPerWeek = null) {
     const query = `
-      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, match_percentage)
-      VALUES (?, ?, TRUE, NOW(), 0)
-      ON DUPLICATE KEY UPDATE applied = TRUE, applied_at = NOW()
+      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, match_percentage, hours_per_week)
+      VALUES (?, ?, TRUE, NOW(), 0, ?)
+      ON DUPLICATE KEY UPDATE applied = TRUE, applied_at = NOW(), hours_per_week = VALUES(hours_per_week)
     `;
     
     return new Promise((resolve, reject) => {
-      db.query(query, [studentId, internshipId], (err, result) => {
+      db.query(query, [studentId, internshipId, hoursPerWeek], (err, result) => {
         if (err) {
           reject(err);
         } else {

@@ -357,8 +357,18 @@ router.get("/student/:userId/saved", async (req, res) => {
 router.post("/student/:userId/apply/:internshipId", async (req, res) => {
   try {
     const { userId, internshipId } = req.params;
+    const { hours_per_week } = req.body;
     
     console.log(`📝 Student ${userId} applying to internship ${internshipId}...`);
+    console.log(`⏰ Hours per week: ${hours_per_week}`);
+
+    // Validate hours_per_week
+    if (hours_per_week && hours_per_week < 20) {
+      return res.status(400).json({
+        success: false,
+        message: "Hours per week must be at least 20"
+      });
+    }
 
     // Find student
     const student = await Student.findByUserId(userId);
@@ -369,10 +379,10 @@ router.post("/student/:userId/apply/:internshipId", async (req, res) => {
       });
     }
 
-    // Apply to internship
-    await InternshipMatch.applyToInternship(student.id, internshipId);
+    // Apply to internship with hours_per_week
+    await InternshipMatch.applyToInternship(student.id, internshipId, hours_per_week);
 
-    console.log(`✅ Student ${student.id} applied to internship ${internshipId}`);
+    console.log(`✅ Student ${student.id} applied to internship ${internshipId} with ${hours_per_week} hours/week`);
 
     res.status(200).json({
       success: true,

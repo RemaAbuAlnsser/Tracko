@@ -200,7 +200,7 @@ router.post("/stats", isAdmin, async (req, res) => {
         totalPartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships",
         totalNotifications: "SELECT COUNT(*) as count FROM notifications",
         pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending'",
-        activeInternships: "SELECT COUNT(*) as count FROM Internships WHERE status = 'active'",
+        activeInternships: "SELECT COUNT(*) as count FROM Internships",
         activePartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships WHERE status = 'active'",
         unreadNotifications: "SELECT COUNT(*) as count FROM notifications WHERE is_read = FALSE",
         pendingCompanies: "SELECT COUNT(*) as count FROM Company WHERE status = 'pending'"

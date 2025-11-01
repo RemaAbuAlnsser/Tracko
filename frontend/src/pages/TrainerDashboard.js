@@ -93,6 +93,13 @@ function TrainerDashboard() {
   const [reportReviewComment, setReportReviewComment] = useState('');
   const [loadingReports, setLoadingReports] = useState(false);
   
+  // Dashboard Statistics State
+  const [dashboardStats, setDashboardStats] = useState({
+    internshipsCount: 0,
+    studentsCount: 0,
+    unreadNotificationsCount: 0
+  });
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -126,6 +133,13 @@ function TrainerDashboard() {
       loadConversations(); // Load conversations to show unread messages badge
     }
   }, [trainerId]);
+
+  // Load dashboard statistics when trainerId and user are available
+  useEffect(() => {
+    if (trainerId && user) {
+      loadDashboardStats();
+    }
+  }, [trainerId, user]);
 
   // Setup real-time message subscription
   useEffect(() => {
@@ -331,6 +345,11 @@ function TrainerDashboard() {
         const unreadCount = data.notifications.filter(n => !n.is_read).length;
         console.log(`📬 Unread notifications: ${unreadCount}`);
         setNotifications(data.notifications || []);
+        // Update dashboard stats
+        setDashboardStats(prev => ({
+          ...prev,
+          unreadNotificationsCount: unreadCount
+        }));
       } else {
         console.log('⚠️ API returned error:', data.message);
       }
@@ -352,11 +371,20 @@ function TrainerDashboard() {
       
       if (data.success) {
         // Update local state
-        setNotifications(notifications.map(notif => 
+        const updatedNotifications = notifications.map(notif => 
           notif.id === notificationId 
             ? { ...notif, is_read: true } 
             : notif
-        ));
+        );
+        setNotifications(updatedNotifications);
+        
+        // Update dashboard stats
+        const unreadCount = updatedNotifications.filter(n => !n.is_read).length;
+        setDashboardStats(prev => ({
+          ...prev,
+          unreadNotificationsCount: unreadCount
+        }));
+        
         console.log('Notification marked as read');
       } else {
         console.error('Failed to mark notification as read:', data.message);
@@ -653,6 +681,41 @@ function TrainerDashboard() {
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Load dashboard statistics
+  const loadDashboardStats = async () => {
+    if (!trainerId || !user) return;
+    
+    try {
+      // Load internships count
+      const internshipsResponse = await fetch(`http://localhost:5050/api/internships/trainer/${trainerId}`);
+      const internshipsData = await internshipsResponse.json();
+      const internshipsCount = internshipsData.success ? (internshipsData.internships || []).length : 0;
+      
+      // Load students count
+      const studentsResponse = await fetch(`http://localhost:5050/api/trainers/${trainerId}/students`);
+      const studentsData = await studentsResponse.json();
+      const studentsCount = studentsData.success ? (studentsData.students || []).length : 0;
+      
+      // Load unread notifications count
+      const notificationsResponse = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      const notificationsData = await notificationsResponse.json();
+      const unreadNotificationsCount = notificationsData.success 
+        ? notificationsData.notifications.filter(n => !n.is_read).length 
+        : 0;
+      
+      // Update dashboard stats
+      setDashboardStats({
+        internshipsCount,
+        studentsCount,
+        unreadNotificationsCount
+      });
+      
+      console.log('📊 Dashboard stats loaded:', { internshipsCount, studentsCount, unreadNotificationsCount });
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+    }
   };
 
   const loadPlans = async () => {
@@ -1178,7 +1241,7 @@ function TrainerDashboard() {
         <nav className="sidebar-nav">
           <button 
             className={`nav-item ${activeMenu === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('dashboard')}
+            onClick={() => { setActiveMenu('dashboard'); loadDashboardStats(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -1300,52 +1363,141 @@ function TrainerDashboard() {
               <p>Manage your trainer profile and track your trainees</p>
             </div>
 
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-icon blue">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
+            <div style={{ marginTop: '30px' }}>
+              <h3>Quick Stats</h3>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                gap: '24px',
+                marginTop: '20px'
+              }}>
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #bae6fd',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('internships')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#0369a1', fontSize: '16px', fontWeight: '600' }}>Internships</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>
+                    {dashboardStats.internshipsCount}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#0369a1', margin: '8px 0 0 0' }}>
+                    Total internships managed
+                  </p>
                 </div>
-                <div className="stat-info">
-                  <h3>{trainerData.max_trainees || 0}</h3>
-                  <p>Max Trainees</p>
+                
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #bbf7d0',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('students')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#15803d', fontSize: '16px', fontWeight: '600' }}>Students</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>
+                    {dashboardStats.studentsCount}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#15803d', margin: '8px 0 0 0' }}>
+                    Students under supervision
+                  </p>
                 </div>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-icon green">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="stat-info">
-                  <h3>{trainerData.experience_years || 0}</h3>
-                  <p>Years Experience</p>
-                </div>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-icon purple">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="stat-info">
-                  <h3>${trainerData.hourly_rate || 0}</h3>
-                  <p>Hourly Rate</p>
-                </div>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-icon orange">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div className="stat-info">
-                  <h3>{trainerData.status}</h3>
-                  <p>Status</p>
+                
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #fde68a',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('notifications')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#92400e', fontSize: '16px', fontWeight: '600' }}>Unread Notifications</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>
+                    {dashboardStats.unreadNotificationsCount}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
+                    Pending notifications
+                  </p>
                 </div>
               </div>
             </div>
@@ -1372,7 +1524,7 @@ function TrainerDashboard() {
                         rel="noopener noreferrer"
                         style={{ color: '#1e88e5', textDecoration: 'none', fontWeight: '500' }}
                       >
-                        🔗 LinkedIn
+                        LinkedIn
                       </a>
                     )}
                     {trainerData.github_url && (
@@ -1382,7 +1534,7 @@ function TrainerDashboard() {
                         rel="noopener noreferrer"
                         style={{ color: '#1e88e5', textDecoration: 'none', fontWeight: '500' }}
                       >
-                        💻 GitHub
+                        GitHub
                       </a>
                     )}
                   </div>
@@ -1663,11 +1815,11 @@ function TrainerDashboard() {
                               borderRadius: '12px',
                               fontSize: '0.9rem'
                             }}>
-                              📝 {student.pendingSubmissions} pending
+                              {student.pendingSubmissions} pending
                             </span>
                           ) : (
                             <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-                              ✓ All up to date
+                              All up to date
                             </span>
                           )}
                         </td>
@@ -1683,7 +1835,7 @@ function TrainerDashboard() {
                               fontWeight: '600'
                             }}
                           >
-                            {student.training_status === 'complete' ? '✓ Complete' : '🔄 In Training'}
+                            {student.training_status === 'complete' ? 'Complete' : 'In Training'}
                           </span>
                         </td>
                         <td>
@@ -1706,7 +1858,7 @@ function TrainerDashboard() {
                                 setActiveMenu('reports');
                               }}
                             >
-                              📋 Report
+                              Report
                             </button>
                             <button 
                               className="btn-primary"
@@ -1730,7 +1882,7 @@ function TrainerDashboard() {
                               }}
                               onClick={() => handleViewWeeklyReports(student)}
                             >
-                              📊 Weekly
+                              Weekly
                             </button>
                           </div>
                         </td>

@@ -12,21 +12,22 @@ class Partnership {
       status = 'pending',
       contact_person_university,
       contact_person_company,
-      terms_and_conditions
+      terms_and_conditions,
+      training_hours
     } = partnershipData;
     
     const query = `
       INSERT INTO University_Company_Partnerships 
       (university_id, company_id, agreement_date, agreement_end_date, agreement_duration, 
-       status, contact_person_university, contact_person_company, terms_and_conditions) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       status, contact_person_university, contact_person_company, terms_and_conditions, training_hours) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     return new Promise((resolve, reject) => {
       db.query(
         query, 
         [university_id, company_id, agreement_date, agreement_end_date, agreement_duration, 
-         status, contact_person_university, contact_person_company, terms_and_conditions], 
+         status, contact_person_university, contact_person_company, terms_and_conditions, training_hours], 
         (err, result) => {
           if (err) {
             reject(err);
@@ -163,14 +164,15 @@ class Partnership {
       status,
       contact_person_university,
       contact_person_company,
-      terms_and_conditions
+      terms_and_conditions,
+      training_hours
     } = partnershipData;
     
     const query = `
       UPDATE University_Company_Partnerships 
       SET university_id = ?, company_id = ?, agreement_date = ?, agreement_end_date = ?, 
           agreement_duration = ?, status = ?, contact_person_university = ?, 
-          contact_person_company = ?, terms_and_conditions = ?
+          contact_person_company = ?, terms_and_conditions = ?, training_hours = ?
       WHERE id = ?
     `;
     
@@ -178,7 +180,7 @@ class Partnership {
       db.query(
         query, 
         [university_id, company_id, agreement_date, agreement_end_date, agreement_duration, 
-         status, contact_person_university, contact_person_company, terms_and_conditions, id], 
+         status, contact_person_university, contact_person_company, terms_and_conditions, training_hours, id], 
         (err, result) => {
           if (err) {
             reject(err);

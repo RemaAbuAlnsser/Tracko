@@ -27,6 +27,7 @@ function UniversityDashboard() {
     contact_person_university: '',
     contact_person_company: '',
     terms_and_conditions: '',
+    training_hours: '',
     status: 'pending'
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +45,7 @@ function UniversityDashboard() {
   const [studentsFilterStatus, setStudentsFilterStatus] = useState('all');
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -88,6 +90,39 @@ function UniversityDashboard() {
       console.error('Error loading university data:', error);
     }
   };
+
+  const loadNotifications = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('📧 Loading notifications for user:', user.id);
+      const response = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📧 Notifications response:', data);
+        setNotifications(data.notifications || data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      await fetch(`http://localhost:5050/api/notifications/${notificationId}/read`, {
+        method: 'PUT'
+      });
+      loadNotifications();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user && activeMenu === 'notifications') {
+      loadNotifications();
+    }
+  }, [user, activeMenu]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -302,6 +337,7 @@ function UniversityDashboard() {
           contact_person_university: '',
           contact_person_company: '',
           terms_and_conditions: '',
+          training_hours: '',
           status: 'pending'
         });
         setSelectedCompany('');
@@ -1002,16 +1038,31 @@ function UniversityDashboard() {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Agreement Duration (months)</label>
-                  <input 
-                    type="number" 
-                    name="agreement_duration"
-                    value={partnershipData.agreement_duration}
-                    onChange={handlePartnershipInputChange}
-                    min="1"
-                    placeholder="12"
-                  />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Agreement Duration (months)</label>
+                    <input 
+                      type="number" 
+                      name="agreement_duration"
+                      value={partnershipData.agreement_duration}
+                      onChange={handlePartnershipInputChange}
+                      min="1"
+                      placeholder="12"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Required Training Hours *</label>
+                    <input 
+                      type="number" 
+                      name="training_hours"
+                      value={partnershipData.training_hours}
+                      onChange={handlePartnershipInputChange}
+                      min="1"
+                      placeholder="e.g., 240"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="form-row">
@@ -1599,8 +1650,73 @@ function UniversityDashboard() {
 
         {activeMenu === 'notifications' && (
           <div className="dashboard-content">
-            <h2>Notifications</h2>
-            <p>No new notifications</p>
+            <div className="manage-header">
+              <h1>Notifications</h1>
+              <p>View all your notifications and updates</p>
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="empty-state">
+                <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <h3>No Notifications Yet</h3>
+                <p>You'll see notifications here when you receive them</p>
+              </div>
+            ) : (
+              <div className="notifications-list">
+                {notifications.map(notification => (
+                  <div 
+                    key={notification.id} 
+                    className={`notification-card ${!notification.is_read ? 'unread' : ''}`}
+                  >
+                    <div className="notification-icon">
+                      {notification.type === 'training_completion' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : notification.type === 'application' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="notification-content">
+                      <h4>{notification.title}</h4>
+                      <p>{notification.message}</p>
+                      <span className="notification-time">
+                        {new Date(notification.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    {!notification.is_read && (
+                      <>
+                        <button 
+                          className="mark-read-btn"
+                          onClick={() => markAsRead(notification.id)}
+                          title="Mark as read"
+                        >
+                          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Read
+                        </button>
+                        <div className="unread-indicator"></div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

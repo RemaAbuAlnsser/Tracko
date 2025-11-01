@@ -425,4 +425,62 @@ router.get("/search/:term", async (req, res) => {
   }
 });
 
+// Get company dashboard stats
+router.get("/:id/stats", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📊 Getting stats for company ${id}`);
+
+    const queries = {
+      internshipsCount: "SELECT COUNT(*) as count FROM Internships WHERE company_id = ?",
+      trainersCount: "SELECT COUNT(*) as count FROM Trainers WHERE company_id = ?",
+      activeStudentsCount: `
+        SELECT COUNT(DISTINCT s.id) as count
+        FROM Students s
+        INNER JOIN Internship_Matches im ON s.id = im.student_id
+        INNER JOIN Internships i ON im.internship_id = i.id
+        WHERE i.company_id = ? 
+        AND im.status = 'accepted'
+        AND s.status = 'in_training'
+      `,
+      applicantsCount: `
+        SELECT COUNT(DISTINCT im.id) as count
+        FROM Internship_Matches im
+        INNER JOIN Internships i ON im.internship_id = i.id
+        WHERE i.company_id = ?
+      `
+    };
+
+    const results = {};
+    
+    for (const [key, query] of Object.entries(queries)) {
+      await new Promise((resolve, reject) => {
+        db.query(query, [id], (err, result) => {
+          if (err) {
+            console.error(`Error executing ${key}:`, err);
+            reject(err);
+          } else {
+            results[key] = result[0].count;
+            resolve();
+          }
+        });
+      });
+    }
+
+    console.log("✅ Company stats:", results);
+
+    res.json({
+      success: true,
+      data: results
+    });
+
+  } catch (error) {
+    console.error("Get company stats error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 export default router;
