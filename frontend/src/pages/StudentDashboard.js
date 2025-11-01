@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/StudentDashboard.css';
+import VideoCall from '../components/VideoCall';
 import '../styles/TrainingPlanTimeline.css';
 import { 
   loadChatMessages, 
@@ -71,6 +72,9 @@ function StudentDashboard() {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [certificate, setCertificate] = useState(null);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [messageTab, setMessageTab] = useState('chat'); // 'chat' or 'meeting'
+  const [isInCall, setIsInCall] = useState(false);
+  const [callRoomId, setCallRoomId] = useState(null);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -692,6 +696,62 @@ function StudentDashboard() {
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
+    }
+  };
+
+  // Handle video call invitation
+  const handleVideoCallInvitation = (notification) => {
+    console.log('📞 Joining video call from notification:', notification);
+    
+    try {
+      // Try to parse data if it exists
+      if (notification.data) {
+        try {
+          const data = JSON.parse(notification.data);
+          console.log('✅ Parsed notification data:', data);
+          
+          if (data.roomId) {
+            console.log('✅ Joining room:', data.roomId);
+            setCallRoomId(data.roomId);
+            setIsInCall(true);
+            
+            // Mark notification as read
+            fetch(`http://localhost:5050/api/notifications/${notification.id}/read`, {
+              method: 'PUT'
+            }).catch(err => console.error('Error marking as read:', err));
+            
+            return;
+          }
+        } catch (parseError) {
+          console.error('❌ Error parsing notification data:', parseError);
+        }
+      }
+      
+      // Fallback: Create roomId from trainer and student IDs
+      console.log('⚠️ No roomId in data, using fallback method');
+      
+      // Extract trainer ID from notification data or use a default pattern
+      if (trainers && trainers.length > 0) {
+        // Use the first trainer's ID as fallback
+        const trainerId = trainers[0].id;
+        const fallbackRoomId = `trainer-${trainerId}-student-${studentId}`;
+        console.log('✅ Using fallback roomId:', fallbackRoomId);
+        
+        setCallRoomId(fallbackRoomId);
+        setIsInCall(true);
+        
+        // Mark notification as read
+        fetch(`http://localhost:5050/api/notifications/${notification.id}/read`, {
+          method: 'PUT'
+        }).catch(err => console.error('Error marking as read:', err));
+      } else {
+        alert('Unable to join call. Please try again or contact your trainer.');
+        console.error('❌ No trainers available for fallback');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error handling video call invitation:', error);
+      alert('Error joining call. Please try again.');
     }
   };
 
@@ -1367,7 +1427,7 @@ function StudentDashboard() {
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
-            Messages/Chat
+            Messages/Chat/Meeting
             {totalUnreadMessages > 0 && (
               <span className="notification-badge">
                 {totalUnreadMessages}
@@ -2299,9 +2359,32 @@ function StudentDashboard() {
           <>
             <div className="dashboard-header">
               <h1>Messages</h1>
-              <p>Chat with your trainers</p>
+              <p>Chat with your trainers or start a video meeting</p>
             </div>
 
+            {/* Tab Buttons */}
+            <div className="message-tabs">
+              <button 
+                className={`tab-button ${messageTab === 'chat' ? 'active' : ''}`}
+                onClick={() => setMessageTab('chat')}
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Chat
+              </button>
+              <button 
+                className={`tab-button ${messageTab === 'meeting' ? 'active' : ''}`}
+                onClick={() => setMessageTab('meeting')}
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Video Meeting
+              </button>
+            </div>
+
+            {messageTab === 'chat' && (
             <div className="chat-container">
               {/* Trainers List */}
               <div className="conversations-sidebar">
@@ -2447,6 +2530,28 @@ function StudentDashboard() {
                 )}
               </div>
             </div>
+            )}
+
+            {/* Video Meeting Tab */}
+            {messageTab === 'meeting' && (
+              <div className="meeting-container">
+                <div className="meeting-header">
+                  <h2>Video Meeting</h2>
+                  <p>Wait for your trainer to invite you to a video call</p>
+                </div>
+
+                <div className="empty-state">
+                  <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <h3>Waiting for Call Invitation</h3>
+                  <p>Your trainer can invite you to a video call. You'll receive a notification when they start a call.</p>
+                  <p style={{ marginTop: '1rem', color: '#6b7280' }}>
+                    💡 Check your <strong>Notifications</strong> to join when your trainer calls you.
+                  </p>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -2497,6 +2602,44 @@ function StudentDashboard() {
                         })}
                       </span>
                     </div>
+                    
+                    {/* Video Call Invitation Button */}
+                    {notification.title === 'Video Call Invitation' && (
+                      <button 
+                        className="btn-primary"
+                        onClick={() => handleVideoCallInvitation(notification)}
+                        style={{ 
+                          marginRight: '10px',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          padding: '10px 20px',
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#059669';
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#10b981';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                      >
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        📞 Join Call
+                      </button>
+                    )}
+                    
                     {!notification.is_read && (
                       <>
                         <button 
@@ -3311,6 +3454,18 @@ function StudentDashboard() {
           </div>
         )}
       </main>
+
+      {/* Video Call Component */}
+      {isInCall && callRoomId && (
+        <VideoCall
+          roomId={callRoomId}
+          userName={user?.full_name || 'Student'}
+          onEndCall={() => {
+            setIsInCall(false);
+            setCallRoomId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

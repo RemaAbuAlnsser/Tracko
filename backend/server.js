@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createServer } from "http";
 import db from "./config/database.js";
 import authRoutes from "./routes/auth.js";
 import companyRoutes from "./routes/company.js";
@@ -20,13 +21,21 @@ import reportsRoutes from "./routes/reports.js";
 import taskSubmissionRoutes from "./routes/taskSubmission.js";
 import finalReportRoutes from "./routes/finalReport.js";
 import weeklyReportRoutes from "./routes/weeklyReport.js";
+import eventRoutes from "./routes/events.js";
+import videoCallRoutes from "./routes/videoCall.js";
 import WeeklyReport from "./models/WeeklyReport.js";
+import Event from "./models/Event.js";
+import { initializeSocket } from "./socketServer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT =  5050;
+const server = createServer(app);
+const PORT = process.env.PORT || 5050;
+
+// Initialize Socket.io
+initializeSocket(server);
 
 app.use(cors());
 app.use(express.json());
@@ -58,6 +67,8 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/task-submissions", taskSubmissionRoutes);
 app.use("/api/final-reports", finalReportRoutes);
 app.use("/api/weekly-reports", weeklyReportRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/video-call", videoCallRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -82,12 +93,17 @@ async function initializeDatabase() {
   try {
     await WeeklyReport.createTable();
     console.log("✅ Weekly_Reports table initialized");
+    
+    // Note: Events table should be created manually using scripts/updateEventsTable.js
+    // await Event.createTable();
+    // console.log("✅ Events table initialized");
   } catch (error) {
     console.error("❌ Error initializing database tables:", error);
   }
 }
 
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`🔌 Socket.io server initialized`);
   await initializeDatabase();
 });

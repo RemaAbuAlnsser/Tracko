@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/TrainerDashboard.css';
+import VideoCall from '../components/VideoCall';
 import { 
   loadChatMessages, 
   sendChatMessage, 
@@ -59,8 +60,10 @@ function TrainerDashboard() {
     event_type: 'training',
     start_time: '',
     end_time: '',
-    student_id: ''
+    internship_id: '',
+    student_ids: []
   });
+  const [filteredStudents, setFilteredStudents] = useState([]);
   const [plans, setPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [newPlan, setNewPlan] = useState({
@@ -90,6 +93,9 @@ function TrainerDashboard() {
   const [reportReviewStatus, setReportReviewStatus] = useState('approved');
   const [reportReviewComment, setReportReviewComment] = useState('');
   const [loadingReports, setLoadingReports] = useState(false);
+  const [messageTab, setMessageTab] = useState('chat'); // 'chat' or 'meeting'
+  const [isInCall, setIsInCall] = useState(false);
+  const [callRoomId, setCallRoomId] = useState(null);
   
   const navigate = useNavigate();
 
@@ -380,10 +386,12 @@ function TrainerDashboard() {
   const loadSchedules = async () => {
     if (!trainerId) return;
     try {
-      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}/schedules`);
+      console.log('📅 Loading events for trainer:', trainerId);
+      const response = await fetch(`http://localhost:5050/api/events/trainer/${trainerId}/upcoming`);
       const data = await response.json();
       if (data.success) {
-        setSchedules(data.schedules || []);
+        console.log('✅ Events loaded:', data.events);
+        setSchedules(data.events || []);
       }
     } catch (error) {
       console.error('Error loading schedules:', error);
@@ -523,30 +531,67 @@ function TrainerDashboard() {
     }
   };
 
+  // Filter students by selected internship
+  const handleInternshipChange = (internshipId) => {
+    setNewSchedule({ ...newSchedule, internship_id: internshipId, student_ids: [] });
+    
+    if (internshipId) {
+      // Filter students by internship
+      const filtered = students.filter(student => student.internship_id === parseInt(internshipId));
+      setFilteredStudents(filtered);
+    } else {
+      setFilteredStudents([]);
+    }
+  };
+
+  // Toggle student selection
+  const toggleStudentSelection = (studentId) => {
+    const currentIds = [...newSchedule.student_ids];
+    const index = currentIds.indexOf(studentId);
+    
+    if (index > -1) {
+      currentIds.splice(index, 1);
+    } else {
+      currentIds.push(studentId);
+    }
+    
+    setNewSchedule({ ...newSchedule, student_ids: currentIds });
+  };
+
   const handleAddSchedule = async (e) => {
     e.preventDefault();
     if (!trainerId) return;
 
     try {
-      const response = await fetch('http://localhost:5050/api/trainers/schedules', {
+      console.log('📅 Creating new event:', newSchedule);
+      const response = await fetch('http://localhost:5050/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newSchedule, trainer_id: trainerId })
+        body: JSON.stringify({ 
+          ...newSchedule, 
+          trainer_id: trainerId,
+          internship_id: newSchedule.internship_id ? parseInt(newSchedule.internship_id) : null,
+          student_ids: newSchedule.student_ids.map(id => parseInt(id))
+        })
       });
       const data = await response.json();
       if (data.success) {
-        setMessage({ type: 'success', text: 'Schedule added successfully!' });
+        setMessage({ type: 'success', text: 'Event created successfully! Notifications sent to students.' });
         setNewSchedule({
           title: '',
           description: '',
           event_type: 'training',
           start_time: '',
           end_time: '',
-          student_id: ''
+          internship_id: '',
+          student_ids: []
         });
+        setFilteredStudents([]);
         loadSchedules();
+        // Clear message after 3 seconds
+        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to add schedule' });
+        setMessage({ type: 'error', text: data.message || 'Failed to create event' });
       }
     } catch (error) {
       console.error('Error adding schedule:', error);
@@ -1112,7 +1157,7 @@ function TrainerDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'schedule' ? 'active' : ''}`}
-            onClick={() => { setActiveMenu('schedule'); loadSchedules(); loadStudents(); }}
+            onClick={() => { setActiveMenu('schedule'); loadSchedules(); loadStudents(); loadInternships(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1137,12 +1182,12 @@ function TrainerDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'messages' ? 'active' : ''}`}
-            onClick={() => { setActiveMenu('messages'); loadConversations(); }}
+            onClick={() => { setActiveMenu('messages'); loadConversations(); loadStudents(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            Messages
+            Messages/Meeting
             {totalUnreadMessages > 0 && (
               <span className="notification-badge">
                 {totalUnreadMessages}
@@ -1856,19 +1901,60 @@ function TrainerDashboard() {
                 </div>
 
                 <div className="form-group">
-                  <label>Student (Optional)</label>
+                  <label>Internship *</label>
                   <select
-                    value={newSchedule.student_id}
-                    onChange={(e) => setNewSchedule({ ...newSchedule, student_id: e.target.value })}
+                    value={newSchedule.internship_id}
+                    onChange={(e) => handleInternshipChange(e.target.value)}
+                    required
                   >
-                    <option value="">All Students</option>
-                    {students.map(student => (
-                      <option key={student.id} value={student.id}>
-                        {student.full_name}
+                    <option value="">Select Internship</option>
+                    {internships.map(internship => (
+                      <option key={internship.id} value={internship.id}>
+                        {internship.title}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                {filteredStudents.length > 0 && (
+                  <div className="form-group">
+                    <label>Select Students *</label>
+                    <div style={{ 
+                      border: '1px solid #e5e7eb', 
+                      borderRadius: '8px', 
+                      padding: '12px',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      {filteredStudents.map(student => (
+                        <div key={student.student_id} style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px',
+                          padding: '8px',
+                          borderBottom: '1px solid #f3f4f6'
+                        }}>
+                          <input
+                            type="checkbox"
+                            id={`student-${student.student_id}`}
+                            checked={newSchedule.student_ids.includes(student.student_id.toString())}
+                            onChange={() => toggleStudentSelection(student.student_id.toString())}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <label 
+                            htmlFor={`student-${student.student_id}`}
+                            style={{ cursor: 'pointer', margin: 0, flex: 1 }}
+                          >
+                            {student.full_name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <small style={{ color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                      {newSchedule.student_ids.length} student(s) selected
+                    </small>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label>Description</label>
@@ -1905,10 +1991,10 @@ function TrainerDashboard() {
                     <tr>
                       <th>Event</th>
                       <th>Type</th>
-                      <th>Student</th>
+                      <th>Internship</th>
+                      <th>Students</th>
                       <th>Start Time</th>
                       <th>End Time</th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1916,12 +2002,22 @@ function TrainerDashboard() {
                       <tr key={schedule.id}>
                         <td><strong>{schedule.title}</strong></td>
                         <td><span className="badge badge-info">{schedule.event_type}</span></td>
-                        <td>{schedule.student_name || 'All Students'}</td>
+                        <td>{schedule.internship_title || '-'}</td>
+                        <td>
+                          {schedule.students && schedule.students.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {schedule.students.map((student, idx) => (
+                                <span key={idx} className="badge badge-success" style={{ fontSize: '11px' }}>
+                                  {student.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#9ca3af' }}>No students</span>
+                          )}
+                        </td>
                         <td>{new Date(schedule.start_time).toLocaleString()}</td>
                         <td>{new Date(schedule.end_time).toLocaleString()}</td>
-                        <td>
-                          <button className="btn-view">Edit</button>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2099,6 +2195,29 @@ function TrainerDashboard() {
               <p>Chat with your students and colleagues</p>
             </div>
 
+            {/* Tab Buttons */}
+            <div className="message-tabs">
+              <button 
+                className={`tab-button ${messageTab === 'chat' ? 'active' : ''}`}
+                onClick={() => setMessageTab('chat')}
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Chat
+              </button>
+              <button 
+                className={`tab-button ${messageTab === 'meeting' ? 'active' : ''}`}
+                onClick={() => { setMessageTab('meeting'); loadStudents(); }}
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Video Meeting
+              </button>
+            </div>
+
+            {messageTab === 'chat' && (
             <div className="chat-container">
               {/* Students List (Conversations) */}
               <div className="conversations-sidebar">
@@ -2246,6 +2365,97 @@ function TrainerDashboard() {
                 )}
               </div>
             </div>
+            )}
+
+            {/* Video Meeting Tab */}
+            {messageTab === 'meeting' && (
+              <div className="meeting-container">
+                <div className="meeting-header">
+                  <h2>Video Meeting with Students</h2>
+                  <p>Select a student to start a video call</p>
+                </div>
+
+                {students.length === 0 ? (
+                  <div className="empty-state">
+                    <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <h3>No Students Available</h3>
+                    <p>You need to have accepted students to schedule meetings</p>
+                  </div>
+                ) : (
+                  <div className="trainers-grid">
+                    {students.map(student => (
+                      <div key={student.student_id} className="trainer-card">
+                        <div className="trainer-card-header">
+                          <div className="trainer-avatar-large">
+                            {student.student_img ? (
+                              <img 
+                                src={student.student_img.startsWith('http') ? student.student_img : `http://localhost:5050${student.student_img}`}
+                                alt={student.full_name}
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.parentElement.textContent = student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S';
+                                }}
+                              />
+                            ) : (
+                              student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S'
+                            )}
+                          </div>
+                          <div className="trainer-info">
+                            <h3>{student.full_name || 'Student'}</h3>
+                            <p className="trainer-email">{student.email}</p>
+                            {student.university_name && (
+                              <p className="trainer-company">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
+                                </svg>
+                                {student.university_name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="trainer-card-body">
+                          <button 
+                            className="start-meeting-btn"
+                            onClick={async () => {
+                              const roomId = `trainer-${trainerId}-student-${student.student_id}`;
+                              
+                              // Send invitation to student
+                              try {
+                                await fetch('http://localhost:5050/api/video-call/invite', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    trainerId: user.id,
+                                    studentId: student.user_id,
+                                    trainerName: trainerData.full_name || 'Trainer',
+                                    roomId: roomId
+                                  })
+                                });
+                                console.log('📞 Video call invitation sent to student');
+                              } catch (error) {
+                                console.error('Error sending invitation:', error);
+                              }
+                              
+                              setCallRoomId(roomId);
+                              setIsInCall(true);
+                            }}
+                          >
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Start Video Call
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
@@ -3099,6 +3309,18 @@ function TrainerDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Video Call Component */}
+      {isInCall && callRoomId && (
+        <VideoCall
+          roomId={callRoomId}
+          userName={trainerData.full_name || 'Trainer'}
+          onEndCall={() => {
+            setIsInCall(false);
+            setCallRoomId(null);
+          }}
+        />
       )}
     </div>
   );
