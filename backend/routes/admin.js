@@ -198,11 +198,11 @@ router.post("/stats", isAdmin, async (req, res) => {
         totalTrainers: "SELECT COUNT(*) as count FROM Trainers",
         totalInternships: "SELECT COUNT(*) as count FROM Internships",
         totalPartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships",
-        totalNotifications: "SELECT COUNT(*) as count FROM notifications",
-        pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending'",
+        totalNotifications: "SELECT COUNT(*) as count FROM notifications WHERE user_id IN (SELECT id FROM Users WHERE user_type = 'admin')",
+        pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending' AND user_type != 'student'",
         activeInternships: "SELECT COUNT(*) as count FROM Internships",
         activePartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships WHERE status = 'active'",
-        unreadNotifications: "SELECT COUNT(*) as count FROM notifications WHERE is_read = FALSE",
+        unreadNotifications: "SELECT COUNT(*) as count FROM notifications WHERE is_read = FALSE AND user_id IN (SELECT id FROM Users WHERE user_type = 'admin')",
         pendingCompanies: "SELECT COUNT(*) as count FROM Company WHERE status = 'pending'"
       };
       
@@ -255,10 +255,27 @@ router.post("/partnerships", isAdmin, async (req, res) => {
   }
 });
 
-// Get all notifications
+// Get all notifications for admin
 router.post("/notifications", isAdmin, async (req, res) => {
   try {
-    const notifications = await Notification.getAll();
+    const { userId } = req.body;
+    
+    // Get only notifications for admin users
+    const query = `
+      SELECT n.*, u.full_name, u.email 
+      FROM notifications n
+      LEFT JOIN Users u ON n.user_id = u.id
+      WHERE n.user_id IN (SELECT id FROM Users WHERE user_type = 'admin')
+      ORDER BY n.created_at DESC
+    `;
+    
+    const notifications = await new Promise((resolve, reject) => {
+      db.query(query, (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    
     res.json({ 
       success: true,
       notifications 

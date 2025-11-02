@@ -60,8 +60,12 @@ function SignUp() {
       const data = await response.json();
 
       if (response.ok) {
-        // Show success message about admin approval
-        alert('✅ Registration request submitted successfully!\n\n⏳ Please wait for admin approval before you can login.\n\n📧 You will be notified once your account is approved.');
+        // Show success message - different message for students vs others
+        if (formData.userType === 'student') {
+          alert('✅ Registration request submitted successfully!\n\n⏳ Please wait for your university approval before you can login.\n\n📧 You will be notified once your account is approved.');
+        } else {
+          alert('✅ Registration request submitted successfully!\n\n⏳ Please wait for admin approval before you can login.\n\n📧 You will be notified once your account is approved.');
+        }
         navigate('/login');
       } else {
         // Show error message from server

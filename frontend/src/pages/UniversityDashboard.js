@@ -46,6 +46,7 @@ function UniversityDashboard() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [registrationRequests, setRegistrationRequests] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -264,6 +265,7 @@ function UniversityDashboard() {
   useEffect(() => {
     if (activeMenu === 'dashboard' && universityData.id) {
       loadStatistics();
+      loadRegistrationRequests();
     }
   }, [activeMenu, universityData.id]);
 
@@ -429,6 +431,91 @@ function UniversityDashboard() {
       }
     } catch (error) {
       console.error('Error loading statistics:', error);
+    }
+  };
+
+  const loadRegistrationRequests = async () => {
+    if (!universityData.id) return;
+    
+    try {
+      console.log('📋 Loading registration requests for university:', universityData.id);
+      const response = await fetch(`http://localhost:5050/api/universities/${universityData.id}/registration-requests`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log('✅ Loaded registration requests:', data.data);
+        setRegistrationRequests(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading registration requests:', error);
+    }
+  };
+
+  const handleApproveRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to approve this student registration?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/universities/registration-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ universityId: universityData.id }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Student registration approved successfully!' });
+        loadRegistrationRequests();
+        loadStatistics();
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to approve request' });
+      }
+    } catch (error) {
+      console.error('Approve error:', error);
+      setMessage({ type: 'error', text: 'Failed to approve request' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to reject this student registration?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/universities/registration-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ universityId: universityData.id }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Student registration rejected successfully!' });
+        loadRegistrationRequests();
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to reject request' });
+      }
+    } catch (error) {
+      console.error('Reject error:', error);
+      setMessage({ type: 'error', text: 'Failed to reject request' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -811,6 +898,135 @@ function UniversityDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Student Registration Requests Section */}
+              {registrationRequests.length > 0 && (
+                <div style={{ marginTop: '40px' }}>
+                  <h3 style={{ marginBottom: '20px', color: '#1f2937', fontSize: '20px', fontWeight: '600' }}>
+                    Pending Student Registration Requests
+                  </h3>
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                    overflow: 'hidden'
+                  }}>
+                    <table style={{ 
+                      width: '100%', 
+                      borderCollapse: 'collapse'
+                    }}>
+                      <thead>
+                        <tr style={{ 
+                          background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                          borderBottom: '2px solid #bae6fd'
+                        }}>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'left', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Student Name</th>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'left', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Email</th>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'left', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Requested At</th>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'center', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {registrationRequests.map((request, index) => (
+                          <tr key={request.id} style={{ 
+                            borderBottom: index < registrationRequests.length - 1 ? '1px solid #e5e7eb' : 'none',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <td style={{ 
+                              padding: '16px',
+                              color: '#1f2937',
+                              fontSize: '14px'
+                            }}>{request.full_name}</td>
+                            <td style={{ 
+                              padding: '16px',
+                              color: '#6b7280',
+                              fontSize: '14px'
+                            }}>{request.email}</td>
+                            <td style={{ 
+                              padding: '16px',
+                              color: '#6b7280',
+                              fontSize: '14px'
+                            }}>{new Date(request.created_at).toLocaleString()}</td>
+                            <td style={{ 
+                              padding: '16px',
+                              textAlign: 'center'
+                            }}>
+                              <button 
+                                onClick={() => handleApproveRequest(request.id)}
+                                disabled={loading}
+                                style={{
+                                  padding: '8px 16px',
+                                  marginRight: '8px',
+                                  backgroundColor: '#10b981',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: loading ? 'not-allowed' : 'pointer',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  transition: 'background-color 0.2s',
+                                  opacity: loading ? 0.6 : 1
+                                }}
+                                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#059669')}
+                                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#10b981')}
+                              >
+                                ✓ Approve
+                              </button>
+                              <button 
+                                onClick={() => handleRejectRequest(request.id)}
+                                disabled={loading}
+                                style={{
+                                  padding: '8px 16px',
+                                  backgroundColor: '#ef4444',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: loading ? 'not-allowed' : 'pointer',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  transition: 'background-color 0.2s',
+                                  opacity: loading ? 0.6 : 1
+                                }}
+                                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#dc2626')}
+                                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#ef4444')}
+                              >
+                                ✕ Reject
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

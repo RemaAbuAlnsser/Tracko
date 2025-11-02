@@ -43,6 +43,15 @@ router.post("/student/:userId/run", async (req, res) => {
       internships = await Internship.findAll();
       internships = internships.filter(i => i.status === 'open');
     }
+    
+    // Filter out full internships (where number_of_students >= capacity)
+    internships = internships.filter(i => {
+      // If capacity is 0 or null, skip this internship (no spots available)
+      if (!i.capacity || i.capacity === 0) return false;
+      // Check if there are available spots
+      const currentStudents = i.number_of_students || 0;
+      return currentStudents < i.capacity;
+    });
 
     if (internships.length === 0) {
       return res.status(200).json({
@@ -52,7 +61,7 @@ router.post("/student/:userId/run", async (req, res) => {
       });
     }
 
-    console.log(`📊 Found ${internships.length} internships to match against`);
+    console.log(`📊 Found ${internships.length} available internships to match against (excluding full internships)`);
 
     // 4. Parse CV analysis data to get GPA and work mode
     let cvData = cv.analysis_data;
@@ -492,7 +501,7 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
 
     // Check capacity before accepting
     const checkCapacityQuery = `
-      SELECT i.capacity, i.title 
+      SELECT i.capacity, i.number_of_students, i.title 
       FROM Internships i
       INNER JOIN Internship_Matches im ON i.id = im.internship_id
       WHERE im.id = ?
@@ -515,9 +524,11 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
       }
 
       const internship = results[0];
+      const currentStudents = internship.number_of_students || 0;
       
-      if (internship.capacity <= 0) {
-        console.log(`⚠️ Cannot accept: ${internship.title} has no available capacity`);
+      // Check if internship is full
+      if (internship.capacity <= 0 || currentStudents >= internship.capacity) {
+        console.log(`⚠️ Cannot accept: ${internship.title} is full (${currentStudents}/${internship.capacity})`);
         return res.status(400).json({
           success: false,
           message: "This internship has reached its maximum capacity"
@@ -529,7 +540,7 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
         await InternshipMatch.updateStatus(matchId, 'accepted');
 
         console.log(`✅ Applicant ${matchId} accepted successfully`);
-        console.log(`📉 ${internship.title} capacity: ${internship.capacity} → ${internship.capacity - 1}`);
+        console.log(`📈 ${internship.title} students: ${currentStudents} → ${currentStudents + 1} (capacity: ${internship.capacity})`);
 
         // Send notification to student
         try {

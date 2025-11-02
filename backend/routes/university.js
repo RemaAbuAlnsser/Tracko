@@ -1,5 +1,9 @@
 import express from "express";
 import University from "../models/University.js";
+import User from "../models/User.js";
+import Student from "../models/Student.js";
+import RegistrationRequest from "../models/RegistrationRequest.js";
+import Notification from "../models/Notification.js";
 import db from "../config/database.js";
 
 const router = express.Router();
@@ -291,6 +295,207 @@ router.get("/:id/statistics", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch university statistics"
+    });
+  }
+});
+
+// Get pending student registration requests for a university
+router.get("/:universityId/registration-requests", async (req, res) => {
+  try {
+    const { universityId } = req.params;
+    
+    // Get university to find its domain
+    const university = await University.findById(universityId);
+    if (!university) {
+      return res.status(404).json({
+        success: false,
+        message: "University not found"
+      });
+    }
+    
+    // Get pending student registration requests for this university's domain
+    const query = `
+      SELECT * FROM Registration_Requests 
+      WHERE user_type = 'student' 
+      AND status = 'pending'
+      AND email LIKE ?
+      ORDER BY created_at DESC
+    `;
+    
+    const requests = await new Promise((resolve, reject) => {
+      db.query(query, [`%@${university.domain}`], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    
+    res.json({
+      success: true,
+      data: requests
+    });
+  } catch (error) {
+    console.error("Error fetching registration requests:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch registration requests"
+    });
+  }
+});
+
+// Approve student registration request by university
+router.post("/registration-requests/:requestId/approve", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { universityId } = req.body;
+    
+    // Get the request details
+    const request = await RegistrationRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Registration request not found"
+      });
+    }
+    
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: "Request has already been processed"
+      });
+    }
+    
+    if (request.user_type !== 'student') {
+      return res.status(400).json({
+        success: false,
+        message: "Only student requests can be approved by universities"
+      });
+    }
+    
+    // Verify university domain matches student email
+    const university = await University.findById(universityId);
+    if (!university) {
+      return res.status(404).json({
+        success: false,
+        message: "University not found"
+      });
+    }
+    
+    const studentDomain = request.email.split('@')[1];
+    if (university.domain !== studentDomain) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only approve students from your university domain"
+      });
+    }
+    
+    // Create user in Users table
+    const userResult = await User.create({
+      full_name: request.full_name,
+      email: request.email,
+      password: request.password,
+      user_type: request.user_type
+    });
+    
+    const userId = userResult.insertId;
+    
+    // Create student record with university_id
+    await Student.create({
+      user_id: userId,
+      university_id: universityId,
+      status: 'not_started'
+    });
+    
+    // Update request status to approved
+    await RegistrationRequest.updateStatus(requestId, 'approved');
+    
+    // Send notification to student
+    await Notification.create({
+      user_id: userId,
+      title: "Registration Approved",
+      message: `Your registration has been approved by ${university.name}. You can now login to the system.`,
+      type: "registration_approved"
+    });
+    
+    console.log(`✅ Student registration approved by university ${universityId}: ${request.email}`);
+    
+    res.json({
+      success: true,
+      message: "Student registration approved successfully",
+      userId
+    });
+    
+  } catch (error) {
+    console.error("Error approving registration request:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to approve registration request"
+    });
+  }
+});
+
+// Reject student registration request by university
+router.post("/registration-requests/:requestId/reject", async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { universityId } = req.body;
+    
+    // Get the request details
+    const request = await RegistrationRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Registration request not found"
+      });
+    }
+    
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: "Request has already been processed"
+      });
+    }
+    
+    if (request.user_type !== 'student') {
+      return res.status(400).json({
+        success: false,
+        message: "Only student requests can be rejected by universities"
+      });
+    }
+    
+    // Verify university domain matches student email
+    const university = await University.findById(universityId);
+    if (!university) {
+      return res.status(404).json({
+        success: false,
+        message: "University not found"
+      });
+    }
+    
+    const studentDomain = request.email.split('@')[1];
+    if (university.domain !== studentDomain) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only reject students from your university domain"
+      });
+    }
+    
+    // Update request status to rejected
+    await RegistrationRequest.updateStatus(requestId, 'rejected');
+    
+    console.log(`❌ Student registration rejected by university ${universityId}: ${request.email}`);
+    
+    res.json({
+      success: true,
+      message: "Student registration rejected successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error rejecting registration request:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reject registration request"
     });
   }
 });
