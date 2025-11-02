@@ -566,4 +566,44 @@ router.get("/trainer/:trainerId", async (req, res) => {
   }
 });
 
+// Get students for a specific internship (accepted students from internship_matches)
+router.get("/:internshipId/students", async (req, res) => {
+  try {
+    const { internshipId } = req.params;
+
+    const [students] = await db.query(
+      `SELECT 
+        s.id as student_id,
+        s.user_id,
+        u.full_name,
+        u.email,
+        s.student_img,
+        s.university_name,
+        im.status,
+        im.match_score
+      FROM students s
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN internship_matches im ON s.id = im.student_id
+      WHERE im.internship_id = ? AND im.status = 'accepted'
+      ORDER BY u.full_name ASC`,
+      [internshipId]
+    );
+
+    console.log(`✅ Found ${students.length} accepted students for internship ${internshipId}`);
+
+    res.json({
+      success: true,
+      students: students
+    });
+
+  } catch (error) {
+    console.error('Error fetching internship students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch students',
+      error: error.message
+    });
+  }
+});
+
 export default router;

@@ -293,4 +293,47 @@ router.get("/:trainerId/students", async (req, res) => {
   }
 });
 
+// Get all students for a trainer (from internship_matches)
+router.get("/:trainerId/students", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+
+    const [students] = await db.query(
+      `SELECT DISTINCT
+        s.id as student_id,
+        s.user_id,
+        u.full_name,
+        u.email,
+        s.student_img,
+        s.university_name,
+        im.status,
+        im.match_score,
+        i.title as internship_title
+      FROM students s
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN internship_matches im ON s.id = im.student_id
+      INNER JOIN internships i ON im.internship_id = i.id
+      INNER JOIN internship_trainers it ON i.id = it.internship_id
+      WHERE it.trainer_id = ? AND im.status = 'accepted'
+      ORDER BY u.full_name ASC`,
+      [trainerId]
+    );
+
+    console.log(`✅ Found ${students.length} students for trainer ${trainerId}`);
+
+    res.json({
+      success: true,
+      students: students
+    });
+
+  } catch (error) {
+    console.error('Error fetching trainer students:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch students',
+      error: error.message
+    });
+  }
+});
+
 export default router;

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/TrainerDashboard.css';
-import VideoCall from '../components/VideoCall';
 import { 
   loadChatMessages, 
   sendChatMessage, 
@@ -93,9 +92,10 @@ function TrainerDashboard() {
   const [reportReviewStatus, setReportReviewStatus] = useState('approved');
   const [reportReviewComment, setReportReviewComment] = useState('');
   const [loadingReports, setLoadingReports] = useState(false);
-  const [messageTab, setMessageTab] = useState('chat'); // 'chat' or 'meeting'
-  const [isInCall, setIsInCall] = useState(false);
-  const [callRoomId, setCallRoomId] = useState(null);
+  
+  // Video Call State
+  const [showVideoCallSetup, setShowVideoCallSetup] = useState(false);
+  // Video call state - no longer needed since we open in new tab
   
   const navigate = useNavigate();
 
@@ -1074,6 +1074,23 @@ function TrainerDashboard() {
     }
   };
 
+  // Video Call Function
+  const handleStartVideoCall = () => {
+    // Generate unique room ID
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 10);
+    const roomID = `tracko-${trainerId}-${timestamp}-${randomStr}`;
+    
+    console.log('📞 Starting video call...');
+    console.log('   Room ID:', roomID);
+    
+    // Create video call link
+    const videoCallLink = `${window.location.protocol}//${window.location.host}/video-call?roomID=${roomID}`;
+    
+    // Open video call in new tab
+    window.open(videoCallLink, '_blank');
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -1187,12 +1204,22 @@ function TrainerDashboard() {
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            Messages/Meeting
+            Messages
             {totalUnreadMessages > 0 && (
               <span className="notification-badge">
                 {totalUnreadMessages}
               </span>
             )}
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'videocall' ? 'active' : ''}`}
+            onClick={() => { setActiveMenu('videocall'); }}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Video Call
           </button>
 
           <button 
@@ -2195,29 +2222,6 @@ function TrainerDashboard() {
               <p>Chat with your students and colleagues</p>
             </div>
 
-            {/* Tab Buttons */}
-            <div className="message-tabs">
-              <button 
-                className={`tab-button ${messageTab === 'chat' ? 'active' : ''}`}
-                onClick={() => setMessageTab('chat')}
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Chat
-              </button>
-              <button 
-                className={`tab-button ${messageTab === 'meeting' ? 'active' : ''}`}
-                onClick={() => { setMessageTab('meeting'); loadStudents(); }}
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                Video Meeting
-              </button>
-            </div>
-
-            {messageTab === 'chat' && (
             <div className="chat-container">
               {/* Students List (Conversations) */}
               <div className="conversations-sidebar">
@@ -2365,97 +2369,6 @@ function TrainerDashboard() {
                 )}
               </div>
             </div>
-            )}
-
-            {/* Video Meeting Tab */}
-            {messageTab === 'meeting' && (
-              <div className="meeting-container">
-                <div className="meeting-header">
-                  <h2>Video Meeting with Students</h2>
-                  <p>Select a student to start a video call</p>
-                </div>
-
-                {students.length === 0 ? (
-                  <div className="empty-state">
-                    <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <h3>No Students Available</h3>
-                    <p>You need to have accepted students to schedule meetings</p>
-                  </div>
-                ) : (
-                  <div className="trainers-grid">
-                    {students.map(student => (
-                      <div key={student.student_id} className="trainer-card">
-                        <div className="trainer-card-header">
-                          <div className="trainer-avatar-large">
-                            {student.student_img ? (
-                              <img 
-                                src={student.student_img.startsWith('http') ? student.student_img : `http://localhost:5050${student.student_img}`}
-                                alt={student.full_name}
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.textContent = student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S';
-                                }}
-                              />
-                            ) : (
-                              student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S'
-                            )}
-                          </div>
-                          <div className="trainer-info">
-                            <h3>{student.full_name || 'Student'}</h3>
-                            <p className="trainer-email">{student.email}</p>
-                            {student.university_name && (
-                              <p className="trainer-company">
-                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
-                                </svg>
-                                {student.university_name}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="trainer-card-body">
-                          <button 
-                            className="start-meeting-btn"
-                            onClick={async () => {
-                              const roomId = `trainer-${trainerId}-student-${student.student_id}`;
-                              
-                              // Send invitation to student
-                              try {
-                                await fetch('http://localhost:5050/api/video-call/invite', {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify({
-                                    trainerId: user.id,
-                                    studentId: student.user_id,
-                                    trainerName: trainerData.full_name || 'Trainer',
-                                    roomId: roomId
-                                  })
-                                });
-                                console.log('📞 Video call invitation sent to student');
-                              } catch (error) {
-                                console.error('Error sending invitation:', error);
-                              }
-                              
-                              setCallRoomId(roomId);
-                              setIsInCall(true);
-                            }}
-                          >
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                            Start Video Call
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </>
         )}
 
@@ -2832,6 +2745,77 @@ function TrainerDashboard() {
                 </div>
               </div>
             )}
+          </>
+        )}
+
+        {/* Video Call Section */}
+        {activeMenu === 'videocall' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Video Call</h1>
+              <p>Start a video call session</p>
+            </div>
+
+            <div className="profile-form-card" style={{ textAlign: 'center', padding: '60px 40px' }}>
+              <div style={{ marginBottom: '30px' }}>
+                <svg 
+                  width="120" 
+                  height="120" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                  style={{ margin: '0 auto', color: '#667eea' }}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              
+              <h2 style={{ fontSize: '28px', marginBottom: '15px', color: '#1f2937' }}>
+                Ready to Start a Video Call?
+              </h2>
+              <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '40px', maxWidth: '500px', margin: '0 auto 40px' }}>
+                Click the button below to create a new video call room. You can share the room link with your students.
+              </p>
+
+              <button
+                onClick={handleStartVideoCall}
+                className="btn-primary"
+                style={{
+                  padding: '18px 50px',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s',
+                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.5)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                }}
+              >
+                <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                🚀 Start Video Call
+              </button>
+
+              <div style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f3f4f6', borderRadius: '8px', fontSize: '14px', color: '#6b7280' }}>
+                <p style={{ margin: 0 }}>
+                  💡 <strong>Tip:</strong> Once you start the call, you can copy the room link and share it with your students via messages or other communication channels.
+                </p>
+              </div>
+            </div>
           </>
         )}
       </main>
@@ -3311,17 +3295,6 @@ function TrainerDashboard() {
         </div>
       )}
 
-      {/* Video Call Component */}
-      {isInCall && callRoomId && (
-        <VideoCall
-          roomId={callRoomId}
-          userName={trainerData.full_name || 'Trainer'}
-          onEndCall={() => {
-            setIsInCall(false);
-            setCallRoomId(null);
-          }}
-        />
-      )}
     </div>
   );
 }

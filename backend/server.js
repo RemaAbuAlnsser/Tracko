@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createServer } from "http";
 import db from "./config/database.js";
 import authRoutes from "./routes/auth.js";
 import companyRoutes from "./routes/company.js";
@@ -25,17 +24,12 @@ import eventRoutes from "./routes/events.js";
 import videoCallRoutes from "./routes/videoCall.js";
 import WeeklyReport from "./models/WeeklyReport.js";
 import Event from "./models/Event.js";
-import { initializeSocket } from "./socketServer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const server = createServer(app);
 const PORT = process.env.PORT || 5050;
-
-// Initialize Socket.io
-initializeSocket(server);
 
 app.use(cors());
 app.use(express.json());
@@ -102,8 +96,7 @@ async function initializeDatabase() {
   }
 }
 
-server.listen(PORT, async () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`🔌 Socket.io server initialized`);
   await initializeDatabase();
 });
