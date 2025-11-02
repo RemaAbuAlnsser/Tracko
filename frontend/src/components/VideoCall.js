@@ -31,13 +31,27 @@ const VideoCall = ({ roomID, userName, onClose }) => {
       const appID = 1157513066;
       const serverSecret = "9c6df6b74a544dd002fb60d233dc08c9";
       
+      // Get user info from localStorage to get unique user ID
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+      
+      // Use actual user ID or generate random one for guests
+      const userID = user ? String(user.id) : randomID(5);
+      const displayName = userName || (user ? user.full_name : 'Guest');
+      
+      console.log('🎥 Joining video call:', {
+        roomID,
+        userID,
+        displayName
+      });
+      
       // Generate Kit Token
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID, 
         serverSecret, 
         roomID,
-        randomID(5),
-        userName || randomID(5)
+        userID,
+        displayName
       );
 
       // Create instance object from Kit Token

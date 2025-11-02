@@ -95,6 +95,10 @@ function TrainerDashboard() {
   
   // Video Call State
   const [showVideoCallSetup, setShowVideoCallSetup] = useState(false);
+  const [showStudentSelectionModal, setShowStudentSelectionModal] = useState(false);
+  const [selectedStudentsForCall, setSelectedStudentsForCall] = useState([]);
+  const [videoCallRoomID, setVideoCallRoomID] = useState('');
+  const [sendingInvitations, setSendingInvitations] = useState(false);
   // Video call state - no longer needed since we open in new tab
   
   const navigate = useNavigate();
@@ -1074,21 +1078,111 @@ function TrainerDashboard() {
     }
   };
 
-  // Video Call Function
-  const handleStartVideoCall = () => {
+  // Video Call Functions
+  const handleStartVideoCall = async () => {
     // Generate unique room ID
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 10);
     const roomID = `tracko-${trainerId}-${timestamp}-${randomStr}`;
     
-    console.log('📞 Starting video call...');
+    console.log('📞 Preparing video call...');
     console.log('   Room ID:', roomID);
     
-    // Create video call link
-    const videoCallLink = `${window.location.protocol}//${window.location.host}/video-call?roomID=${roomID}`;
+    // Load students if not already loaded
+    if (students.length === 0) {
+      await loadStudents();
+    }
     
-    // Open video call in new tab
-    window.open(videoCallLink, '_blank');
+    // Store room ID and show student selection modal
+    setVideoCallRoomID(roomID);
+    setShowStudentSelectionModal(true);
+    setSelectedStudentsForCall([]);
+  };
+
+  const toggleStudentForCall = (studentId) => {
+    setSelectedStudentsForCall(prev => {
+      if (prev.includes(studentId)) {
+        return prev.filter(id => id !== studentId);
+      } else {
+        return [...prev, studentId];
+      }
+    });
+  };
+
+  const handleSendVideoCallInvitations = async () => {
+    if (selectedStudentsForCall.length === 0) {
+      setMessage({ type: 'error', text: 'Please select at least one student' });
+      return;
+    }
+
+    setSendingInvitations(true);
+    setMessage({ type: '', text: '' });
+
+    // Create video call link
+    const videoCallLink = `${window.location.protocol}//${window.location.host}/video-call?roomID=${videoCallRoomID}`;
+    
+    // Open video call IMMEDIATELY for trainer (before API call to avoid popup blocker)
+    const videoCallWindow = window.open(videoCallLink, '_blank');
+    
+    if (!videoCallWindow) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Please allow popups for this site to start video calls' 
+      });
+      setSendingInvitations(false);
+      return;
+    }
+
+    try {
+      // Send notifications to selected students
+      const response = await fetch('http://localhost:5050/api/notifications/video-call-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainer_id: trainerId,
+          trainer_name: user.full_name,
+          student_ids: selectedStudentsForCall,
+          room_id: videoCallRoomID,
+          video_call_link: videoCallLink
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setMessage({ 
+          type: 'success', 
+          text: `Video call started! Invitations sent to ${selectedStudentsForCall.length} student(s)` 
+        });
+        
+        // Close modal after short delay
+        setTimeout(() => {
+          setShowStudentSelectionModal(false);
+          setSelectedStudentsForCall([]);
+          setMessage({ type: '', text: '' });
+        }, 1500);
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: data.message || 'Failed to send invitations' 
+        });
+        // Close the video call window if notification sending failed
+        if (videoCallWindow && !videoCallWindow.closed) {
+          videoCallWindow.close();
+        }
+      }
+    } catch (error) {
+      console.error('Error sending video call invitations:', error);
+      setMessage({ type: 'error', text: 'Server error. Please try again.' });
+      // Close the video call window if there was an error
+      if (videoCallWindow && !videoCallWindow.closed) {
+        videoCallWindow.close();
+      }
+    } finally {
+      setSendingInvitations(false);
+    }
   };
 
   if (!user) {
@@ -2756,24 +2850,36 @@ function TrainerDashboard() {
               <p>Start a video call session</p>
             </div>
 
-            <div className="profile-form-card" style={{ textAlign: 'center', padding: '60px 40px' }}>
+            <div className="profile-form-card" style={{ textAlign: 'center', padding: '60px 40px', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
               <div style={{ marginBottom: '30px' }}>
-                <svg 
-                  width="120" 
-                  height="120" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                  style={{ margin: '0 auto', color: '#667eea' }}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+                <div style={{
+                  width: '120px',
+                  height: '120px',
+                  margin: '0 auto',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  borderRadius: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)'
+                }}>
+                  <svg 
+                    width="64" 
+                    height="64" 
+                    fill="none" 
+                    stroke="white" 
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
               </div>
               
-              <h2 style={{ fontSize: '28px', marginBottom: '15px', color: '#1f2937' }}>
+              <h2 style={{ fontSize: '32px', marginBottom: '15px', color: '#1e293b', fontWeight: '700' }}>
                 Ready to Start a Video Call?
               </h2>
-              <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '40px', maxWidth: '500px', margin: '0 auto 40px' }}>
+              <p style={{ fontSize: '16px', color: '#64748b', marginBottom: '40px', maxWidth: '500px', margin: '0 auto 40px', lineHeight: '1.6' }}>
                 Click the button below to create a new video call room. You can share the room link with your students.
               </p>
 
@@ -2788,31 +2894,42 @@ function TrainerDashboard() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '12px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: 'white',
                   border: 'none',
                   borderRadius: '12px',
                   cursor: 'pointer',
-                  transition: 'all 0.3s',
-                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-3px)';
-                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.5)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(59, 130, 246, 0.5)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
                 }}
                 onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
                 }}
               >
-                <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                🚀 Start Video Call
+                Start Video Call
               </button>
 
-              <div style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f3f4f6', borderRadius: '8px', fontSize: '14px', color: '#6b7280' }}>
-                <p style={{ margin: 0 }}>
-                  💡 <strong>Tip:</strong> Once you start the call, you can copy the room link and share it with your students via messages or other communication channels.
+              <div style={{ 
+                marginTop: '40px', 
+                padding: '20px 24px', 
+                background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                borderRadius: '12px', 
+                fontSize: '14px', 
+                color: '#1e40af',
+                borderLeft: '4px solid #3b82f6'
+              }}>
+                <p style={{ margin: 0, lineHeight: '1.6' }}>
+                  <strong>Tip:</strong> Once you start the call, you can copy the room link and share it with your students via messages or other communication channels.
                 </p>
               </div>
             </div>
@@ -3289,6 +3406,108 @@ function TrainerDashboard() {
                 }}
               >
                 {loading ? 'Submitting...' : '📤 Submit Review & Notify Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Selection Modal for Video Call */}
+      {showStudentSelectionModal && (
+        <div className="modal-overlay" onClick={() => setShowStudentSelectionModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Select Students for Video Call</h2>
+              <button className="modal-close" onClick={() => setShowStudentSelectionModal(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {message.text && (
+                <div className={`alert alert-${message.type}`} style={{ marginBottom: '1rem' }}>
+                  {message.text}
+                </div>
+              )}
+
+              <p style={{ marginBottom: '1rem', color: '#6b7280' }}>
+                Select the students you want to invite to the video call:
+              </p>
+
+              {students.length === 0 ? (
+                <div className="empty-state">
+                  <p>No students available</p>
+                </div>
+              ) : (
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {students.map((student) => (
+                    <div 
+                      key={student.student_id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        marginBottom: '0.5rem',
+                        backgroundColor: selectedStudentsForCall.includes(student.student_id) ? '#eff6ff' : '#f9fafb',
+                        border: selectedStudentsForCall.includes(student.student_id) ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onClick={() => toggleStudentForCall(student.student_id)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedStudentsForCall.includes(student.student_id)}
+                        onChange={() => toggleStudentForCall(student.student_id)}
+                        style={{ marginRight: '1rem', cursor: 'pointer' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '600', color: '#1f2937' }}>
+                          {student.full_name}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          {student.email}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ 
+                marginTop: '1rem', 
+                padding: '0.75rem 1rem', 
+                background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                borderRadius: '8px',
+                borderLeft: '4px solid #3b82f6'
+              }}>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#1e40af', fontWeight: '600' }}>
+                  Selected: {selectedStudentsForCall.length} student(s)
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowStudentSelectionModal(false)}
+                disabled={sendingInvitations}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={handleSendVideoCallInvitations}
+                disabled={sendingInvitations || selectedStudentsForCall.length === 0}
+                style={{
+                  backgroundColor: sendingInvitations || selectedStudentsForCall.length === 0 ? '#9ca3af' : '#3b82f6',
+                  cursor: sendingInvitations || selectedStudentsForCall.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {sendingInvitations ? 'Sending...' : 'Send Invitations & Start Call'}
               </button>
             </div>
           </div>

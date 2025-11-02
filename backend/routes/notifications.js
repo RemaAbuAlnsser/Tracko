@@ -279,4 +279,80 @@ router.post("/delete-all", async (req, res) => {
   }
 });
 
+// Send video call invitations to selected students
+router.post("/video-call-invite", async (req, res) => {
+  try {
+    const { trainer_id, trainer_name, student_ids, room_id, video_call_link } = req.body;
+    
+    if (!trainer_id || !trainer_name || !student_ids || !Array.isArray(student_ids) || student_ids.length === 0 || !room_id || !video_call_link) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Trainer ID, trainer name, student IDs array, room ID, and video call link are required" 
+      });
+    }
+
+    // Get student user IDs from student IDs
+    const studentQuery = `
+      SELECT s.id as student_id, s.user_id, u.full_name 
+      FROM Students s
+      JOIN Users u ON s.user_id = u.id
+      WHERE s.id IN (?)
+    `;
+    
+    const db = (await import("../config/database.js")).default;
+    
+    db.query(studentQuery, [student_ids], async (err, students) => {
+      if (err) {
+        console.error("Error fetching students:", err);
+        return res.status(500).json({ 
+          success: false,
+          message: "Error fetching student information" 
+        });
+      }
+
+      if (students.length === 0) {
+        return res.status(404).json({ 
+          success: false,
+          message: "No students found" 
+        });
+      }
+
+      // Create notifications for each student
+      const notifications = students.map(student => ({
+        user_id: student.user_id,
+        title: `📹 Video Call Invitation from ${trainer_name}`,
+        message: `${trainer_name} has invited you to join a video call. Click the link to join: ${video_call_link}`,
+        type: 'video_call'
+      }));
+
+      try {
+        await Notification.createBulk(notifications);
+        
+        console.log(`✅ Video call invitations sent to ${students.length} student(s)`);
+        console.log(`   Room ID: ${room_id}`);
+        console.log(`   Students:`, students.map(s => s.full_name).join(', '));
+        
+        res.json({ 
+          success: true,
+          message: `Video call invitations sent to ${students.length} student(s)`,
+          room_id: room_id,
+          invited_students: students.length
+        });
+      } catch (error) {
+        console.error("Error creating notifications:", error);
+        res.status(500).json({ 
+          success: false,
+          message: "Failed to send notifications" 
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Error sending video call invitations:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
+  }
+});
+
 export default router;
