@@ -607,4 +607,87 @@ router.post("/applicant/:matchId/reject", async (req, res) => {
   }
 });
 
+// Get applied students for a specific internship
+router.get('/internship/:internshipId/applied', async (req, res) => {
+  try {
+    const { internshipId } = req.params;
+    
+    console.log(`📋 Getting applied students for internship ${internshipId}...`);
+    
+    const query = `
+      SELECT 
+        s.id as student_id,
+        s.user_id,
+        u.full_name,
+        u.email,
+        s.major,
+        s.academic_year as year_of_study,
+        s.student_img,
+        s.gpa,
+        uni.name as university_name,
+        im.match_percentage,
+        im.applied_at,
+        im.status,
+        (SELECT analysis_data FROM CVs WHERE student_id = s.id ORDER BY id DESC LIMIT 1) as analysis_data
+      FROM Internship_Matches im
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      LEFT JOIN Universities uni ON s.university_id = uni.id
+      WHERE im.internship_id = ? AND im.applied = TRUE AND im.status = 'pending'
+      ORDER BY im.applied_at DESC
+    `;
+    
+    db.query(query, [internshipId], (err, results) => {
+      if (err) {
+        console.error('❌ Error fetching applied students:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Server error'
+        });
+      }
+      
+      // Parse GPA from analysis_data if available
+      const studentsWithGPA = results.map(student => {
+        let gpa = student.gpa;
+        
+        if (!gpa && student.analysis_data) {
+          try {
+            const analysisData = typeof student.analysis_data === 'string'
+              ? JSON.parse(student.analysis_data)
+              : student.analysis_data;
+            
+            gpa = analysisData.gpa || 
+                  analysisData.GPA || 
+                  analysisData.grade_point_average ||
+                  analysisData.overall_gpa ||
+                  null;
+          } catch (e) {
+            console.warn('Failed to parse analysis_data:', e.message);
+          }
+        }
+        
+        return {
+          ...student,
+          gpa: gpa,
+          analysis_data: undefined // Remove from response
+        };
+      });
+      
+      console.log(`✅ Found ${studentsWithGPA.length} applied students for internship ${internshipId}`);
+      
+      res.json({
+        success: true,
+        applicants: studentsWithGPA
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Get applied students error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 export default router;

@@ -1,10 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import VideoCall, { getUrlParams } from '../components/VideoCall';
 
 function VideoCallPage() {
   const navigate = useNavigate();
-  const roomID = getUrlParams().get('roomID');
+  const { roomId } = useParams();
+  
+  // Try to get roomID from URL params first, then from query string
+  const roomID = roomId || getUrlParams().get('roomID');
   
   // Get user info from localStorage
   const userData = localStorage.getItem('user');

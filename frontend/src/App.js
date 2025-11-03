@@ -27,6 +27,7 @@ function App() {
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/internship-details/:id" element={<InternshipDetails />} />
       <Route path="/video-call" element={<VideoCallPage />} />
+      <Route path="/video-call/:roomId" element={<VideoCallPage />} />
     </Routes>
   );
 }

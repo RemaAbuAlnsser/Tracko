@@ -1,11 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/CompanyDashboard.css';
+import { 
+  loadChatMessages, 
+  sendChatMessage, 
+  subscribeToMessages, 
+  unsubscribeFromMessages,
+  markMessagesAsRead,
+  getUnreadCount 
+} from '../utils/chatService';
 
 function CompanyDashboard() {
   const [user, setUser] = useState(null);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [companyData, setCompanyData] = useState({
+    id: null,
     name: '',
     email: '',
     phone: '',
@@ -48,6 +57,35 @@ function CompanyDashboard() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [certificateFile, setCertificateFile] = useState(null);
   const [uploadingCertificate, setUploadingCertificate] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedTrainer, setSelectedTrainer] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [messagesChannel, setMessagesChannel] = useState(null);
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const messagesEndRef = useRef(null);
+  
+  // Interviews state
+  const [appliedStudents, setAppliedStudents] = useState([]);
+  const [selectedInternshipForInterview, setSelectedInternshipForInterview] = useState('');
+  const [interviewForm, setInterviewForm] = useState({
+    student_id: '',
+    internship_id: '',
+    interview_date: '',
+    interview_time: '',
+    interview_location: '',
+    interview_type: 'in-person',
+    notes: ''
+  });
+  const [schedulingInterview, setSchedulingInterview] = useState(false);
+  
+  // Video Call / Meetings state
+  const [videoCallRoomID, setVideoCallRoomID] = useState('');
+  const [showStudentSelectionModal, setShowStudentSelectionModal] = useState(false);
+  const [selectedStudentsForCall, setSelectedStudentsForCall] = useState([]);
+  const [applicantsForMeeting, setApplicantsForMeeting] = useState([]);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -77,6 +115,7 @@ function CompanyDashboard() {
           console.log('📥 Loaded company data:', data);
           if (data.success && data.company) {
             setCompanyData({
+              id: data.company.id,
               name: data.company.name || parsedUser.full_name,
               email: data.company.email || parsedUser.email,
               phone: data.company.phone || '',
@@ -114,6 +153,7 @@ function CompanyDashboard() {
     loadCompanyData();
     loadCompanyTrainers();
     loadNewApplicantsCount(parsedUser);
+    loadInternships(parsedUser.email);
   }, [navigate]);
 
   // Load new applicants count on login
@@ -175,6 +215,51 @@ function CompanyDashboard() {
       console.error('Error loading company trainers:', error);
     }
   };
+
+  // Load conversations when company trainers are loaded
+  useEffect(() => {
+    if (companyTrainers.length > 0 && user) {
+      loadConversations();
+    }
+  }, [companyTrainers, user]);
+
+  // Setup real-time message subscription
+  useEffect(() => {
+    if (!user) return;
+
+    // Subscribe to real-time messages
+    const channel = subscribeToMessages(user.id, (newMessage) => {
+      // Only add message if it's for the current conversation AND from the other person
+      if (selectedTrainer && 
+          newMessage.sender_id === selectedTrainer.user_id && 
+          newMessage.receiver_id === user.id) {
+        // Check if message doesn't already exist (avoid duplicates)
+        setMessages(prev => {
+          const exists = prev.some(msg => msg.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
+        setTimeout(() => scrollToBottom(), 100);
+      }
+      
+      // Update unread count in conversations
+      if (newMessage.sender_id !== user.id) {
+        loadConversations();
+      }
+    });
+
+    setMessagesChannel(channel);
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeFromMessages(channel);
+    };
+  }, [user, selectedTrainer]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -359,7 +444,7 @@ function CompanyDashboard() {
         setSelectedTrainers([]);
         setEditingInternshipId(null);
         // Reload internships
-        loadInternships();
+        loadInternships(user.email);
         setTimeout(() => {
           setMessage({ type: '', text: '' });
         }, 3000);
@@ -374,15 +459,16 @@ function CompanyDashboard() {
     }
   };
 
-  const loadInternships = async () => {
-    if (!user) return;
+  const loadInternships = async (email) => {
+    if (!email) return;
     
     try {
-      const response = await fetch(`http://localhost:5050/api/internships/by-company/${user.email}`);
+      const response = await fetch(`http://localhost:5050/api/internships/by-company/${email}`);
       const data = await response.json();
 
       if (response.ok) {
         setInternships(data.internships || []);
+        console.log('✅ Loaded internships:', data.internships?.length || 0);
       }
     } catch (error) {
       console.error('Load internships error:', error);
@@ -431,7 +517,7 @@ function CompanyDashboard() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Internship deleted successfully!' });
-        loadInternships();
+        loadInternships(user.email);
         setTimeout(() => {
           setMessage({ type: '', text: '' });
         }, 3000);
@@ -508,7 +594,7 @@ function CompanyDashboard() {
   // Load internships when switching to manage tab
   useEffect(() => {
     if (activeMenu === 'manage' && user) {
-      loadInternships();
+      loadInternships(user.email);
     }
   }, [activeMenu, user]);
 
@@ -527,7 +613,7 @@ function CompanyDashboard() {
         alert('✅ Applicant accepted successfully!\n📉 Internship capacity decreased by 1');
         // Reload applicants and internships to update capacity
         loadApplicants();
-        loadInternships();
+        loadInternships(user.email);
       } else {
         alert(`❌ ${data.message || 'Failed to accept applicant'}`);
       }
@@ -648,6 +734,294 @@ function CompanyDashboard() {
     }
   };
 
+  // Load trainers as conversations for chat
+  const loadConversations = async () => {
+    if (!companyTrainers || companyTrainers.length === 0) return;
+    try {
+      const trainersWithUnread = await Promise.all(
+        companyTrainers.map(async (trainer) => {
+          const unreadCount = await getUnreadCount(user.id, trainer.user_id);
+          return {
+            ...trainer,
+            unread_count: unreadCount
+          };
+        })
+      );
+      setConversations(trainersWithUnread);
+      
+      // Calculate total unread messages
+      const totalUnread = trainersWithUnread.reduce((sum, trainer) => sum + (trainer.unread_count || 0), 0);
+      setTotalUnreadMessages(totalUnread);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
+  };
+
+  // Load messages for selected trainer
+  const loadMessages = async (trainer) => {
+    if (!user || !trainer) return;
+    
+    console.log('📨 Loading messages for trainer:', {
+      trainer_name: trainer.full_name,
+      trainer_user_id: trainer.user_id,
+      company_user_id: user.id
+    });
+    
+    try {
+      const chatMessages = await loadChatMessages(user.id, trainer.user_id);
+      console.log('✅ Loaded messages:', chatMessages.length, 'messages');
+      setMessages(chatMessages);
+      setSelectedTrainer(trainer);
+      setSelectedConversation(trainer.id);
+      
+      // Mark messages as read
+      await markMessagesAsRead(trainer.user_id, user.id);
+      
+      // Scroll to bottom
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  // Send message using Supabase
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedTrainer || !user) return;
+
+    const messageText = newMessage.trim();
+    
+    console.log('📤 Sending message:', {
+      sender_id: user.id,
+      receiver_id: selectedTrainer.user_id,
+      message: messageText
+    });
+    
+    try {
+      // Clear input immediately for better UX
+      setNewMessage('');
+      
+      const result = await sendChatMessage(user.id, selectedTrainer.user_id, messageText);
+      
+      if (result.success && result.data && result.data[0]) {
+        // Add message to state immediately
+        const newMsg = result.data[0];
+        setMessages(prev => [...prev, newMsg]);
+        
+        // Scroll to bottom
+        setTimeout(() => scrollToBottom(), 50);
+      } else {
+        setMessage({ type: 'error', text: 'Failed to send message' });
+        // Restore message text if failed
+        setNewMessage(messageText);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+      // Restore message text if failed
+      setNewMessage(messageText);
+    }
+  };
+
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Load applied students for interviews
+  const loadAppliedStudents = async (internshipId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/matching/internship/${internshipId}/applied`);
+      const data = await response.json();
+      if (data.success) {
+        setAppliedStudents(data.applicants || []);
+      }
+    } catch (error) {
+      console.error('Error loading applied students:', error);
+    }
+  };
+
+  // Schedule interview
+  const handleScheduleInterview = async (e) => {
+    e.preventDefault();
+    
+    if (!interviewForm.student_id || !interviewForm.internship_id || !interviewForm.interview_date || !interviewForm.interview_time) {
+      setMessage({ type: 'error', text: 'Please fill all required fields' });
+      return;
+    }
+
+    try {
+      setSchedulingInterview(true);
+      const response = await fetch('http://localhost:5050/api/interviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...interviewForm,
+          company_id: companyData.id
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Interview scheduled successfully! Student has been notified.' });
+        // Reset form
+        setInterviewForm({
+          student_id: '',
+          internship_id: '',
+          interview_date: '',
+          interview_time: '',
+          interview_location: '',
+          interview_type: 'in-person',
+          notes: ''
+        });
+        setSelectedInternshipForInterview('');
+        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to schedule interview' });
+      }
+    } catch (error) {
+      console.error('Error scheduling interview:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    } finally {
+      setSchedulingInterview(false);
+    }
+  };
+
+  // Video Call / Meetings Functions
+  const handleStartMeeting = async () => {
+    // Generate unique room ID
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 10);
+    const roomID = `tracko-company-${companyData.id}-${timestamp}-${randomStr}`;
+    
+    console.log('📞 Preparing meeting...');
+    console.log('   Room ID:', roomID);
+    
+    try {
+      // Get company ID
+      const response = await fetch(`http://localhost:5050/api/companies/email/${user.email}`);
+      if (!response.ok) {
+        alert('Failed to load company data');
+        return;
+      }
+      
+      const data = await response.json();
+      if (!data.success || !data.company) {
+        alert('Company not found');
+        return;
+      }
+      
+      const companyId = data.company.id;
+      
+      // Load all applicants for this company
+      const applicantsResponse = await fetch(`http://localhost:5050/api/matching/company/${companyId}/applicants`);
+      if (!applicantsResponse.ok) {
+        alert('Failed to load applicants');
+        return;
+      }
+      
+      const applicantsData = await applicantsResponse.json();
+      console.log('📊 Loaded applicants:', applicantsData);
+      
+      // API returns data in 'data' field, not 'applicants'
+      const allApplicants = applicantsData.data || applicantsData.applicants || [];
+      
+      if (applicantsData.success && allApplicants.length > 0) {
+        // Get all applied students (applied = 1 or true)
+        const appliedStudents = allApplicants.filter(app => {
+          console.log(`Student ${app.full_name}: applied = ${app.applied} (type: ${typeof app.applied})`);
+          return app.applied === 1 || app.applied === true || app.applied === '1';
+        });
+        
+        console.log('✅ Applied students:', appliedStudents.length, 'out of', allApplicants.length);
+        
+        if (appliedStudents.length === 0) {
+          alert('No students have applied yet. Students need to click "Apply" on the internship first.');
+          return;
+        }
+        
+        setApplicantsForMeeting(appliedStudents);
+        
+        // Store room ID and show student selection modal
+        setVideoCallRoomID(roomID);
+        setShowStudentSelectionModal(true);
+        setSelectedStudentsForCall([]);
+      } else {
+        alert('No applicants found for your company');
+      }
+    } catch (error) {
+      console.error('Error loading applicants:', error);
+      alert('Failed to load applicants');
+    }
+  };
+
+  const toggleStudentForCall = (studentId) => {
+    setSelectedStudentsForCall(prev => {
+      if (prev.includes(studentId)) {
+        return prev.filter(id => id !== studentId);
+      } else {
+        return [...prev, studentId];
+      }
+    });
+  };
+
+  const handleConfirmMeeting = async () => {
+    if (selectedStudentsForCall.length === 0) {
+      alert('Please select at least one student');
+      return;
+    }
+
+    try {
+      console.log('📤 Sending meeting notifications...');
+      
+      // Send notifications to selected students
+      const response = await fetch('http://localhost:5050/api/video-call/notify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomID: videoCallRoomID,
+          studentIds: selectedStudentsForCall,
+          senderName: companyData.name,
+          senderType: 'company'
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Notifications sent successfully');
+        console.log('🔗 Room ID:', videoCallRoomID);
+        
+        // Close modal
+        setShowStudentSelectionModal(false);
+        
+        // Open video call in new window
+        const videoCallUrl = `http://localhost:3000/video-call/${videoCallRoomID}`;
+        console.log('🚀 Opening video call:', videoCallUrl);
+        
+        const newWindow = window.open(videoCallUrl, '_blank', 'width=1200,height=800');
+        
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+          // Popup blocked
+          alert(`Meeting started! Notifications sent to ${selectedStudentsForCall.length} student(s).\n\nPlease allow popups and click this link to join:\n${videoCallUrl}`);
+          // Try to open in same tab as fallback
+          window.location.href = videoCallUrl;
+        } else {
+          alert(`Meeting started! Notifications sent to ${selectedStudentsForCall.length} student(s)`);
+        }
+      } else {
+        alert('Failed to send notifications: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error starting meeting:', error);
+      alert('Failed to start meeting');
+    }
+  };
+
   // Submit certificate to final report
   const handleSubmitCertificate = async () => {
     if (!certificateFile) {
@@ -714,7 +1088,7 @@ function CompanyDashboard() {
   // Load applicants when switching to applicants tab
   useEffect(() => {
     if (activeMenu === 'applicants' && user) {
-      loadInternships(); // Load internships first for the filter
+      loadInternships(user.email); // Load internships first for the filter
       loadApplicants();
     }
   }, [activeMenu, user]);
@@ -722,7 +1096,7 @@ function CompanyDashboard() {
   // Load accepted applicants when switching to details tab
   useEffect(() => {
     if (activeMenu === 'details' && user) {
-      loadInternships(); // Load internships for the filter
+      loadInternships(user.email); // Load internships for the filter
       loadAcceptedApplicants();
     }
   }, [activeMenu, user]);
@@ -846,12 +1220,35 @@ function CompanyDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'messages' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('messages')}
+            onClick={() => { setActiveMenu('messages'); loadConversations(); }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             Messages/Chat
+            {totalUnreadMessages > 0 && (
+              <span className="notification-badge">{totalUnreadMessages}</span>
+            )}
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'interviews' ? 'active' : ''}`}
+            onClick={() => setActiveMenu('interviews')}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Interviews
+          </button>
+
+          <button 
+            className={`nav-item ${activeMenu === 'meetings' ? 'active' : ''}`}
+            onClick={() => setActiveMenu('meetings')}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Meetings
           </button>
         </nav>
 
@@ -1931,7 +2328,420 @@ function CompanyDashboard() {
           </>
         )}
 
-        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'post' && activeMenu !== 'manage' && activeMenu !== 'applicants' && activeMenu !== 'details' && (
+        {/* Messages Section */}
+        {activeMenu === 'messages' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Messages</h1>
+              <p>Chat with your trainers</p>
+            </div>
+
+            <div className="chat-container">
+              {/* Trainers List (Conversations) */}
+              <div className="conversations-sidebar">
+                <h3>My Trainers</h3>
+                {conversations.length === 0 ? (
+                  <div className="empty-state-small">
+                    <p>No trainers yet</p>
+                  </div>
+                ) : (
+                  <div className="conversations-list">
+                    {conversations.map(trainer => (
+                      <div
+                        key={trainer.id}
+                        className={`conversation-item ${selectedConversation === trainer.id ? 'active' : ''}`}
+                        onClick={() => loadMessages(trainer)}
+                      >
+                        <div className="conversation-avatar">
+                          {trainer.profile_image ? (
+                            <img 
+                              src={trainer.profile_image.startsWith('http') ? trainer.profile_image : `http://localhost:5050${trainer.profile_image}`} 
+                              alt={trainer.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T';
+                              }}
+                            />
+                          ) : (
+                            trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'
+                          )}
+                        </div>
+                        <div className="conversation-info">
+                          <h4>{trainer.full_name || 'Trainer'}</h4>
+                          <p className="student-email">{trainer.email}</p>
+                        </div>
+                        {trainer.unread_count > 0 && (
+                          <span className="unread-count">{trainer.unread_count}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Area */}
+              <div className="chat-area">
+                {!selectedConversation ? (
+                  <div className="empty-state">
+                    <h3>Select a Trainer</h3>
+                    <p>Choose a trainer from the list to start chatting</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Chat Header */}
+                    {selectedTrainer && (
+                      <div className="chat-header">
+                        <div className="conversation-avatar">
+                          {selectedTrainer.profile_image ? (
+                            <img 
+                              src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
+                              alt={selectedTrainer.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                              }}
+                            />
+                          ) : (
+                            selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                          )}
+                        </div>
+                        <div>
+                          <h3>{selectedTrainer.full_name}</h3>
+                          <p className="student-info">{selectedTrainer.email}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Messages List */}
+                    <div className="messages-list">
+                      {messages.length === 0 ? (
+                        <div className="empty-state-small">
+                          <p>No messages yet. Start the conversation!</p>
+                        </div>
+                      ) : (
+                        <>
+                          {messages.map(msg => {
+                            const isSentByCompany = Number(msg.sender_id) === Number(user.id);
+                            return (
+                            <div
+                              key={msg.id}
+                              className={`message-item ${isSentByCompany ? 'sent' : 'received'}`}
+                            >
+                              {/* Show avatar for receiver (trainer) on left */}
+                              {!isSentByCompany && selectedTrainer && (
+                                <div className="message-avatar">
+                                  {selectedTrainer.profile_image ? (
+                                    <img 
+                                      src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
+                                      alt={selectedTrainer.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                                      }}
+                                    />
+                                  ) : (
+                                    selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                                  )}
+                                </div>
+                              )}
+                              <div className="message-bubble">
+                                <p>{msg.message}</p>
+                                <span className="message-time">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </span>
+                              </div>
+                              {/* Show avatar for sender (company) on right */}
+                              {isSentByCompany && (
+                                <div className="message-avatar">
+                                  {companyData.logo ? (
+                                    <img 
+                                      src={`http://localhost:5050${companyData.logo}`} 
+                                      alt={user.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'C';
+                                      }}
+                                    />
+                                  ) : (
+                                    user.full_name ? user.full_name.charAt(0).toUpperCase() : 'C'
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            );
+                          })}
+                          <div ref={messagesEndRef} />
+                        </>
+                      )}
+                    </div>
+
+                    {/* Message Input */}
+                    <form className="message-input-form" onSubmit={handleSendMessage}>
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="message-input"
+                      />
+                      <button type="submit" className="send-button" disabled={!newMessage.trim()}>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                        Send
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Interviews Section */}
+        {activeMenu === 'interviews' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Schedule Interviews</h1>
+              <p>Schedule interviews with applied students</p>
+            </div>
+
+            <div className="interviews-container" style={{padding: '32px'}}>
+              {/* Select Internship */}
+              <div className="internship-filter-section">
+                <label className="filter-label">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Select Internship:
+                </label>
+                <select
+                  className="internship-filter-select"
+                  value={selectedInternshipForInterview}
+                  onChange={(e) => {
+                    setSelectedInternshipForInterview(e.target.value);
+                    if (e.target.value) {
+                      loadAppliedStudents(e.target.value);
+                      setInterviewForm({...interviewForm, internship_id: e.target.value});
+                    }
+                  }}
+                >
+                  <option value="">Select an internship</option>
+                  {internships.map(internship => (
+                    <option key={internship.id} value={internship.id}>
+                      {internship.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedInternshipForInterview && appliedStudents.length > 0 && (
+                <div className="interview-form-container" style={{marginTop: '24px'}}>
+                  <div className="profile-form-card">
+                    <h3 style={{marginBottom: '20px', color: '#1f2937'}}>Schedule Interview</h3>
+                    
+                    <form onSubmit={handleScheduleInterview}>
+                      {/* Select Student */}
+                      <div className="form-group">
+                        <label>Select Student *</label>
+                        <select
+                          value={interviewForm.student_id}
+                          onChange={(e) => setInterviewForm({...interviewForm, student_id: e.target.value})}
+                          required
+                        >
+                          <option value="">Choose a student</option>
+                          {appliedStudents.map(student => (
+                            <option key={student.student_id} value={student.student_id}>
+                              {student.full_name} - {student.email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Interview Date */}
+                      <div className="form-group">
+                        <label>Interview Date *</label>
+                        <input
+                          type="date"
+                          value={interviewForm.interview_date}
+                          onChange={(e) => setInterviewForm({...interviewForm, interview_date: e.target.value})}
+                          min={new Date().toISOString().split('T')[0]}
+                          required
+                        />
+                      </div>
+
+                      {/* Interview Time */}
+                      <div className="form-group">
+                        <label>Interview Time *</label>
+                        <input
+                          type="time"
+                          value={interviewForm.interview_time}
+                          onChange={(e) => setInterviewForm({...interviewForm, interview_time: e.target.value})}
+                          required
+                        />
+                      </div>
+
+                      {/* Interview Type */}
+                      <div className="form-group">
+                        <label>Interview Type *</label>
+                        <select
+                          value={interviewForm.interview_type}
+                          onChange={(e) => setInterviewForm({...interviewForm, interview_type: e.target.value})}
+                          required
+                        >
+                          <option value="in-person">In-Person</option>
+                          <option value="online">Online</option>
+                          <option value="phone">Phone</option>
+                        </select>
+                      </div>
+
+                      {/* Interview Location */}
+                      <div className="form-group">
+                        <label>Location / Meeting Link</label>
+                        <input
+                          type="text"
+                          value={interviewForm.interview_location}
+                          onChange={(e) => setInterviewForm({...interviewForm, interview_location: e.target.value})}
+                          placeholder={interviewForm.interview_type === 'online' ? 'Enter meeting link' : 'Enter location'}
+                        />
+                      </div>
+
+                      {/* Notes */}
+                      <div className="form-group">
+                        <label>Additional Notes</label>
+                        <textarea
+                          value={interviewForm.notes}
+                          onChange={(e) => setInterviewForm({...interviewForm, notes: e.target.value})}
+                          placeholder="Any additional information for the student..."
+                          rows="4"
+                        />
+                      </div>
+
+                      {/* Submit Button */}
+                      <div className="form-actions" style={{marginTop: '24px'}}>
+                        <button
+                          type="submit"
+                          className="btn-primary"
+                          disabled={schedulingInterview}
+                        >
+                          {schedulingInterview ? 'Scheduling...' : 'Schedule Interview'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {selectedInternshipForInterview && appliedStudents.length === 0 && (
+                <div className="empty-state" style={{marginTop: '40px'}}>
+                  <h3>No Applied Students</h3>
+                  <p>There are no students who have applied to this internship yet.</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Meetings Section */}
+        {activeMenu === 'meetings' && (
+          <>
+            <div className="dashboard-header">
+              <h1>Meetings</h1>
+              <p>Start a video call meeting with students</p>
+            </div>
+
+            <div className="profile-form-card" style={{ textAlign: 'center', padding: '60px 40px', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
+              <div style={{ marginBottom: '30px' }}>
+                <div style={{
+                  width: '120px',
+                  height: '120px',
+                  margin: '0 auto',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  borderRadius: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)'
+                }}>
+                  <svg 
+                    width="64" 
+                    height="64" 
+                    fill="none" 
+                    stroke="white" 
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              </div>
+              
+              <h2 style={{ fontSize: '32px', marginBottom: '15px', color: '#1e293b', fontWeight: '700' }}>
+                Ready to Start a Meeting?
+              </h2>
+              <p style={{ fontSize: '16px', color: '#64748b', marginBottom: '40px', maxWidth: '500px', margin: '0 auto 40px', lineHeight: '1.6' }}>
+                Click the button below to create a new meeting room. You can invite students who have applied to your internships.
+              </p>
+
+              <button
+                onClick={handleStartMeeting}
+                className="btn-primary"
+                style={{
+                  padding: '18px 50px',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(59, 130, 246, 0.5)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                }}
+              >
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Start Meeting
+              </button>
+
+              <div style={{ 
+                marginTop: '40px', 
+                padding: '20px 24px', 
+                background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                borderRadius: '12px', 
+                fontSize: '14px', 
+                color: '#1e40af',
+                borderLeft: '4px solid #3b82f6'
+              }}>
+                <p style={{ margin: 0, lineHeight: '1.6' }}>
+                  <strong>Tip:</strong> Once you start the meeting, you can select which students to invite. Only students who have applied to your internships will be notified.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeMenu !== 'dashboard' && activeMenu !== 'profile' && activeMenu !== 'post' && activeMenu !== 'manage' && activeMenu !== 'applicants' && activeMenu !== 'details' && activeMenu !== 'messages' && activeMenu !== 'interviews' && activeMenu !== 'meetings' && (
           <div className="dashboard-header">
             <h1>{activeMenu.charAt(0).toUpperCase() + activeMenu.slice(1)}</h1>
             <p>This section is under development</p>
@@ -2223,6 +3033,154 @@ function CompanyDashboard() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Student Selection Modal for Meeting */}
+        {showStudentSelectionModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontSize: '24px', color: '#1e293b' }}>Select Students to Invite</h2>
+                <button
+                  onClick={() => setShowStudentSelectionModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '28px',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: '0',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <p style={{ color: '#64748b', marginBottom: '24px' }}>
+                Select students who have applied to your internships to invite them to the meeting.
+              </p>
+
+              {applicantsForMeeting.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <p style={{ color: '#64748b', fontSize: '16px' }}>
+                    No students have applied to your internships yet.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '24px', maxHeight: '400px', overflow: 'auto' }}>
+                    {applicantsForMeeting.map(student => (
+                      <div
+                        key={student.student_id}
+                        onClick={() => toggleStudentForCall(student.student_id)}
+                        style={{
+                          padding: '16px',
+                          border: '2px solid',
+                          borderColor: selectedStudentsForCall.includes(student.student_id) ? '#3b82f6' : '#e2e8f0',
+                          borderRadius: '12px',
+                          marginBottom: '12px',
+                          cursor: 'pointer',
+                          backgroundColor: selectedStudentsForCall.includes(student.student_id) ? '#eff6ff' : 'white',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '4px',
+                          border: '2px solid',
+                          borderColor: selectedStudentsForCall.includes(student.student_id) ? '#3b82f6' : '#cbd5e1',
+                          backgroundColor: selectedStudentsForCall.includes(student.student_id) ? '#3b82f6' : 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {selectedStudentsForCall.includes(student.student_id) && (
+                            <svg width="14" height="14" fill="white" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>
+                            {student.full_name}
+                          </div>
+                          <div style={{ fontSize: '14px', color: '#64748b' }}>
+                            {student.email} • {student.internship_title}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => setShowStudentSelectionModal(false)}
+                      style={{
+                        padding: '12px 24px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        background: 'white',
+                        color: '#64748b',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmMeeting}
+                      disabled={selectedStudentsForCall.length === 0}
+                      style={{
+                        padding: '12px 24px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: selectedStudentsForCall.length === 0 ? '#cbd5e1' : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        cursor: selectedStudentsForCall.length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: selectedStudentsForCall.length === 0 ? 0.6 : 1
+                      }}
+                    >
+                      Start Meeting ({selectedStudentsForCall.length} selected)
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

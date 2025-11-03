@@ -2332,7 +2332,19 @@ function StudentDashboard() {
                         onClick={() => loadMessagesWithTrainer(trainer)}
                       >
                         <div className="conversation-avatar">
-                          {trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'}
+                          {trainer.profile_image ? (
+                            <img 
+                              src={trainer.profile_image.startsWith('http') ? trainer.profile_image : `http://localhost:5050${trainer.profile_image}`} 
+                              alt={trainer.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T';
+                              }}
+                            />
+                          ) : (
+                            trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'
+                          )}
                         </div>
                         <div className="conversation-info">
                           <h4>{trainer.full_name || 'Trainer'}</h4>
@@ -2359,7 +2371,19 @@ function StudentDashboard() {
                     {/* Chat Header */}
                     <div className="chat-header">
                       <div className="conversation-avatar">
-                        {selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'}
+                        {selectedTrainer.profile_image ? (
+                          <img 
+                            src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
+                            alt={selectedTrainer.full_name}
+                            style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                            }}
+                          />
+                        ) : (
+                          selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                        )}
                       </div>
                       <div>
                         <h3>{selectedTrainer.full_name}</h3>

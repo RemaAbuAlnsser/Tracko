@@ -202,6 +202,63 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// Get company for trainer
+router.get("/:trainerId/company", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    console.log(`🏢 Getting company for trainer ${trainerId}...`);
+    
+    const query = `
+      SELECT 
+        c.id,
+        c.name,
+        c.email,
+        c.phone,
+        c.industry,
+        c.logo,
+        c.website,
+        u.id as user_id,
+        u.full_name
+      FROM Trainers t
+      INNER JOIN Company c ON t.company_id = c.id
+      INNER JOIN Users u ON c.email = u.email
+      WHERE t.id = ?
+    `;
+    
+    db.query(query, [trainerId], (err, results) => {
+      if (err) {
+        console.error("❌ Error fetching trainer company:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      if (results.length === 0) {
+        return res.json({
+          success: true,
+          company: null
+        });
+      }
+      
+      console.log(`✅ Found company for trainer ${trainerId}`);
+      
+      res.json({
+        success: true,
+        company: results[0]
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Get trainer company error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Get accepted students for trainer's internships
 router.get("/:trainerId/students", async (req, res) => {
   try {
@@ -289,49 +346,6 @@ router.get("/:trainerId/students", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error"
-    });
-  }
-});
-
-// Get all students for a trainer (from internship_matches)
-router.get("/:trainerId/students", async (req, res) => {
-  try {
-    const { trainerId } = req.params;
-
-    const [students] = await db.query(
-      `SELECT DISTINCT
-        s.id as student_id,
-        s.user_id,
-        u.full_name,
-        u.email,
-        s.student_img,
-        s.university_name,
-        im.status,
-        im.match_score,
-        i.title as internship_title
-      FROM students s
-      INNER JOIN users u ON s.user_id = u.id
-      INNER JOIN internship_matches im ON s.id = im.student_id
-      INNER JOIN internships i ON im.internship_id = i.id
-      INNER JOIN internship_trainers it ON i.id = it.internship_id
-      WHERE it.trainer_id = ? AND im.status = 'accepted'
-      ORDER BY u.full_name ASC`,
-      [trainerId]
-    );
-
-    console.log(`✅ Found ${students.length} students for trainer ${trainerId}`);
-
-    res.json({
-      success: true,
-      students: students
-    });
-
-  } catch (error) {
-    console.error('Error fetching trainer students:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch students',
-      error: error.message
     });
   }
 });
