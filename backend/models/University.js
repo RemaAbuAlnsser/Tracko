@@ -14,15 +14,18 @@ class University {
       coordinator_phone
     } = universityData;
     
+    // Extract domain from email
+    const domain = email ? email.split('@')[1] : null;
+    
     const query = `
-      INSERT INTO Universities (name, email, phone, address, website, logo, coordinator_name, coordinator_phone) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Universities (name, email, domain, phone, address, website, logo, coordinator_name, coordinator_phone) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [name, email, phone, address, website, logo, coordinator_name, coordinator_phone], 
+        [name, email, domain, phone, address, website, logo, coordinator_name, coordinator_phone], 
         (err, result) => {
           if (err) {
             reject(err);
@@ -66,10 +69,10 @@ class University {
 
   // Find university by domain (e.g., najah.com)
   static findByDomain(domain) {
-    const query = "SELECT * FROM Universities WHERE email LIKE ?";
+    const query = "SELECT * FROM Universities WHERE domain = ?";
     
     return new Promise((resolve, reject) => {
-      db.query(query, [`%@${domain}`], (err, results) => {
+      db.query(query, [domain], (err, results) => {
         if (err) {
           reject(err);
         } else {
@@ -107,9 +110,12 @@ class University {
       coordinator_phone
     } = universityData;
     
+    // Extract domain from email
+    const domain = email ? email.split('@')[1] : null;
+    
     const query = `
       UPDATE Universities 
-      SET name = ?, email = ?, phone = ?, address = ?, 
+      SET name = ?, email = ?, domain = ?, phone = ?, address = ?, 
           website = ?, logo = ?, coordinator_name = ?, coordinator_phone = ?
       WHERE id = ?
     `;
@@ -117,7 +123,7 @@ class University {
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [name, email, phone, address, website, logo, coordinator_name, coordinator_phone, id], 
+        [name, email, domain, phone, address, website, logo, coordinator_name, coordinator_phone, id], 
         (err, result) => {
           if (err) {
             reject(err);

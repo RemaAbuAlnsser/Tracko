@@ -71,6 +71,8 @@ function StudentDashboard() {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [certificate, setCertificate] = useState(null);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [showHoursModal, setShowHoursModal] = useState(false);
+  const [hoursPerWeek, setHoursPerWeek] = useState(20);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -342,23 +344,42 @@ function StudentDashboard() {
     setSelectedInternship(null);
   };
 
-  const handleApplyInternship = async () => {
+  const handleApplyInternship = () => {
+    // Open hours modal instead of applying directly
+    setShowHoursModal(true);
+  };
+
+  const handleConfirmApplication = async () => {
     if (!selectedInternship || !user) return;
     
+    // Validate hours per week
+    if (hoursPerWeek < 20) {
+      alert('Hours per week must be at least 20 hours');
+      return;
+    }
+    
     try {
-      console.log(`📝 Applying to internship ${selectedInternship.id}...`);
+      console.log(`📝 Applying to internship ${selectedInternship.id} with ${hoursPerWeek} hours/week...`);
       const response = await fetch(
         `http://localhost:5050/api/matching/student/${user.id}/apply/${selectedInternship.id}`,
-        { method: 'POST' }
+        { 
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ hours_per_week: hoursPerWeek })
+        }
       );
       
       const data = await response.json();
       
       if (data.success) {
         alert('✅ Application submitted successfully!');
+        setShowHoursModal(false);
+        setHoursPerWeek(20); // Reset to default
         handleCloseDetails();
       } else {
-        alert('❌ Failed to submit application');
+        alert(`❌ ${data.message || 'Failed to submit application'}`);
       }
     } catch (error) {
       console.error('Error applying to internship:', error);
@@ -1420,69 +1441,196 @@ function StudentDashboard() {
             {/* Welcome Banner */}
             <div className="welcome-banner">
               <h2>Welcome back, {user.full_name.split(' ')[0]}!</h2>
+              <p>Track your internship progress and manage your training activities</p>
             </div>
 
             {/* Stats Cards */}
-            {console.log('🎓 Certificate state in render:', certificate)}
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-icon" style={{ backgroundColor: '#e3f2fd' }}>
-                  <svg width="24" height="24" fill="#1e88e5" viewBox="0 0 24 24">
-                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-                  </svg>
+            {console.log('Certificate state in render:', certificate)}
+            <div style={{ marginTop: '20px' }}>
+              <h3>Quick Stats</h3>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                gap: '24px',
+                marginTop: '20px'
+              }}>
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #bae6fd',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('internships')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#0369a1', fontSize: '16px', fontWeight: '600' }}>Matched Internships</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>
+                    {matchedInternshipsCount}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#0369a1', margin: '8px 0 0 0' }}>
+                    Internships matching your profile
+                  </p>
                 </div>
-                <div className="stat-content">
-                  <h3>{matchedInternshipsCount}</h3>
-                  <p>Matched Internships</p>
+                
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #bbf7d0',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('applications')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#15803d', fontSize: '16px', fontWeight: '600' }}>Interviews Scheduled</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>
+                    {interviewsCount}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#15803d', margin: '8px 0 0 0' }}>
+                    Upcoming interviews
+                  </p>
                 </div>
-              </div>
+                
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #fde68a',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('notifications')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#92400e', fontSize: '16px', fontWeight: '600' }}>Unread Notifications</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>
+                    {unreadNotificationsCount}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
+                    Pending notifications
+                  </p>
+                </div>
 
-              <div className="stat-card">
-                <div className="stat-icon" style={{ backgroundColor: '#e8f5e9' }}>
-                  <svg width="24" height="24" fill="#43a047" viewBox="0 0 24 24">
-                    <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-                  </svg>
-                </div>
-                <div className="stat-content">
-                  <h3>{interviewsCount}</h3>
-                  <p>Interviews Scheduled</p>
-                </div>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-icon" style={{ backgroundColor: '#fff3e0' }}>
-                  <svg width="24" height="24" fill="#fb8c00" viewBox="0 0 24 24">
-                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-                  </svg>
-                </div>
-                <div className="stat-content">
-                  <h3>{unreadNotificationsCount}</h3>
-                  <p>Unread Notifications</p>
-                </div>
-              </div>
-
-              {studentData.status === 'completed' && (
-                <div 
-                  className="stat-card" 
-                  style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                {studentData.status === 'completed' && (
+                  <div style={{ 
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #fbcfe8',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
                   onClick={async () => {
                     setShowCertificateModal(true);
                     await loadCertificate();
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  <div className="stat-icon" style={{ backgroundColor: '#f3e5f5' }}>
-                    <svg width="24" height="24" fill="#8e24aa" viewBox="0 0 24 24">
-                      <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-                    </svg>
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#9f1239', fontSize: '16px', fontWeight: '600' }}>Certificate</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#881337' }}>
+                      Check
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#9f1239', margin: '8px 0 0 0' }}>
+                      View your certificate
+                    </p>
                   </div>
-                  <div className="stat-content">
-                    <h3>✓</h3>
-                    <p>View Certificate</p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </>
         )}
@@ -2667,7 +2815,62 @@ function StudentDashboard() {
                               {index < plan.weeks.length - 1 && <div className="timeline-line"></div>}
                               <div className="timeline-content">
                                 <div className="timeline-task-header">
-                                  <span className="timeline-task-name">{week.tasks || `Week ${week.week_number}`}</span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                                    <span className="timeline-task-name">{week.tasks || `Week ${week.week_number}`}</span>
+                                    {week.due_date && (() => {
+                                      const now = new Date();
+                                      const dueDate = new Date(week.due_date);
+                                      const diffMs = dueDate - now;
+                                      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                      const diffDays = Math.floor(diffHours / 24);
+                                      const remainingHours = diffHours % 24;
+                                      const isOverdue = diffMs < 0;
+                                      const isUrgent = diffHours <= 24 && diffHours > 0; // Less than or equal to 1 day
+                                      
+                                      return (
+                                        <div style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          fontSize: '13px',
+                                          color: isOverdue ? '#dc2626' : isUrgent ? '#dc2626' : '#6b7280',
+                                          fontWeight: '500',
+                                          background: isUrgent ? '#fee2e2' : 'transparent',
+                                          padding: isUrgent ? '4px 8px' : '0',
+                                          borderRadius: isUrgent ? '6px' : '0',
+                                          border: isUrgent ? '1px solid #fca5a5' : 'none'
+                                        }}>
+                                          <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                                          </svg>
+                                          Due: {dueDate.toLocaleDateString('en-US', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                          {isOverdue ? (
+                                            <span style={{ 
+                                              color: '#dc2626', 
+                                              fontWeight: '700',
+                                              fontSize: '12px'
+                                            }}>
+                                              (Overdue)
+                                            </span>
+                                          ) : (
+                                            <span style={{ 
+                                              color: isUrgent ? '#dc2626' : '#059669',
+                                              fontWeight: '600',
+                                              fontSize: '12px'
+                                            }}>
+                                              ({diffDays > 0 ? `${diffDays}d ${remainingHours}h` : `${diffHours}h`} left)
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                   <button 
                                     className="btn-view-task-details"
                                     onClick={() => {
@@ -3058,6 +3261,107 @@ function StudentDashboard() {
                   </div>
                 )}
 
+                {selectedTask.due_date && (
+                  <div style={{ 
+                    background: new Date(selectedTask.due_date) < new Date() 
+                      ? 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)' 
+                      : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    border: new Date(selectedTask.due_date) < new Date() ? '2px solid #ef4444' : '2px solid #3b82f6',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    marginTop: '16px'
+                  }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px',
+                      marginBottom: '12px'
+                    }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: new Date(selectedTask.due_date) < new Date() ? '#ef4444' : '#3b82f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 style={{ 
+                          margin: 0,
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          color: new Date(selectedTask.due_date) < new Date() ? '#dc2626' : '#1e40af'
+                        }}>
+                          {new Date(selectedTask.due_date) < new Date() ? '⚠️ Overdue Submission' : '📅 Submission Deadline'}
+                        </h4>
+                        <p style={{ 
+                          margin: '4px 0 0 0',
+                          fontSize: '13px',
+                          color: new Date(selectedTask.due_date) < new Date() ? '#991b1b' : '#1e3a8a',
+                          opacity: 0.8
+                        }}>
+                          {new Date(selectedTask.due_date) < new Date() ? 'Please submit as soon as possible' : 'Make sure to submit before this date'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.5)',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      marginBottom: '12px'
+                    }}>
+                      <p style={{ 
+                        margin: 0,
+                        fontWeight: '600',
+                        fontSize: '18px',
+                        color: new Date(selectedTask.due_date) < new Date() ? '#dc2626' : '#1e40af'
+                      }}>
+                        {new Date(selectedTask.due_date).toLocaleString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+
+                    {new Date(selectedTask.due_date) > new Date() && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: 'rgba(255, 255, 255, 0.7)',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#1e40af'
+                      }}>
+                        <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                        </svg>
+                        {(() => {
+                          const days = Math.ceil((new Date(selectedTask.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+                          const hours = Math.ceil((new Date(selectedTask.due_date) - new Date()) / (1000 * 60 * 60));
+                          if (days > 1) return `${days} days remaining`;
+                          if (hours > 1) return `${hours} hours remaining`;
+                          return 'Less than 1 hour remaining!';
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Upload Solution Section */}
                 <div className="task-upload-section">
                   <h4>
@@ -3219,7 +3523,7 @@ function StudentDashboard() {
                     alignItems: 'center',
                     gap: '12px'
                   }}>
-                    🎓 Training Completion Certificate
+                    Training Completion Certificate
                   </h2>
                   <p style={{ 
                     margin: '8px 0 0 0', 
@@ -3391,6 +3695,123 @@ function StudentDashboard() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hours Per Week Modal */}
+        {showHoursModal && (
+          <div className="modal-overlay" onClick={() => setShowHoursModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h3>Weekly Working Hours</h3>
+                <button className="close-modal" onClick={() => setShowHoursModal(false)}>
+                  <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="modal-body" style={{ padding: '24px' }}>
+                <p style={{ marginBottom: '20px', color: '#6b7280', fontSize: '15px' }}>
+                  Please enter the number of hours you can dedicate to the internship per week
+                </p>
+                
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    marginBottom: '8px', 
+                    fontWeight: '600',
+                    color: '#374151',
+                    fontSize: '14px'
+                  }}>
+                    Hours per Week (Minimum: 20 hours)
+                  </label>
+                  <input
+                    type="number"
+                    min="20"
+                    value={hoursPerWeek}
+                    onChange={(e) => setHoursPerWeek(parseInt(e.target.value) || 20)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                    onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                  />
+                  {hoursPerWeek < 20 && (
+                    <p style={{ 
+                      marginTop: '8px', 
+                      color: '#ef4444', 
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                      </svg>
+                      Hours per week must be at least 20 hours
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '12px',
+                  marginTop: '24px'
+                }}>
+                  <button
+                    onClick={handleConfirmApplication}
+                    disabled={hoursPerWeek < 20}
+                    style={{
+                      flex: 1,
+                      padding: '12px 24px',
+                      background: hoursPerWeek >= 20 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#d1d5db',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: hoursPerWeek >= 20 ? 'pointer' : 'not-allowed',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                    Confirm Application
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowHoursModal(false);
+                      setHoursPerWeek(20);
+                    }}
+                    style={{
+                      padding: '12px 24px',
+                      background: 'white',
+                      color: '#6b7280',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>

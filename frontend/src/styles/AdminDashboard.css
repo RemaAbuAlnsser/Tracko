@@ -185,11 +185,31 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
   border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .stat-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
+}
+
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.stat-icon svg {
+  width: 28px;
+  height: 28px;
 }
 
 .stat-content {

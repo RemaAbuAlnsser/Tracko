@@ -23,10 +23,12 @@ import weeklyReportRoutes from "./routes/weeklyReport.js";
 import eventRoutes from "./routes/events.js";
 import videoCallRoutes from "./routes/videoCall.js";
 import interviewRoutes from "./routes/interview.js";
+import taskDeadlineRoutes from "./routes/taskDeadlines.js";
 import WeeklyReport from "./models/WeeklyReport.js";
 import Event from "./models/Event.js";
 import Interview from "./models/Interview.js";
 import { sendInterviewReminders } from "./jobs/interviewReminders.js";
+import { setupTaskDeadlineCron } from "./cron/taskDeadlineCron.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +69,7 @@ app.use("/api/weekly-reports", weeklyReportRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/video-call", videoCallRoutes);
 app.use("/api/interviews", interviewRoutes);
+app.use("/api/task-deadlines", taskDeadlineRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -133,4 +136,7 @@ app.listen(PORT, async () => {
   
   // Optional: Run reminders immediately on server start (for testing)
   // await sendInterviewReminders();
+  
+  // Setup cron jobs for task deadline notifications
+  setupTaskDeadlineCron();
 });

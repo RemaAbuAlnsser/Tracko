@@ -27,6 +27,7 @@ function UniversityDashboard() {
     contact_person_university: '',
     contact_person_company: '',
     terms_and_conditions: '',
+    training_hours: '',
     status: 'pending'
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +45,8 @@ function UniversityDashboard() {
   const [studentsFilterStatus, setStudentsFilterStatus] = useState('all');
   const [selectedReport, setSelectedReport] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [registrationRequests, setRegistrationRequests] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -88,6 +91,39 @@ function UniversityDashboard() {
       console.error('Error loading university data:', error);
     }
   };
+
+  const loadNotifications = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('📧 Loading notifications for user:', user.id);
+      const response = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📧 Notifications response:', data);
+        setNotifications(data.notifications || data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      await fetch(`http://localhost:5050/api/notifications/${notificationId}/read`, {
+        method: 'PUT'
+      });
+      loadNotifications();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user && activeMenu === 'notifications') {
+      loadNotifications();
+    }
+  }, [user, activeMenu]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -229,6 +265,7 @@ function UniversityDashboard() {
   useEffect(() => {
     if (activeMenu === 'dashboard' && universityData.id) {
       loadStatistics();
+      loadRegistrationRequests();
     }
   }, [activeMenu, universityData.id]);
 
@@ -302,6 +339,7 @@ function UniversityDashboard() {
           contact_person_university: '',
           contact_person_company: '',
           terms_and_conditions: '',
+          training_hours: '',
           status: 'pending'
         });
         setSelectedCompany('');
@@ -393,6 +431,91 @@ function UniversityDashboard() {
       }
     } catch (error) {
       console.error('Error loading statistics:', error);
+    }
+  };
+
+  const loadRegistrationRequests = async () => {
+    if (!universityData.id) return;
+    
+    try {
+      console.log('📋 Loading registration requests for university:', universityData.id);
+      const response = await fetch(`http://localhost:5050/api/universities/${universityData.id}/registration-requests`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log('✅ Loaded registration requests:', data.data);
+        setRegistrationRequests(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading registration requests:', error);
+    }
+  };
+
+  const handleApproveRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to approve this student registration?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/universities/registration-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ universityId: universityData.id }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Student registration approved successfully!' });
+        loadRegistrationRequests();
+        loadStatistics();
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to approve request' });
+      }
+    } catch (error) {
+      console.error('Approve error:', error);
+      setMessage({ type: 'error', text: 'Failed to approve request' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to reject this student registration?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/universities/registration-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ universityId: universityData.id }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Student registration rejected successfully!' });
+        loadRegistrationRequests();
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to reject request' });
+      }
+    } catch (error) {
+      console.error('Reject error:', error);
+      setMessage({ type: 'error', text: 'Failed to reject request' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -775,6 +898,135 @@ function UniversityDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Student Registration Requests Section */}
+              {registrationRequests.length > 0 && (
+                <div style={{ marginTop: '40px' }}>
+                  <h3 style={{ marginBottom: '20px', color: '#1f2937', fontSize: '20px', fontWeight: '600' }}>
+                    Pending Student Registration Requests
+                  </h3>
+                  <div style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                    overflow: 'hidden'
+                  }}>
+                    <table style={{ 
+                      width: '100%', 
+                      borderCollapse: 'collapse'
+                    }}>
+                      <thead>
+                        <tr style={{ 
+                          background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                          borderBottom: '2px solid #bae6fd'
+                        }}>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'left', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Student Name</th>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'left', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Email</th>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'left', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Requested At</th>
+                          <th style={{ 
+                            padding: '16px', 
+                            textAlign: 'center', 
+                            fontWeight: '600',
+                            color: '#0369a1',
+                            fontSize: '14px'
+                          }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {registrationRequests.map((request, index) => (
+                          <tr key={request.id} style={{ 
+                            borderBottom: index < registrationRequests.length - 1 ? '1px solid #e5e7eb' : 'none',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <td style={{ 
+                              padding: '16px',
+                              color: '#1f2937',
+                              fontSize: '14px'
+                            }}>{request.full_name}</td>
+                            <td style={{ 
+                              padding: '16px',
+                              color: '#6b7280',
+                              fontSize: '14px'
+                            }}>{request.email}</td>
+                            <td style={{ 
+                              padding: '16px',
+                              color: '#6b7280',
+                              fontSize: '14px'
+                            }}>{new Date(request.created_at).toLocaleString()}</td>
+                            <td style={{ 
+                              padding: '16px',
+                              textAlign: 'center'
+                            }}>
+                              <button 
+                                onClick={() => handleApproveRequest(request.id)}
+                                disabled={loading}
+                                style={{
+                                  padding: '8px 16px',
+                                  marginRight: '8px',
+                                  backgroundColor: '#10b981',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: loading ? 'not-allowed' : 'pointer',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  transition: 'background-color 0.2s',
+                                  opacity: loading ? 0.6 : 1
+                                }}
+                                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#059669')}
+                                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#10b981')}
+                              >
+                                ✓ Approve
+                              </button>
+                              <button 
+                                onClick={() => handleRejectRequest(request.id)}
+                                disabled={loading}
+                                style={{
+                                  padding: '8px 16px',
+                                  backgroundColor: '#ef4444',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: loading ? 'not-allowed' : 'pointer',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  transition: 'background-color 0.2s',
+                                  opacity: loading ? 0.6 : 1
+                                }}
+                                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#dc2626')}
+                                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#ef4444')}
+                              >
+                                ✕ Reject
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1002,16 +1254,31 @@ function UniversityDashboard() {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Agreement Duration (months)</label>
-                  <input 
-                    type="number" 
-                    name="agreement_duration"
-                    value={partnershipData.agreement_duration}
-                    onChange={handlePartnershipInputChange}
-                    min="1"
-                    placeholder="12"
-                  />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Agreement Duration (months)</label>
+                    <input 
+                      type="number" 
+                      name="agreement_duration"
+                      value={partnershipData.agreement_duration}
+                      onChange={handlePartnershipInputChange}
+                      min="1"
+                      placeholder="12"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Required Training Hours *</label>
+                    <input 
+                      type="number" 
+                      name="training_hours"
+                      value={partnershipData.training_hours}
+                      onChange={handlePartnershipInputChange}
+                      min="1"
+                      placeholder="e.g., 240"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="form-row">
@@ -1599,8 +1866,73 @@ function UniversityDashboard() {
 
         {activeMenu === 'notifications' && (
           <div className="dashboard-content">
-            <h2>Notifications</h2>
-            <p>No new notifications</p>
+            <div className="manage-header">
+              <h1>Notifications</h1>
+              <p>View all your notifications and updates</p>
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="empty-state">
+                <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <h3>No Notifications Yet</h3>
+                <p>You'll see notifications here when you receive them</p>
+              </div>
+            ) : (
+              <div className="notifications-list">
+                {notifications.map(notification => (
+                  <div 
+                    key={notification.id} 
+                    className={`notification-card ${!notification.is_read ? 'unread' : ''}`}
+                  >
+                    <div className="notification-icon">
+                      {notification.type === 'training_completion' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : notification.type === 'application' ? (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="notification-content">
+                      <h4>{notification.title}</h4>
+                      <p>{notification.message}</p>
+                      <span className="notification-time">
+                        {new Date(notification.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    {!notification.is_read && (
+                      <>
+                        <button 
+                          className="mark-read-btn"
+                          onClick={() => markAsRead(notification.id)}
+                          title="Mark as read"
+                        >
+                          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Read
+                        </button>
+                        <div className="unread-indicator"></div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

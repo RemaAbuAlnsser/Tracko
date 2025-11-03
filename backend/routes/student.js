@@ -393,6 +393,44 @@ router.get("/:userId/trainers", async (req, res) => {
   }
 });
 
+// Get active students count for a company
+router.get("/company/:companyId/active", async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    
+    const query = `
+      SELECT COUNT(DISTINCT s.id) as count
+      FROM Students s
+      INNER JOIN Internship_Matches im ON s.id = im.student_id
+      INNER JOIN Internships i ON im.internship_id = i.id
+      WHERE i.company_id = ? 
+      AND im.status = 'accepted'
+      AND s.status IN ('in_training', 'completed')
+    `;
+    
+    db.query(query, [companyId], (err, results) => {
+      if (err) {
+        console.error("Error fetching active students count:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      res.json({
+        success: true,
+        count: results[0].count
+      });
+    });
+  } catch (error) {
+    console.error("Get active students count error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Get student certificate
 router.get("/:studentId/certificate", async (req, res) => {
   try {

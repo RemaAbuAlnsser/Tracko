@@ -86,6 +86,13 @@ function CompanyDashboard() {
   const [selectedStudentsForCall, setSelectedStudentsForCall] = useState([]);
   const [applicantsForMeeting, setApplicantsForMeeting] = useState([]);
   
+  // Dashboard Statistics State
+  const [dashboardStats, setDashboardStats] = useState({
+    internshipsCount: 0,
+    applicantsCount: 0,
+    trainersCount: 0,
+    activeStudentsCount: 0
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -114,7 +121,7 @@ function CompanyDashboard() {
           const data = await response.json();
           console.log('📥 Loaded company data:', data);
           if (data.success && data.company) {
-            setCompanyData({
+            const companyInfo = {
               id: data.company.id,
               name: data.company.name || parsedUser.full_name,
               email: data.company.email || parsedUser.email,
@@ -128,7 +135,11 @@ function CompanyDashboard() {
               address: data.company.address || '123 Tech Street, Suite 400, San Francisco, CA 94105',
               description: data.company.description || 'TechCorp is a leading software development company.',
               logo: data.company.logo || ''
-            });
+            };
+            setCompanyData(companyInfo);
+            
+            // Load dashboard stats after company data is loaded
+            loadDashboardStatsForCompany(data.company.id, parsedUser.email);
           } else {
             // Company not found in database, use user data
             console.log('⚠️ Company not found, using default values');
@@ -472,6 +483,32 @@ function CompanyDashboard() {
       }
     } catch (error) {
       console.error('Load internships error:', error);
+    }
+  };
+
+  const loadDashboardStatsForCompany = async (companyId, companyEmail) => {
+    if (!companyId) return;
+
+    try {
+      console.log('📊 Loading dashboard stats for company:', companyId);
+      
+      // Load all stats from single endpoint
+      const response = await fetch(`http://localhost:5050/api/companies/${companyId}/stats`);
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ Stats loaded:', data.data);
+        setDashboardStats({
+          internshipsCount: data.data.internshipsCount || 0,
+          applicantsCount: data.data.applicantsCount || 0,
+          trainersCount: data.data.trainersCount || 0,
+          activeStudentsCount: data.data.activeStudentsCount || 0
+        });
+      } else {
+        console.error('❌ Failed to load stats:', data.message);
+      }
+    } catch (error) {
+      console.error('❌ Error loading dashboard stats:', error);
     }
   };
 
@@ -1145,7 +1182,12 @@ function CompanyDashboard() {
         <nav className="company-nav">
           <button 
             className={`nav-item ${activeMenu === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('dashboard')}
+            onClick={() => {
+              setActiveMenu('dashboard');
+              if (companyData.id && user) {
+                loadDashboardStatsForCompany(companyData.id, user.email);
+              }
+            }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -1275,12 +1317,182 @@ function CompanyDashboard() {
             <div className="dashboard-content">
               <h2>Company Overview</h2>
               <p><strong>Email:</strong> {user.email}</p>
-              <p><strong>User Type:</strong> {user.user_type}</p>
-              <p><strong>User ID:</strong> {user.id}</p>
+              <p><strong>Company:</strong> {companyData.name || user.full_name}</p>
               
               <div style={{ marginTop: '30px' }}>
                 <h3>Quick Stats</h3>
-                <p>Dashboard content coming soon...</p>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                  gap: '24px',
+                  marginTop: '20px'
+                }}>
+                  <div style={{ 
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #bae6fd',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#0369a1', fontSize: '16px', fontWeight: '600' }}>Internships</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>
+                      {dashboardStats.internshipsCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#0369a1', margin: '8px 0 0 0' }}>
+                      Total internship opportunities
+                    </p>
+                  </div>
+                  
+                  <div style={{ 
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #bbf7d0',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#15803d', fontSize: '16px', fontWeight: '600' }}>Applicants</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>
+                      {dashboardStats.applicantsCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#15803d', margin: '8px 0 0 0' }}>
+                      Total applicants
+                    </p>
+                  </div>
+                  
+                  <div style={{ 
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #fde68a',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#92400e', fontSize: '16px', fontWeight: '600' }}>Trainers</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>
+                      {dashboardStats.trainersCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
+                      Available trainers
+                    </p>
+                  </div>
+                  
+                  <div style={{ 
+                    padding: '24px', 
+                    background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', 
+                    borderRadius: '16px',
+                    border: '1px solid #fbcfe8',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                  }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                          <path d="M12 14l9-5-9-5-9 5 9 5z" />
+                          <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
+                        </svg>
+                      </div>
+                      <h4 style={{ margin: 0, color: '#9f1239', fontSize: '16px', fontWeight: '600' }}>Active Students</h4>
+                    </div>
+                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#881337' }}>
+                      {dashboardStats.activeStudentsCount}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#9f1239', margin: '8px 0 0 0' }}>
+                      Students in training
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </>
@@ -1604,9 +1816,9 @@ function CompanyDashboard() {
                       onChange={handleInternshipInputChange}
                     >
                       <option value="">Not Specified</option>
-                      <option value="onsite">🏢 Onsite</option>
-                      <option value="online">💻 Online</option>
-                      <option value="hybrid">🔄 Hybrid</option>
+                      <option value="onsite">Onsite</option>
+                      <option value="online">Online</option>
+                      <option value="hybrid">Hybrid</option>
                     </select>
                   </div>
                 </div>
@@ -2214,7 +2426,7 @@ function CompanyDashboard() {
                       )
                       .map((applicant, index) => (
                   <div key={applicant.id || index} className="applicant-card accepted-card">
-                    <div className="accepted-badge">✓ Accepted</div>
+                    <div className="accepted-badge">Accepted</div>
                     <div className="applicant-header">
                       <div className="applicant-avatar">
                         {applicant.student_img ? (
@@ -2315,7 +2527,7 @@ function CompanyDashboard() {
                             <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                             <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
                           </svg>
-                          {applicant.final_report.certificate_file ? '✓ Certificate Uploaded' : 'View Final Report & Upload Certificate'}
+                          {applicant.final_report.certificate_file ? 'Certificate Uploaded' : 'View Final Report & Upload Certificate'}
                         </button>
                       </div>
                     )}
@@ -2972,7 +3184,7 @@ function CompanyDashboard() {
                           alignItems: 'center',
                           justifyContent: 'space-between'
                         }}>
-                          <span style={{ fontSize: '14px', color: '#0c4a6e' }}>✓ Certificate ready to upload</span>
+                          <span style={{ fontSize: '14px', color: '#0c4a6e' }}>Certificate ready to upload</span>
                           <button
                             onClick={() => setCertificateFile(null)}
                             style={{

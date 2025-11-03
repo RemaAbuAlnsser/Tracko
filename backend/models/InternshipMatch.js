@@ -195,12 +195,16 @@ class InternshipMatch {
         im.*,
         i.title as internship_title,
         i.description as internship_description,
+        i.capacity,
+        i.number_of_students,
         c.name as company_name,
         c.logo as company_logo
       FROM Internship_Matches im
       INNER JOIN Internships i ON im.internship_id = i.id
       INNER JOIN Company c ON i.company_id = c.id
       WHERE im.student_id = ?
+        AND i.capacity > 0
+        AND (i.number_of_students IS NULL OR i.number_of_students < i.capacity)
       ORDER BY im.match_percentage DESC
       LIMIT ?
     `;
@@ -339,30 +343,78 @@ class InternshipMatch {
             });
           }
 
-          // If accepting, decrease capacity
+          // If accepting, increase number_of_students
           if (status === 'accepted') {
-            const decreaseCapacityQuery = `
-              UPDATE Internships i
-              INNER JOIN Internship_Matches im ON i.id = im.internship_id
-              SET i.capacity = i.capacity - 1
-              WHERE im.id = ? AND i.capacity > 0
+            // Get internship_id first
+            const getInternshipQuery = `
+              SELECT internship_id FROM Internship_Matches WHERE id = ?
             `;
-
-            db.query(decreaseCapacityQuery, [matchId], (err, result) => {
+            
+            db.query(getInternshipQuery, [matchId], (err, matches) => {
               if (err) {
                 return db.rollback(() => {
                   reject(err);
                 });
               }
+              
+              if (matches.length === 0) {
+                return db.rollback(() => {
+                  reject(new Error('Match not found'));
+                });
+              }
+              
+              const internshipId = matches[0].internship_id;
+              
+              // Increase number_of_students
+              const increaseStudentsQuery = `
+                UPDATE Internships 
+                SET number_of_students = number_of_students + 1
+                WHERE id = ?
+              `;
 
-              // Commit transaction
-              db.commit((err) => {
+              db.query(increaseStudentsQuery, [internshipId], (err, result) => {
                 if (err) {
                   return db.rollback(() => {
                     reject(err);
                   });
                 }
-                resolve(result);
+
+                // Check if internship is now full
+                const checkFullQuery = `
+                  SELECT capacity, number_of_students, title
+                  FROM Internships 
+                  WHERE id = ?
+                `;
+                
+                db.query(checkFullQuery, [internshipId], async (err, internships) => {
+                  if (err) {
+                    return db.rollback(() => {
+                      reject(err);
+                    });
+                  }
+                  
+                  const internship = internships[0];
+                  
+                  // Commit transaction first
+                  db.commit(async (err) => {
+                    if (err) {
+                      return db.rollback(() => {
+                        reject(err);
+                      });
+                    }
+                    
+                    // After commit, check if full and send notifications
+                    if (internship && internship.number_of_students >= internship.capacity) {
+                      console.log(`🎉 Internship "${internship.title}" is now full!`);
+                      // Send notifications asynchronously (don't wait)
+                      this.sendInternshipFullNotifications(internshipId).catch(err => {
+                        console.error('Error sending full notifications:', err);
+                      });
+                    }
+                    
+                    resolve(result);
+                  });
+                });
               });
             });
           } else {
@@ -382,22 +434,138 @@ class InternshipMatch {
   }
 
   // Apply to internship
-  static applyToInternship(studentId, internshipId) {
-    const query = `
-      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, match_percentage)
-      VALUES (?, ?, TRUE, NOW(), 0)
-      ON DUPLICATE KEY UPDATE applied = TRUE, applied_at = NOW()
+  static async applyToInternship(studentId, internshipId, hoursPerWeek = null) {
+    // First, check if internship is full
+    const checkCapacityQuery = `
+      SELECT capacity, number_of_students 
+      FROM Internships 
+      WHERE id = ?
     `;
     
-    return new Promise((resolve, reject) => {
-      db.query(query, [studentId, internshipId], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
+    const internship = await new Promise((resolve, reject) => {
+      db.query(checkCapacityQuery, [internshipId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0]);
       });
     });
+    
+    if (!internship) {
+      throw new Error('Internship not found');
+    }
+    
+    // Check if internship has capacity and is not full
+    if (!internship.capacity || internship.capacity === 0) {
+      throw new Error('This internship has no available spots (capacity is 0).');
+    }
+    
+    if (internship.number_of_students >= internship.capacity) {
+      throw new Error('Internship is full. No more spots available.');
+    }
+    
+    // Apply to internship
+    const query = `
+      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, match_percentage, hours_per_week)
+      VALUES (?, ?, TRUE, NOW(), 0, ?)
+      ON DUPLICATE KEY UPDATE applied = TRUE, applied_at = NOW(), hours_per_week = VALUES(hours_per_week)
+    `;
+    
+    const result = await new Promise((resolve, reject) => {
+      db.query(query, [studentId, internshipId, hoursPerWeek], (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
+    
+    // Note: number_of_students will be incremented when company accepts the application
+    // Not when student applies
+    
+    return result;
+  }
+  
+  // Send notifications when internship is full
+  static async sendInternshipFullNotifications(internshipId) {
+    try {
+      // Import Notification model dynamically to avoid circular dependency
+      const Notification = (await import('./Notification.js')).default;
+      
+      // Get internship details
+      const internshipQuery = `
+        SELECT i.*, c.name as company_name, c.id as company_id
+        FROM Internships i
+        LEFT JOIN Company c ON i.company_id = c.id
+        WHERE i.id = ?
+      `;
+      
+      const internship = await new Promise((resolve, reject) => {
+        db.query(internshipQuery, [internshipId], (err, results) => {
+          if (err) reject(err);
+          else resolve(results[0]);
+        });
+      });
+      
+      if (!internship) return;
+      
+      console.log(`🎉 Internship "${internship.title}" is now full! Sending notifications...`);
+      
+      // Get company user
+      if (internship.company_id) {
+        const companyUserQuery = `
+          SELECT u.id 
+          FROM Users u 
+          WHERE u.email = (SELECT email FROM Company WHERE id = ?) 
+          AND u.user_type = 'company'
+        `;
+        
+        const companyUsers = await new Promise((resolve, reject) => {
+          db.query(companyUserQuery, [internship.company_id], (err, results) => {
+            if (err) reject(err);
+            else resolve(results);
+          });
+        });
+        
+        // Send notification to company
+        for (const user of companyUsers) {
+          await Notification.create({
+            user_id: user.id,
+            title: 'Internship Capacity Reached',
+            message: `The internship "${internship.title}" has reached its full capacity of ${internship.capacity} students.`,
+            type: 'internship_full'
+          });
+          console.log(`✅ Notification sent to company user: ${user.id}`);
+        }
+      }
+      
+      // Get trainer if assigned
+      if (internship.trainer_id) {
+        const trainerUserQuery = `
+          SELECT u.id 
+          FROM Users u 
+          JOIN Trainers t ON u.id = t.user_id 
+          WHERE t.id = ?
+        `;
+        
+        const trainerUsers = await new Promise((resolve, reject) => {
+          db.query(trainerUserQuery, [internship.trainer_id], (err, results) => {
+            if (err) reject(err);
+            else resolve(results);
+          });
+        });
+        
+        // Send notification to trainer
+        for (const user of trainerUsers) {
+          await Notification.create({
+            user_id: user.id,
+            title: 'Internship Capacity Reached',
+            message: `The internship "${internship.title}" has reached its full capacity of ${internship.capacity} students.`,
+            type: 'internship_full'
+          });
+          console.log(`✅ Notification sent to trainer user: ${user.id}`);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error sending internship full notifications:', error);
+    }
   }
 
   // Get applicants for a company's internship
@@ -689,6 +857,7 @@ class InternshipMatch {
         i.requirements as internship_requirements,
         i.specialization as internship_specialization,
         i.capacity,
+        i.number_of_students,
         i.status as internship_status,
         i.min_gpa,
         i.work_mode,
@@ -699,6 +868,8 @@ class InternshipMatch {
       INNER JOIN Internships i ON im.internship_id = i.id
       INNER JOIN Company c ON i.company_id = c.id
       WHERE im.student_id = ? AND im.saved = TRUE
+        AND i.capacity > 0
+        AND (i.number_of_students IS NULL OR i.number_of_students < i.capacity)
       ORDER BY im.last_updated DESC
     `;
     

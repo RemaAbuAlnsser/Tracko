@@ -43,6 +43,15 @@ router.post("/student/:userId/run", async (req, res) => {
       internships = await Internship.findAll();
       internships = internships.filter(i => i.status === 'open');
     }
+    
+    // Filter out full internships (where number_of_students >= capacity)
+    internships = internships.filter(i => {
+      // If capacity is 0 or null, skip this internship (no spots available)
+      if (!i.capacity || i.capacity === 0) return false;
+      // Check if there are available spots
+      const currentStudents = i.number_of_students || 0;
+      return currentStudents < i.capacity;
+    });
 
     if (internships.length === 0) {
       return res.status(200).json({
@@ -52,7 +61,7 @@ router.post("/student/:userId/run", async (req, res) => {
       });
     }
 
-    console.log(`📊 Found ${internships.length} internships to match against`);
+    console.log(`📊 Found ${internships.length} available internships to match against (excluding full internships)`);
 
     // 4. Parse CV analysis data to get GPA and work mode
     let cvData = cv.analysis_data;

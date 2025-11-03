@@ -73,6 +73,157 @@ router.post("/submit", async (req, res) => {
       console.log(`✅ Task submission created with ID: ${submissionId}`);
     }
 
+    // Update completed hours if this is a new submission (not resubmission)
+    if (!isResubmission) {
+      try {
+        // Get student's internship match with hours_per_week
+        const matchQuery = `
+          SELECT im.id, im.hours_per_week, im.completed_hours, im.internship_id,
+                 s.university_id, i.company_id
+          FROM Internship_Matches im
+          JOIN Students s ON im.student_id = s.id
+          JOIN Internships i ON im.internship_id = i.id
+          WHERE im.student_id = ? AND im.status = 'accepted'
+          LIMIT 1
+        `;
+        
+        const matchResult = await new Promise((resolve, reject) => {
+          db.query(matchQuery, [student_id], (err, results) => {
+            if (err) reject(err);
+            else resolve(results);
+          });
+        });
+
+        if (matchResult.length > 0 && matchResult[0].hours_per_week) {
+          const match = matchResult[0];
+          const newCompletedHours = (match.completed_hours || 0) + match.hours_per_week;
+          
+          // Update completed_hours
+          const updateHoursQuery = `
+            UPDATE Internship_Matches 
+            SET completed_hours = ? 
+            WHERE id = ?
+          `;
+          
+          await new Promise((resolve, reject) => {
+            db.query(updateHoursQuery, [newCompletedHours, match.id], (err, results) => {
+              if (err) reject(err);
+              else resolve(results);
+            });
+          });
+          
+          console.log(`⏰ Updated completed hours: ${match.completed_hours || 0} → ${newCompletedHours}`);
+          
+          // Check if student reached required training hours
+          const partnershipQuery = `
+            SELECT training_hours 
+            FROM University_Company_Partnerships 
+            WHERE university_id = ? AND company_id = ?
+          `;
+          
+          const partnershipResult = await new Promise((resolve, reject) => {
+            db.query(partnershipQuery, [match.university_id, match.company_id], (err, results) => {
+              if (err) reject(err);
+              else resolve(results);
+            });
+          });
+          
+          if (partnershipResult.length > 0 && partnershipResult[0].training_hours) {
+            const requiredHours = partnershipResult[0].training_hours;
+            
+            if (newCompletedHours >= requiredHours) {
+              console.log(`🎉 Student completed required training hours! (${newCompletedHours}/${requiredHours})`);
+              
+              // Get student and university info
+              const studentInfoQuery = `
+                SELECT s.id, u.full_name, s.user_id as student_user_id, 
+                       s.university_id, uni.email as university_email
+                FROM Students s
+                JOIN Users u ON s.user_id = u.id
+                LEFT JOIN Universities uni ON s.university_id = uni.id
+                WHERE s.id = ?
+              `;
+              
+              const studentInfoResult = await new Promise((resolve, reject) => {
+                db.query(studentInfoQuery, [student_id], (err, results) => {
+                  if (err) reject(err);
+                  else resolve(results);
+                });
+              });
+              
+              if (studentInfoResult.length === 0) {
+                console.log('⚠️  Student info not found');
+                return;
+              }
+              
+              const studentInfo = studentInfoResult[0];
+              console.log(`📊 Student info:`, {
+                name: studentInfo.full_name,
+                university_id: studentInfo.university_id,
+                university_email: studentInfo.university_email
+              });
+              
+              // Get trainer user_id
+              const trainerUserQuery = `SELECT user_id FROM Trainers WHERE id = ?`;
+              const trainerUserResult = await new Promise((resolve, reject) => {
+                db.query(trainerUserQuery, [trainer_id], (err, results) => {
+                  if (err) reject(err);
+                  else resolve(results);
+                });
+              });
+              
+              const completionMessage = `${studentInfo.full_name} has completed all required training hours (${newCompletedHours}/${requiredHours} hours)!`;
+              
+              // Send notification to trainer
+              if (trainerUserResult.length > 0) {
+                console.log(`📧 Sending notification to trainer (user_id: ${trainerUserResult[0].user_id})`);
+                await Notification.create({
+                  user_id: trainerUserResult[0].user_id,
+                  title: 'Training Hours Completed',
+                  message: completionMessage,
+                  type: 'training_completion'
+                });
+                console.log(`✅ Completion notification sent to trainer`);
+              } else {
+                console.log('⚠️  Trainer user_id not found');
+              }
+              
+              // Send notification to university
+              if (studentInfo.university_email) {
+                // Get university user_id from email
+                const uniUserQuery = `SELECT id FROM Users WHERE email = ?`;
+                const uniUserResult = await new Promise((resolve, reject) => {
+                  db.query(uniUserQuery, [studentInfo.university_email], (err, results) => {
+                    if (err) reject(err);
+                    else resolve(results);
+                  });
+                });
+                
+                if (uniUserResult.length > 0) {
+                  const universityUserId = uniUserResult[0].id;
+                  console.log(`📧 Sending notification to university (user_id: ${universityUserId})`);
+                  await Notification.create({
+                    user_id: universityUserId,
+                    title: 'Student Completed Training Hours',
+                    message: completionMessage,
+                    type: 'training_completion'
+                  });
+                  console.log(`✅ Completion notification sent to university`);
+                } else {
+                  console.log(`⚠️  University user not found for email: ${studentInfo.university_email}`);
+                }
+              } else {
+                console.log('⚠️  University email not found');
+              }
+            }
+          }
+        }
+      } catch (hoursError) {
+        console.error('Error updating completed hours:', hoursError);
+        // Don't fail the request if hours update fails
+      }
+    }
+
     // Send notification to trainer
     try {
       // Get trainer user_id

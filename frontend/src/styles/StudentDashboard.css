@@ -224,23 +224,47 @@
 }
 
 .stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: white;
 }
 
-.stat-content h3 {
+.stat-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.stat-icon.blue {
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+}
+
+.stat-icon.green {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+}
+
+.stat-icon.purple {
+  background: linear-gradient(135deg, #9f7aea 0%, #805ad5 100%);
+}
+
+.stat-icon.orange {
+  background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+}
+
+.stat-content h3,
+.stat-info h3 {
   margin: 0 0 4px 0;
   font-size: 28px;
   font-weight: 700;
   color: #1f2937;
 }
 
-.stat-content p {
+.stat-content p,
+.stat-info p {
   margin: 0;
   font-size: 14px;
   color: #6b7280;
