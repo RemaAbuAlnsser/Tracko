@@ -3924,7 +3924,6 @@ function TrainerDashboard() {
         </div>
       )}
 
-<<<<<<< HEAD
       {/* Student Selection Modal for Video Call */}
       {showStudentSelectionModal && (
         <div className="modal-overlay" onClick={() => setShowStudentSelectionModal(false)}>
@@ -4027,7 +4026,6 @@ function TrainerDashboard() {
         </div>
       )}
 
-=======
       {/* Edit Plan Modal */}
       {showEditPlanModal && editingPlan && (
         <div className="modal-overlay" onClick={() => setShowEditPlanModal(false)} style={{
@@ -4412,7 +4410,6 @@ function TrainerDashboard() {
           </div>
         </div>
       )}
->>>>>>> origin/mergevideocall
     </div>
   );
 }
