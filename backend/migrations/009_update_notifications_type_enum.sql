@@ -12,6 +12,7 @@ MODIFY COLUMN type ENUM(
   'event',
   'video_call',
   'registration_approved',
+  'registration_request',
   'task_deadline'
 ) NOT NULL DEFAULT 'general';
 
