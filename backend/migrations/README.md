@@ -32,11 +32,19 @@ mysql -u root -p tracko_db < 010_complete_merge_updates.sql
 - `hours_per_week` في Internship_Matches
 - `due_date` في Plan_Weeks
 
+### 5. Migration 011: Add training hours columns
+```bash
+mysql -u root -p tracko_db < 011_add_training_hours_columns.sql
+```
+**الغرض:** إضافة أعمدة تتبع ساعات التدريب:
+- `training_hours` في University_Company_Partnerships (إجمالي الساعات المطلوبة)
+- `completed_hours` في Internship_Matches (الساعات المكتملة للطالب)
+
 ## تشغيل جميع الـ Migrations دفعة واحدة
 
 ```bash
 cd backend/migrations
-for file in 007_*.sql 008_*.sql 009_*.sql 010_*.sql; do
+for file in 007_*.sql 008_*.sql 009_*.sql 010_*.sql 011_*.sql; do
   echo "Running $file..."
   mysql -u root -p tracko_db < "$file"
 done
