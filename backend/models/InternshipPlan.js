@@ -241,29 +241,21 @@ class InternshipPlan {
         tasks,
         task_description,
         resources,
-        deliverables,
-        due_date
+        deliverables
       } = weekData;
-
-      console.log(`💾 Inserting week ${week_number} with due_date: ${due_date}`);
 
       const query = `
         INSERT INTO Plan_Weeks 
-        (plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables, due_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       db.query(
         query,
-        [plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables, due_date],
+        [plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables],
         (err, result) => {
-          if (err) {
-            console.error(`❌ Error inserting week: ${err.message}`);
-            reject(err);
-          } else {
-            console.log(`✅ Week ${week_number} inserted successfully`);
-            resolve(result);
-          }
+          if (err) reject(err);
+          else resolve(result);
         }
       );
     });
@@ -279,30 +271,22 @@ class InternshipPlan {
         tasks,
         task_description,
         resources,
-        deliverables,
-        due_date
+        deliverables
       } = weekData;
-
-      console.log(`💾 Updating week ${weekId} with due_date: ${due_date}`);
 
       const query = `
         UPDATE Plan_Weeks 
         SET title = ?, description = ?, objectives = ?, 
-            tasks = ?, task_description = ?, resources = ?, deliverables = ?, due_date = ?
+            tasks = ?, task_description = ?, resources = ?, deliverables = ?
         WHERE id = ?
       `;
 
       db.query(
         query,
-        [title, description, objectives, tasks, task_description, resources, deliverables, due_date, weekId],
+        [title, description, objectives, tasks, task_description, resources, deliverables, weekId],
         (err, result) => {
-          if (err) {
-            console.error(`❌ Error updating week: ${err.message}`);
-            reject(err);
-          } else {
-            console.log(`✅ Week ${weekId} updated successfully`);
-            resolve(result);
-          }
+          if (err) reject(err);
+          else resolve(result);
         }
       );
     });

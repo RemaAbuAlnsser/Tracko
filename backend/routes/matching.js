@@ -43,15 +43,6 @@ router.post("/student/:userId/run", async (req, res) => {
       internships = await Internship.findAll();
       internships = internships.filter(i => i.status === 'open');
     }
-    
-    // Filter out full internships (where number_of_students >= capacity)
-    internships = internships.filter(i => {
-      // If capacity is 0 or null, skip this internship (no spots available)
-      if (!i.capacity || i.capacity === 0) return false;
-      // Check if there are available spots
-      const currentStudents = i.number_of_students || 0;
-      return currentStudents < i.capacity;
-    });
 
     if (internships.length === 0) {
       return res.status(200).json({
@@ -61,7 +52,7 @@ router.post("/student/:userId/run", async (req, res) => {
       });
     }
 
-    console.log(`📊 Found ${internships.length} available internships to match against (excluding full internships)`);
+    console.log(`📊 Found ${internships.length} internships to match against`);
 
     // 4. Parse CV analysis data to get GPA and work mode
     let cvData = cv.analysis_data;
@@ -366,18 +357,8 @@ router.get("/student/:userId/saved", async (req, res) => {
 router.post("/student/:userId/apply/:internshipId", async (req, res) => {
   try {
     const { userId, internshipId } = req.params;
-    const { hours_per_week } = req.body;
     
     console.log(`📝 Student ${userId} applying to internship ${internshipId}...`);
-    console.log(`⏰ Hours per week: ${hours_per_week}`);
-
-    // Validate hours_per_week
-    if (hours_per_week && hours_per_week < 20) {
-      return res.status(400).json({
-        success: false,
-        message: "Hours per week must be at least 20"
-      });
-    }
 
     // Find student
     const student = await Student.findByUserId(userId);
@@ -388,10 +369,10 @@ router.post("/student/:userId/apply/:internshipId", async (req, res) => {
       });
     }
 
-    // Apply to internship with hours_per_week
-    await InternshipMatch.applyToInternship(student.id, internshipId, hours_per_week);
+    // Apply to internship
+    await InternshipMatch.applyToInternship(student.id, internshipId);
 
-    console.log(`✅ Student ${student.id} applied to internship ${internshipId} with ${hours_per_week} hours/week`);
+    console.log(`✅ Student ${student.id} applied to internship ${internshipId}`);
 
     res.status(200).json({
       success: true,
@@ -501,7 +482,7 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
 
     // Check capacity before accepting
     const checkCapacityQuery = `
-      SELECT i.capacity, i.number_of_students, i.title 
+      SELECT i.capacity, i.title 
       FROM Internships i
       INNER JOIN Internship_Matches im ON i.id = im.internship_id
       WHERE im.id = ?
@@ -524,11 +505,9 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
       }
 
       const internship = results[0];
-      const currentStudents = internship.number_of_students || 0;
       
-      // Check if internship is full
-      if (internship.capacity <= 0 || currentStudents >= internship.capacity) {
-        console.log(`⚠️ Cannot accept: ${internship.title} is full (${currentStudents}/${internship.capacity})`);
+      if (internship.capacity <= 0) {
+        console.log(`⚠️ Cannot accept: ${internship.title} has no available capacity`);
         return res.status(400).json({
           success: false,
           message: "This internship has reached its maximum capacity"
@@ -540,7 +519,7 @@ router.post("/applicant/:matchId/accept", async (req, res) => {
         await InternshipMatch.updateStatus(matchId, 'accepted');
 
         console.log(`✅ Applicant ${matchId} accepted successfully`);
-        console.log(`📈 ${internship.title} students: ${currentStudents} → ${currentStudents + 1} (capacity: ${internship.capacity})`);
+        console.log(`📉 ${internship.title} capacity: ${internship.capacity} → ${internship.capacity - 1}`);
 
         // Send notification to student
         try {
@@ -624,6 +603,89 @@ router.post("/applicant/:matchId/reject", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error"
+    });
+  }
+});
+
+// Get applied students for a specific internship
+router.get('/internship/:internshipId/applied', async (req, res) => {
+  try {
+    const { internshipId } = req.params;
+    
+    console.log(`📋 Getting applied students for internship ${internshipId}...`);
+    
+    const query = `
+      SELECT 
+        s.id as student_id,
+        s.user_id,
+        u.full_name,
+        u.email,
+        s.major,
+        s.academic_year as year_of_study,
+        s.student_img,
+        s.gpa,
+        uni.name as university_name,
+        im.match_percentage,
+        im.applied_at,
+        im.status,
+        (SELECT analysis_data FROM CVs WHERE student_id = s.id ORDER BY id DESC LIMIT 1) as analysis_data
+      FROM Internship_Matches im
+      INNER JOIN Students s ON im.student_id = s.id
+      INNER JOIN Users u ON s.user_id = u.id
+      LEFT JOIN Universities uni ON s.university_id = uni.id
+      WHERE im.internship_id = ? AND im.applied = TRUE AND im.status = 'pending'
+      ORDER BY im.applied_at DESC
+    `;
+    
+    db.query(query, [internshipId], (err, results) => {
+      if (err) {
+        console.error('❌ Error fetching applied students:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Server error'
+        });
+      }
+      
+      // Parse GPA from analysis_data if available
+      const studentsWithGPA = results.map(student => {
+        let gpa = student.gpa;
+        
+        if (!gpa && student.analysis_data) {
+          try {
+            const analysisData = typeof student.analysis_data === 'string'
+              ? JSON.parse(student.analysis_data)
+              : student.analysis_data;
+            
+            gpa = analysisData.gpa || 
+                  analysisData.GPA || 
+                  analysisData.grade_point_average ||
+                  analysisData.overall_gpa ||
+                  null;
+          } catch (e) {
+            console.warn('Failed to parse analysis_data:', e.message);
+          }
+        }
+        
+        return {
+          ...student,
+          gpa: gpa,
+          analysis_data: undefined // Remove from response
+        };
+      });
+      
+      console.log(`✅ Found ${studentsWithGPA.length} applied students for internship ${internshipId}`);
+      
+      res.json({
+        success: true,
+        applicants: studentsWithGPA
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Get applied students error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
     });
   }
 });

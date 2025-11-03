@@ -202,6 +202,63 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// Get company for trainer
+router.get("/:trainerId/company", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    console.log(`🏢 Getting company for trainer ${trainerId}...`);
+    
+    const query = `
+      SELECT 
+        c.id,
+        c.name,
+        c.email,
+        c.phone,
+        c.industry,
+        c.logo,
+        c.website,
+        u.id as user_id,
+        u.full_name
+      FROM Trainers t
+      INNER JOIN Company c ON t.company_id = c.id
+      INNER JOIN Users u ON c.email = u.email
+      WHERE t.id = ?
+    `;
+    
+    db.query(query, [trainerId], (err, results) => {
+      if (err) {
+        console.error("❌ Error fetching trainer company:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      if (results.length === 0) {
+        return res.json({
+          success: true,
+          company: null
+        });
+      }
+      
+      console.log(`✅ Found company for trainer ${trainerId}`);
+      
+      res.json({
+        success: true,
+        company: results[0]
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Get trainer company error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Get accepted students for trainer's internships
 router.get("/:trainerId/students", async (req, res) => {
   try {

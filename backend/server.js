@@ -21,14 +21,20 @@ import taskSubmissionRoutes from "./routes/taskSubmission.js";
 import finalReportRoutes from "./routes/finalReport.js";
 import weeklyReportRoutes from "./routes/weeklyReport.js";
 import taskDeadlineRoutes from "./routes/taskDeadlines.js";
+import eventRoutes from "./routes/events.js";
+import videoCallRoutes from "./routes/videoCall.js";
+import interviewRoutes from "./routes/interview.js";
 import WeeklyReport from "./models/WeeklyReport.js";
+import Event from "./models/Event.js";
+import Interview from "./models/Interview.js";
 import { setupTaskDeadlineCron } from "./cron/taskDeadlineCron.js";
+import { sendInterviewReminders } from "./jobs/interviewReminders.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT =  5050;
+const PORT = process.env.PORT || 5050;
 
 app.use(cors());
 app.use(express.json());
@@ -61,6 +67,9 @@ app.use("/api/task-submissions", taskSubmissionRoutes);
 app.use("/api/final-reports", finalReportRoutes);
 app.use("/api/weekly-reports", weeklyReportRoutes);
 app.use("/api/task-deadlines", taskDeadlineRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/video-call", videoCallRoutes);
+app.use("/api/interviews", interviewRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -85,6 +94,13 @@ async function initializeDatabase() {
   try {
     await WeeklyReport.createTable();
     console.log("✅ Weekly_Reports table initialized");
+    
+    await Interview.createTable();
+    console.log("✅ Interviews table initialized");
+    
+    // Note: Events table should be created manually using scripts/updateEventsTable.js
+    // await Event.createTable();
+    // console.log("✅ Events table initialized");
   } catch (error) {
     console.error("❌ Error initializing database tables:", error);
   }
@@ -96,4 +112,31 @@ app.listen(PORT, async () => {
   
   // Setup cron jobs for task deadline notifications
   setupTaskDeadlineCron();
+  
+  // Schedule daily interview reminders at 9:00 AM
+  const scheduleReminders = () => {
+    const now = new Date();
+    const scheduledTime = new Date();
+    scheduledTime.setHours(9, 0, 0, 0); // 9:00 AM
+    
+    // If it's past 9 AM today, schedule for tomorrow
+    if (now > scheduledTime) {
+      scheduledTime.setDate(scheduledTime.getDate() + 1);
+    }
+    
+    const timeUntilRun = scheduledTime - now;
+    
+    console.log(`⏰ Interview reminders scheduled for ${scheduledTime.toLocaleString()}`);
+    
+    setTimeout(async () => {
+      await sendInterviewReminders();
+      // Reschedule for next day
+      setInterval(sendInterviewReminders, 24 * 60 * 60 * 1000); // Every 24 hours
+    }, timeUntilRun);
+  };
+  
+  scheduleReminders();
+  
+  // Optional: Run reminders immediately on server start (for testing)
+  // await sendInterviewReminders();
 });

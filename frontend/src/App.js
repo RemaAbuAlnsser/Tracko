@@ -10,6 +10,7 @@ import TrainerDashboard from './pages/TrainerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import InternshipDetails from './pages/InternshipDetails';
 import TrainerSubmissionsView from './pages/TrainerSubmissionsView';
+import VideoCallPage from './pages/VideoCallPage';
 import './styles/App.css';
 
 function App() {
@@ -25,6 +26,8 @@ function App() {
       <Route path="/trainer/submissions/:studentId" element={<TrainerSubmissionsView />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/internship-details/:id" element={<InternshipDetails />} />
+      <Route path="/video-call" element={<VideoCallPage />} />
+      <Route path="/video-call/:roomId" element={<VideoCallPage />} />
     </Routes>
   );
 }

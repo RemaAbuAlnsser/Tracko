@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/StudentDashboard.css';
 import '../styles/TrainingPlanTimeline.css';
@@ -152,6 +152,18 @@ function StudentDashboard() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-refresh notifications every 10 seconds to catch video call invitations
+  useEffect(() => {
+    if (!user) return;
+
+    const intervalId = setInterval(() => {
+      loadNotifications();
+    }, 10000); // Refresh every 10 seconds
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, [user]);
 
   const loadSavedInternshipsWithUser = async (userData) => {
     if (!userData) return;
@@ -715,6 +727,7 @@ function StudentDashboard() {
       console.error('Error loading notifications:', error);
     }
   };
+
 
   // Load certificate
   const loadCertificate = async () => {
@@ -1388,7 +1401,7 @@ function StudentDashboard() {
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
-            Messages/Chat
+            Messages/Chat/Meeting
             {totalUnreadMessages > 0 && (
               <span className="notification-badge">
                 {totalUnreadMessages}
@@ -2467,7 +2480,19 @@ function StudentDashboard() {
                         onClick={() => loadMessagesWithTrainer(trainer)}
                       >
                         <div className="conversation-avatar">
-                          {trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'}
+                          {trainer.profile_image ? (
+                            <img 
+                              src={trainer.profile_image.startsWith('http') ? trainer.profile_image : `http://localhost:5050${trainer.profile_image}`} 
+                              alt={trainer.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T';
+                              }}
+                            />
+                          ) : (
+                            trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'
+                          )}
                         </div>
                         <div className="conversation-info">
                           <h4>{trainer.full_name || 'Trainer'}</h4>
@@ -2494,7 +2519,19 @@ function StudentDashboard() {
                     {/* Chat Header */}
                     <div className="chat-header">
                       <div className="conversation-avatar">
-                        {selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'}
+                        {selectedTrainer.profile_image ? (
+                          <img 
+                            src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
+                            alt={selectedTrainer.full_name}
+                            style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                            }}
+                          />
+                        ) : (
+                          selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                        )}
                       </div>
                       <div>
                         <h3>{selectedTrainer.full_name}</h3>
@@ -2645,6 +2682,54 @@ function StudentDashboard() {
                         })}
                       </span>
                     </div>
+                    
+                    {/* Video Call Join Button */}
+                    {notification.type === 'video_call' && notification.data && (
+                      <button 
+                        className="btn-primary"
+                        onClick={() => {
+                          try {
+                            const data = JSON.parse(notification.data);
+                            if (data.videoCallLink) {
+                              window.open(data.videoCallLink, '_blank');
+                              markAsRead(notification.id);
+                            }
+                          } catch (error) {
+                            console.error('Error parsing notification data:', error);
+                          }
+                        }}
+                        style={{ 
+                          marginRight: '10px',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          padding: '10px 20px',
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#059669';
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#10b981';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                      >
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        📞 Join Call
+                      </button>
+                    )}
+                    
                     {!notification.is_read && (
                       <>
                         <button 
@@ -3732,6 +3817,7 @@ function StudentDashboard() {
           </div>
         )}
       </main>
+
     </div>
   );
 }
