@@ -380,7 +380,6 @@ function UniversityDashboard() {
       unsubscribeFromMessages(channel);
     };
   }, [user, activeMenu, selectedStudent]);
->>>>>>> origin/videacall
 
   const loadPartnerships = async () => {
     if (!universityData.id) return;
