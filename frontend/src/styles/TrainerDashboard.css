@@ -685,7 +685,8 @@
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 0;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 180px);
+  max-height: calc(100vh - 180px);
   background: white;
   border-radius: 12px;
   overflow: hidden;
@@ -848,6 +849,7 @@
   flex-direction: column;
   gap: 16px;
   background-color: #f9fafb;
+  min-height: 0;
 }
 
 /* Custom Scrollbar for Messages */
@@ -1001,6 +1003,7 @@
   padding: 20px;
   background-color: white;
   border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .message-input {
