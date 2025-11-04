@@ -285,7 +285,7 @@ function UniversityDashboard() {
     if (universityData.id) {
       loadWeeklyReports();
     }
-  }, [universityData.id]);
+  }, [universityData.id, activeMenu]);
 
   const loadPartnerships = async () => {
     if (!universityData.id) return;
@@ -606,13 +606,22 @@ function UniversityDashboard() {
       if (response.ok) {
         setMessage({ type: 'success', text: 'Weekly report approved successfully!' });
         setWeeklyReportComment('');
-        loadWeeklyReports();
-        // Reload the student reports in the modal
-        const studentReports = weeklyReports.filter(r => r.student_id === selectedWeeklyReport.student_id);
-        setSelectedWeeklyReport({ 
-          ...selectedWeeklyReport,
-          allReports: studentReports 
-        });
+        
+        // Reload weekly reports and update the modal
+        const reportsResponse = await fetch(`http://localhost:5050/api/weekly-reports/university/${universityData.id}`);
+        const reportsData = await reportsResponse.json();
+        if (reportsResponse.ok) {
+          const updatedReports = reportsData.reports || [];
+          setWeeklyReports(updatedReports);
+          
+          // Update the student reports in the modal with fresh data
+          const studentReports = updatedReports.filter(r => r.student_id === selectedWeeklyReport.student_id);
+          setSelectedWeeklyReport({ 
+            ...selectedWeeklyReport,
+            allReports: studentReports 
+          });
+        }
+        
         setTimeout(() => {
           setMessage({ type: '', text: '' });
         }, 3000);
