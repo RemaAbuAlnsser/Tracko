@@ -39,7 +39,12 @@ class University {
 
   // Find university by ID
   static findById(id) {
-    const query = "SELECT * FROM Universities WHERE id = ?";
+    const query = `
+      SELECT u.*, us.id as user_id 
+      FROM Universities u
+      LEFT JOIN Users us ON u.email = us.email AND us.user_type = 'university'
+      WHERE u.id = ?
+    `;
     
     return new Promise((resolve, reject) => {
       db.query(query, [id], (err, results) => {

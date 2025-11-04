@@ -106,6 +106,13 @@ function StudentDashboard() {
     }
   }, [user]);
 
+  // Reload trainers when studentData is loaded (to get university)
+  useEffect(() => {
+    if (user && studentData.university_id) {
+      loadTrainers();
+    }
+  }, [studentData.university_id]);
+
   // Load training plans when studentId is available
   useEffect(() => {
     if (studentId) {
@@ -808,10 +815,12 @@ function StudentDashboard() {
     }
   };
 
-  // Load trainers (from accepted internships)
+  // Load trainers (from accepted internships) and university
   const loadTrainers = async () => {
     if (!user) return;
     try {
+      let allContacts = [];
+      
       // Get student's accepted internships with trainer info
       const response = await fetch(`http://localhost:5050/api/students/${user.id}/trainers`);
       const data = await response.json();
@@ -821,15 +830,12 @@ function StudentDashboard() {
             const unreadCount = await getUnreadCount(user.id, trainer.user_id);
             return {
               ...trainer,
+              type: 'trainer',
               unread_count: unreadCount
             };
           })
         );
-        setTrainers(trainersWithUnread);
-        
-        // Calculate total unread messages
-        const totalUnread = trainersWithUnread.reduce((sum, trainer) => sum + (trainer.unread_count || 0), 0);
-        setTotalUnreadMessages(totalUnread);
+        allContacts = [...trainersWithUnread];
         
         // Check if student has accepted internship
         if (trainersWithUnread.length > 0) {
@@ -844,6 +850,46 @@ function StudentDashboard() {
           setAcceptedInternshipInfo(null);
         }
       }
+      
+      // Get student's university
+      if (studentData.university_id) {
+        try {
+          const universityResponse = await fetch(`http://localhost:5050/api/universities/${studentData.university_id}`);
+          const universityData = await universityResponse.json();
+          console.log('🎓 University data received:', universityData);
+          if (universityData.success && universityData.data) {
+            const university = universityData.data;
+            console.log('🎓 University details:', {
+              id: university.id,
+              name: university.name,
+              user_id: university.user_id,
+              email: university.email
+            });
+            
+            if (!university.user_id) {
+              console.error('❌ University user_id is missing!');
+            }
+            
+            const unreadCount = await getUnreadCount(user.id, university.user_id);
+            allContacts.unshift({
+              ...university,
+              type: 'university',
+              full_name: university.name,
+              unread_count: unreadCount
+            });
+            console.log('✅ University added to contacts:', allContacts[0]);
+          }
+        } catch (universityError) {
+          console.error('Error loading university:', universityError);
+        }
+      }
+      
+      setTrainers(allContacts);
+      
+      // Calculate total unread messages
+      const totalUnread = allContacts.reduce((sum, contact) => sum + (contact.unread_count || 0), 0);
+      setTotalUnreadMessages(totalUnread);
+      
     } catch (error) {
       console.error('Error loading trainers:', error);
     }
@@ -879,35 +925,56 @@ function StudentDashboard() {
   // Send message using Supabase
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedTrainer || !user) return;
+    
+    console.log('🔍 Send message check:', {
+      hasMessage: !!newMessage.trim(),
+      hasSelectedTrainer: !!selectedTrainer,
+      hasUser: !!user,
+      selectedTrainer: selectedTrainer
+    });
+    
+    if (!newMessage.trim() || !selectedTrainer || !user) {
+      console.error('❌ Cannot send message - missing required data');
+      return;
+    }
 
     const messageText = newMessage.trim();
     
     console.log('📤 Sending message:', {
       sender_id: user.id,
       receiver_id: selectedTrainer.user_id,
+      receiver_type: selectedTrainer.type,
       message: messageText
     });
+    
+    if (!selectedTrainer.user_id) {
+      console.error('❌ selectedTrainer.user_id is missing!');
+      setMessage({ type: 'error', text: 'Cannot send message: recipient user_id is missing' });
+      return;
+    }
     
     try {
       // Clear input immediately
       setNewMessage('');
       
       const result = await sendChatMessage(user.id, selectedTrainer.user_id, messageText);
+      console.log('📨 Send result:', result);
       
       if (result.success && result.data && result.data[0]) {
         // Add message to state immediately
         const newMsg = result.data[0];
         setMessages(prev => [...prev, newMsg]);
+        console.log('✅ Message sent successfully');
         
         // Scroll to bottom
         setTimeout(() => scrollToBottom(), 50);
       } else {
+        console.error('❌ Failed to send message:', result);
         setMessage({ type: 'error', text: 'Failed to send message' });
         setNewMessage(messageText);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
       setMessage({ type: 'error', text: 'Server error' });
       setNewMessage(messageText);
     }
@@ -2460,46 +2527,56 @@ function StudentDashboard() {
           <>
             <div className="dashboard-header">
               <h1>Messages</h1>
-              <p>Chat with your trainers</p>
+              <p>Chat with your trainers and university</p>
             </div>
 
             <div className="chat-container">
-              {/* Trainers List */}
+              {/* Trainers & University List */}
               <div className="conversations-sidebar">
-                <h3>My Trainers</h3>
+                <h3>Contacts</h3>
                 {trainers.length === 0 ? (
                   <div className="empty-state-small">
-                    <p>No trainers yet</p>
+                    <p>No contacts yet</p>
                   </div>
                 ) : (
                   <div className="conversations-list">
-                    {trainers.map(trainer => (
+                    {trainers.map(contact => (
                       <div
-                        key={trainer.id}
-                        className={`conversation-item ${selectedTrainer?.id === trainer.id ? 'active' : ''}`}
-                        onClick={() => loadMessagesWithTrainer(trainer)}
+                        key={contact.id}
+                        className={`conversation-item ${selectedTrainer?.id === contact.id ? 'active' : ''}`}
+                        onClick={() => loadMessagesWithTrainer(contact)}
                       >
-                        <div className="conversation-avatar">
-                          {trainer.profile_image ? (
+                        <div className="conversation-avatar" style={contact.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
+                          {contact.type === 'university' && contact.logo ? (
                             <img 
-                              src={trainer.profile_image.startsWith('http') ? trainer.profile_image : `http://localhost:5050${trainer.profile_image}`} 
-                              alt={trainer.full_name}
+                              src={`http://localhost:5050${contact.logo}`} 
+                              alt={contact.name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
                               onError={(e) => {
                                 e.target.style.display = 'none';
-                                e.target.parentElement.textContent = trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T';
+                                e.target.parentElement.textContent = contact.name ? contact.name.charAt(0).toUpperCase() : 'U';
+                              }}
+                            />
+                          ) : contact.type === 'trainer' && contact.profile_image ? (
+                            <img 
+                              src={contact.profile_image.startsWith('http') ? contact.profile_image : `http://localhost:5050${contact.profile_image}`} 
+                              alt={contact.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'T';
                               }}
                             />
                           ) : (
-                            trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T'
+                            contact.full_name ? contact.full_name.charAt(0).toUpperCase() : (contact.type === 'university' ? 'U' : 'T')
                           )}
                         </div>
                         <div className="conversation-info">
-                          <h4>{trainer.full_name || 'Trainer'}</h4>
-                          <p className="student-email">{trainer.email}</p>
+                          <h4>{contact.full_name || (contact.type === 'university' ? 'University' : 'Trainer')} {contact.type === 'university' ? '🎓' : ''}</h4>
+                          <p className="student-email">{contact.email}</p>
                         </div>
-                        {trainer.unread_count > 0 && (
-                          <span className="unread-count">{trainer.unread_count}</span>
+                        {contact.unread_count > 0 && (
+                          <span className="unread-count">{contact.unread_count}</span>
                         )}
                       </div>
                     ))}
@@ -2511,15 +2588,25 @@ function StudentDashboard() {
               <div className="chat-area">
                 {!selectedTrainer ? (
                   <div className="empty-state">
-                    <h3>Select a Trainer</h3>
-                    <p>Choose a trainer from the list to start chatting</p>
+                    <h3>Select a Contact</h3>
+                    <p>Choose a trainer or university from the list to start chatting</p>
                   </div>
                 ) : (
                   <>
                     {/* Chat Header */}
                     <div className="chat-header">
-                      <div className="conversation-avatar">
-                        {selectedTrainer.profile_image ? (
+                      <div className="conversation-avatar" style={selectedTrainer.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
+                        {selectedTrainer.type === 'university' && selectedTrainer.logo ? (
+                          <img 
+                            src={`http://localhost:5050${selectedTrainer.logo}`} 
+                            alt={selectedTrainer.name}
+                            style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
+                            }}
+                          />
+                        ) : selectedTrainer.type === 'trainer' && selectedTrainer.profile_image ? (
                           <img 
                             src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                             alt={selectedTrainer.full_name}
@@ -2530,11 +2617,11 @@ function StudentDashboard() {
                             }}
                           />
                         ) : (
-                          selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                          selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : (selectedTrainer.type === 'university' ? 'U' : 'T')
                         )}
                       </div>
                       <div>
-                        <h3>{selectedTrainer.full_name}</h3>
+                        <h3>{selectedTrainer.full_name} {selectedTrainer.type === 'university' ? '🎓' : ''}</h3>
                         <p className="student-info">{selectedTrainer.email}</p>
                       </div>
                     </div>
@@ -2561,10 +2648,19 @@ function StudentDashboard() {
                               key={msg.id}
                               className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
                             >
-                              {/* Show avatar for receiver (trainer) on left */}
+                              {/* Show avatar for receiver (trainer/university) on left */}
                               {!isSentByStudent && selectedTrainer && (
-                                <div className="message-avatar">
-                                  {selectedTrainer.profile_image ? (
+                                <div className="message-avatar" style={selectedTrainer.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
+                                  {selectedTrainer.type === 'university' && selectedTrainer.logo ? (
+                                    <img 
+                                      src={`http://localhost:5050${selectedTrainer.logo}`} 
+                                      alt={selectedTrainer.name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
+                                      }}
+                                    />
+                                  ) : selectedTrainer.profile_image ? (
                                     <img 
                                       src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                                       alt={selectedTrainer.full_name}
@@ -2574,7 +2670,7 @@ function StudentDashboard() {
                                       }}
                                     />
                                   ) : (
-                                    selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                                    selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : (selectedTrainer.type === 'university' ? 'U' : 'T')
                                   )}
                                 </div>
                               )}

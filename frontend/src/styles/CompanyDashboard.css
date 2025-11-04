@@ -465,6 +465,25 @@
   background: #dc2626;
 }
 
+/* Nav Badge for Messages */
+.nav-badge {
+  margin-left: auto;
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  min-width: 20px;
+  text-align: center;
+  line-height: 1.5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.nav-item.active .nav-badge {
+  background: #dc2626;
+}
+
 /* Logout Button */
 .logout-section {
   padding: 16px 20px;
@@ -1816,7 +1835,8 @@
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 0;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 180px);
+  min-height: 500px;
   background: white;
   border-radius: 12px;
   overflow: hidden;
@@ -1830,6 +1850,8 @@
   display: flex;
   flex-direction: column;
   background-color: #f9fafb;
+  height: 100%;
+  overflow: hidden;
 }
 
 .conversations-sidebar h3 {
@@ -1844,25 +1866,29 @@
 
 .conversations-list {
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
+  min-height: 0;
 }
 
 /* Custom Scrollbar for Conversations */
 .conversations-list::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .conversations-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f1f5f9;
+  border-radius: 4px;
 }
 
 .conversations-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+  background: #cbd5e1;
+  border-radius: 4px;
+  transition: background 0.2s;
 }
 
 .conversations-list::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #94a3b8;
 }
 
 .conversation-item {

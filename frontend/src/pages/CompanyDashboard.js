@@ -1154,7 +1154,7 @@ function CompanyDashboard() {
       {/* Sidebar */}
       <aside className="company-sidebar">
         {/* Company Profile Section */}
-        <div className="company-profile-section">
+        <div className="company-profile-section" style={{ flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div className="company-avatar">
             {companyData.logo ? (
               <img 
@@ -1167,10 +1167,21 @@ function CompanyDashboard() {
             )}
           </div>
           <div className="company-info">
-            <h3>{user.full_name}</h3>
-            <p>Software Company</p>
-            <div className="company-badge">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h3 style={{ 
+              fontSize: '16px', 
+              fontWeight: '700', 
+              margin: '0 0 4px 0',
+              lineHeight: '1.3',
+              wordBreak: 'break-word'
+            }}>
+              {user.full_name}
+            </h3>
+            <div className="company-badge" style={{ 
+              marginTop: '8px',
+              padding: '4px 10px',
+              fontSize: '12px'
+            }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
               Company
@@ -1309,18 +1320,82 @@ function CompanyDashboard() {
       <main className="company-main-content">
         {activeMenu === 'dashboard' && (
           <>
-            <div className="dashboard-header">
-              <h1>Dashboard</h1>
-              <p>Welcome back, {user.full_name}</p>
+            {/* Modern Dashboard Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1e88e5 0%, #1565c0 100%)',
+              borderRadius: '24px',
+              padding: '48px 40px',
+              marginBottom: '32px',
+              boxShadow: '0 20px 60px rgba(30, 136, 229, 0.3)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '-100px',
+                right: '-100px',
+                width: '300px',
+                height: '300px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                filter: 'blur(60px)'
+              }}></div>
+              
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h1 style={{ 
+                  color: 'white', 
+                  fontSize: '36px', 
+                  fontWeight: '800',
+                  margin: '0 0 8px 0',
+                  textShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}>Dashboard 🏢</h1>
+                <p style={{ 
+                  color: 'rgba(255, 255, 255, 0.95)', 
+                  fontSize: '18px',
+                  margin: '0 0 24px 0',
+                  fontWeight: '500'
+                }}>Welcome back, {user.full_name}!</p>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px'
+                }}>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '16px 20px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)'
+                  }}>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', margin: '0 0 4px 0' }}>📧 Email</p>
+                    <p style={{ color: 'white', fontWeight: '600', margin: 0, fontSize: '14px' }}>{user.email}</p>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '16px 20px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)'
+                  }}>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', margin: '0 0 4px 0' }}>🏢 Company</p>
+                    <p style={{ color: 'white', fontWeight: '600', margin: 0, fontSize: '14px' }}>{companyData.name || user.full_name}</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="dashboard-content">
-              <h2>Company Overview</h2>
-              <p><strong>Email:</strong> {user.email}</p>
-              <p><strong>Company:</strong> {companyData.name || user.full_name}</p>
-              
-              <div style={{ marginTop: '30px' }}>
-                <h3>Quick Stats</h3>
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={{ 
+                fontSize: '28px', 
+                fontWeight: '700', 
+                color: '#1f2937',
+                marginBottom: '8px'
+              }}>📊 Quick Statistics</h2>
+              <p style={{ color: '#6b7280', fontSize: '15px' }}>Overview of your company's performance</p>
+            </div>
+
+            <div>
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
@@ -1493,7 +1568,6 @@ function CompanyDashboard() {
                     </p>
                   </div>
                 </div>
-              </div>
             </div>
           </>
         )}
