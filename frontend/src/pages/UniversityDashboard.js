@@ -1,6 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/CompanyDashboard.css';
+import { 
+  loadChatMessages, 
+  sendChatMessage, 
+  subscribeToMessages, 
+  unsubscribeFromMessages,
+  markMessagesAsRead,
+  getUnreadCount 
+} from '../utils/chatService';
 
 function UniversityDashboard() {
   const [user, setUser] = useState(null);
@@ -51,6 +59,17 @@ function UniversityDashboard() {
   const [selectedWeeklyReport, setSelectedWeeklyReport] = useState(null);
   const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
   const [weeklyReportComment, setWeeklyReportComment] = useState('');
+  
+  // Messages/Chat state
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [messagesChannel, setMessagesChannel] = useState(null);
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const messagesEndRef = useRef(null);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -273,10 +292,24 @@ function UniversityDashboard() {
     }
   }, [activeMenu, universityData.id]);
 
-  // Load students when students menu is active
+  // Load students when university data is loaded (for messages badge and students menu)
   useEffect(() => {
-    if (activeMenu === 'students' && universityData.id) {
+    if (universityData.id) {
       loadStudents();
+    }
+  }, [universityData.id]);
+
+  // Load conversations when messages menu is active
+  useEffect(() => {
+    if (activeMenu === 'messages' && universityData.id) {
+      // Load students first if not already loaded
+      if (students.length === 0) {
+        loadStudents().then(() => {
+          // Students will be loaded, and the next useEffect will handle conversations
+        });
+      } else {
+        loadConversations();
+      }
     }
   }, [activeMenu, universityData.id]);
 
@@ -286,6 +319,68 @@ function UniversityDashboard() {
       loadWeeklyReports();
     }
   }, [universityData.id, activeMenu]);
+
+  // Load conversations when students are loaded
+  useEffect(() => {
+    if (activeMenu === 'messages' && students.length > 0) {
+      loadConversations();
+    }
+  }, [students, activeMenu]);
+
+  // Load unread messages count on mount and periodically
+  useEffect(() => {
+    if (user && universityData.id && students.length > 0) {
+      loadConversations(); // Load initial unread count
+      
+      // Update unread count every 30 seconds
+      const interval = setInterval(() => {
+        loadConversations();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [user?.id, universityData.id, students.length]);
+
+  // Subscribe to real-time messages
+  useEffect(() => {
+    if (!user || activeMenu !== 'messages') return;
+
+    const handleNewMessage = (newMsg) => {
+      console.log('📨 New message received:', newMsg);
+      
+      // If message is for current conversation, add it to messages
+      if (selectedStudent && 
+          (Number(newMsg.sender_id) === Number(selectedStudent.user_id) || 
+           Number(newMsg.receiver_id) === Number(selectedStudent.user_id))) {
+        setMessages(prev => {
+          // Check if message already exists
+          if (prev.some(msg => msg.id === newMsg.id)) {
+            return prev;
+          }
+          return [...prev, newMsg];
+        });
+        
+        // Auto-scroll to bottom
+        setTimeout(() => scrollToBottom(), 100);
+        
+        // Mark as read if it's from the selected student
+        if (Number(newMsg.sender_id) === Number(selectedStudent.user_id)) {
+          markMessagesAsRead(selectedStudent.user_id, user.id);
+        }
+      }
+      
+      // Reload conversations to update unread counts
+      loadConversations();
+    };
+
+    const channel = subscribeToMessages(user.id, handleNewMessage);
+    setMessagesChannel(channel);
+
+    return () => {
+      unsubscribeFromMessages(channel);
+    };
+  }, [user, activeMenu, selectedStudent]);
+>>>>>>> origin/videacall
 
   const loadPartnerships = async () => {
     if (!universityData.id) return;
@@ -715,6 +810,122 @@ function UniversityDashboard() {
     }
   };
 
+  // Load students as conversations for chat
+  const loadConversations = async () => {
+    if (!user || !students || students.length === 0) {
+      console.log('⚠️ Cannot load conversations:', { 
+        hasUser: !!user, 
+        studentsCount: students?.length || 0 
+      });
+      return;
+    }
+    
+    console.log('🔄 Loading conversations for', students.length, 'students');
+    
+    try {
+      const studentsWithUnread = await Promise.all(
+        students.map(async (student) => {
+          const unreadCount = await getUnreadCount(user.id, student.user_id);
+          return {
+            ...student,
+            unread_count: unreadCount
+          };
+        })
+      );
+      setConversations(studentsWithUnread);
+      
+      // Calculate total unread messages
+      const totalUnread = studentsWithUnread.reduce((sum, student) => sum + (student.unread_count || 0), 0);
+      console.log('✅ Total unread messages:', totalUnread);
+      setTotalUnreadMessages(totalUnread);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
+  };
+
+  // Load messages for selected student
+  const loadMessages = async (student) => {
+    if (!user || !student) return;
+    
+    console.log('📨 Loading messages for student:', {
+      student_name: student.full_name,
+      student_user_id: student.user_id,
+      university_user_id: user.id
+    });
+    
+    try {
+      const chatMessages = await loadChatMessages(user.id, student.user_id);
+      console.log('✅ Loaded messages:', chatMessages.length, 'messages');
+      setMessages(chatMessages);
+      setSelectedStudent(student);
+      setSelectedConversation(student.id);
+      
+      // Mark messages as read
+      await markMessagesAsRead(student.user_id, user.id);
+      
+      // Update conversations to reset unread count for this student
+      setConversations(prev => prev.map(conv => 
+        conv.id === student.id ? { ...conv, unread_count: 0 } : conv
+      ));
+      
+      // Recalculate total unread messages
+      const updatedTotal = conversations.reduce((sum, conv) => {
+        if (conv.id === student.id) return sum;
+        return sum + (conv.unread_count || 0);
+      }, 0);
+      setTotalUnreadMessages(updatedTotal);
+      
+      // Scroll to bottom
+      setTimeout(() => scrollToBottom(), 100);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  // Send message using Supabase
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedStudent || !user) return;
+
+    const messageText = newMessage.trim();
+    
+    console.log('📤 Sending message:', {
+      sender_id: user.id,
+      receiver_id: selectedStudent.user_id,
+      message: messageText
+    });
+    
+    try {
+      // Clear input immediately for better UX
+      setNewMessage('');
+      
+      const result = await sendChatMessage(user.id, selectedStudent.user_id, messageText);
+      
+      if (result.success && result.data && result.data[0]) {
+        // Add message to state immediately
+        const newMsg = result.data[0];
+        setMessages(prev => [...prev, newMsg]);
+        
+        // Scroll to bottom
+        setTimeout(() => scrollToBottom(), 50);
+      } else {
+        setMessage({ type: 'error', text: 'Failed to send message' });
+        // Restore message text if failed
+        setNewMessage(messageText);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+      // Restore message text if failed
+      setNewMessage(messageText);
+    }
+  };
+
+  // Scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -724,7 +935,7 @@ function UniversityDashboard() {
       {/* Sidebar */}
       <aside className="company-sidebar">
         {/* University Profile Section */}
-        <div className="company-profile-section">
+        <div className="company-profile-section" style={{ flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
           <div className="company-avatar">
             {universityData.logo ? (
               <img 
@@ -737,10 +948,21 @@ function UniversityDashboard() {
             )}
           </div>
           <div className="company-info">
-            <h3>{universityData.name || user.full_name}</h3>
-            <p>University</p>
-            <div className="company-badge">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h3 style={{ 
+              fontSize: '16px', 
+              fontWeight: '700', 
+              margin: '0 0 4px 0',
+              lineHeight: '1.3',
+              wordBreak: 'break-word'
+            }}>
+              {universityData.name || user.full_name}
+            </h3>
+            <div className="company-badge" style={{ 
+              marginTop: '8px',
+              padding: '4px 10px',
+              fontSize: '12px'
+            }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: '14px', height: '14px' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
               </svg>
               University
@@ -842,12 +1064,17 @@ function UniversityDashboard() {
 
           <button 
             className={`nav-item ${activeMenu === 'messages' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('messages')}
+            onClick={() => {
+              setActiveMenu('messages');
+            }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             Messages/Chat
+            {totalUnreadMessages > 0 && (
+              <span className="nav-badge">{totalUnreadMessages}</span>
+            )}
           </button>
         </nav>
 
@@ -866,18 +1093,82 @@ function UniversityDashboard() {
       <main className="company-main-content">
         {activeMenu === 'dashboard' && (
           <>
-            <div className="dashboard-header">
-              <h1>Dashboard</h1>
-              <p>Welcome back, {user.full_name}</p>
+            {/* Modern Dashboard Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1e88e5 0%, #1565c0 100%)',
+              borderRadius: '24px',
+              padding: '48px 40px',
+              marginBottom: '32px',
+              boxShadow: '0 20px 60px rgba(30, 136, 229, 0.3)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '-100px',
+                right: '-100px',
+                width: '300px',
+                height: '300px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                filter: 'blur(60px)'
+              }}></div>
+              
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h1 style={{ 
+                  color: 'white', 
+                  fontSize: '36px', 
+                  fontWeight: '800',
+                  margin: '0 0 8px 0',
+                  textShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}>Dashboard 🎓</h1>
+                <p style={{ 
+                  color: 'rgba(255, 255, 255, 0.95)', 
+                  fontSize: '18px',
+                  margin: '0 0 24px 0',
+                  fontWeight: '500'
+                }}>Welcome back, {user.full_name}!</p>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px'
+                }}>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '16px 20px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)'
+                  }}>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', margin: '0 0 4px 0' }}>📧 Email</p>
+                    <p style={{ color: 'white', fontWeight: '600', margin: 0, fontSize: '14px' }}>{user.email}</p>
+                  </div>
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '16px 20px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.2)'
+                  }}>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', margin: '0 0 4px 0' }}>🏛️ University</p>
+                    <p style={{ color: 'white', fontWeight: '600', margin: 0, fontSize: '14px' }}>{universityData.name || user.full_name}</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="dashboard-content">
-              <h2>University Overview</h2>
-              <p><strong>Email:</strong> {user.email}</p>
-              <p><strong>University:</strong> {universityData.name || user.full_name}</p>
-              
-              <div style={{ marginTop: '30px' }}>
-                <h3>Quick Stats</h3>
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={{ 
+                fontSize: '28px', 
+                fontWeight: '700', 
+                color: '#1f2937',
+                marginBottom: '8px'
+              }}>📊 Quick Statistics</h2>
+              <p style={{ color: '#6b7280', fontSize: '15px' }}>Overview of your university's performance</p>
+            </div>
+
+            <div>
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
@@ -1013,7 +1304,7 @@ function UniversityDashboard() {
                     </p>
                   </div>
                 </div>
-              </div>
+            </div>
 
               {/* Student Registration Requests Section */}
               {registrationRequests.length > 0 && (
@@ -1143,7 +1434,6 @@ function UniversityDashboard() {
                   </div>
                 </div>
               )}
-            </div>
           </>
         )}
 
@@ -2259,10 +2549,176 @@ function UniversityDashboard() {
         )}
 
         {activeMenu === 'messages' && (
-          <div className="dashboard-content">
-            <h2>Messages</h2>
-            <p>No new messages</p>
-          </div>
+          <>
+            <div className="dashboard-header">
+              <h1>Messages</h1>
+              <p>Chat with your students</p>
+            </div>
+
+            <div className="chat-container">
+              {/* Students List (Conversations) */}
+              <div className="conversations-sidebar">
+                <h3>My Students</h3>
+                {conversations.length === 0 ? (
+                  <div className="empty-state-small">
+                    <p>No students yet</p>
+                  </div>
+                ) : (
+                  <div className="conversations-list">
+                    {conversations.map(student => (
+                      <div
+                        key={student.id}
+                        className={`conversation-item ${selectedConversation === student.id ? 'active' : ''}`}
+                        onClick={() => loadMessages(student)}
+                      >
+                        <div className="conversation-avatar">
+                          {student.student_img ? (
+                            <img 
+                              src={student.student_img.startsWith('http') ? student.student_img : `http://localhost:5050${student.student_img}`} 
+                              alt={student.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S';
+                              }}
+                            />
+                          ) : (
+                            student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S'
+                          )}
+                        </div>
+                        <div className="conversation-info">
+                          <h4>{student.full_name || 'Student'}</h4>
+                          <p className="student-email">{student.email}</p>
+                        </div>
+                        {student.unread_count > 0 && (
+                          <span className="unread-count">{student.unread_count}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Area */}
+              <div className="chat-area">
+                {!selectedConversation ? (
+                  <div className="empty-state">
+                    <h3>Select a Student</h3>
+                    <p>Choose a student from the list to start chatting</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Chat Header */}
+                    {selectedStudent && (
+                      <div className="chat-header">
+                        <div className="conversation-avatar">
+                          {selectedStudent.student_img ? (
+                            <img 
+                              src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
+                              alt={selectedStudent.full_name}
+                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S';
+                              }}
+                            />
+                          ) : (
+                            selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S'
+                          )}
+                        </div>
+                        <div>
+                          <h3>{selectedStudent.full_name}</h3>
+                          <p className="student-info">{selectedStudent.email}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Messages List */}
+                    <div className="messages-list">
+                      {messages.length === 0 ? (
+                        <div className="empty-state-small">
+                          <p>No messages yet. Start the conversation!</p>
+                        </div>
+                      ) : (
+                        <>
+                          {messages.map(msg => {
+                            const isSentByUniversity = Number(msg.sender_id) === Number(user.id);
+                            return (
+                            <div
+                              key={msg.id}
+                              className={`message-item ${isSentByUniversity ? 'sent' : 'received'}`}
+                            >
+                              {/* Show avatar for receiver (student) on left */}
+                              {!isSentByUniversity && selectedStudent && (
+                                <div className="message-avatar">
+                                  {selectedStudent.student_img ? (
+                                    <img 
+                                      src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
+                                      alt={selectedStudent.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S';
+                                      }}
+                                    />
+                                  ) : (
+                                    selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S'
+                                  )}
+                                </div>
+                              )}
+                              <div className="message-bubble">
+                                <p>{msg.message}</p>
+                                <span className="message-time">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </span>
+                              </div>
+                              {/* Show avatar for sender (university) on right */}
+                              {isSentByUniversity && (
+                                <div className="message-avatar">
+                                  {universityData.logo ? (
+                                    <img 
+                                      src={`http://localhost:5050${universityData.logo}`} 
+                                      alt={user.full_name}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U';
+                                      }}
+                                    />
+                                  ) : (
+                                    user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            );
+                          })}
+                          <div ref={messagesEndRef} />
+                        </>
+                      )}
+                    </div>
+
+                    {/* Message Input */}
+                    <form className="message-input-form" onSubmit={handleSendMessage}>
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="message-input"
+                      />
+                      <button type="submit" className="send-button" disabled={!newMessage.trim()}>
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                        </svg>
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Final Report Modal */}
