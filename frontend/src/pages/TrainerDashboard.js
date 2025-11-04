@@ -2359,19 +2359,19 @@ function TrainerDashboard() {
                         onClick={() => loadMessages(company)}
                       >
                         <div className="conversation-avatar" style={{background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'}}>
-                          {company.logo ? (
-                            <img 
-                              src={`http://localhost:5050${company.logo}`} 
-                              alt={company.name}
-                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = company.name ? company.name.charAt(0).toUpperCase() : 'C';
-                              }}
-                            />
-                          ) : (
-                            company.name ? company.name.charAt(0).toUpperCase() : 'C'
-                          )}
+                          <>
+                            {company.logo && (
+                              <img 
+                                src={`http://localhost:5050${company.logo}`} 
+                                alt={company.name}
+                                style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
+                            )}
+                            <span style={{position: 'relative', zIndex: 0}}>
+                              {company.name ? company.name.charAt(0).toUpperCase() : 'C'}
+                            </span>
+                          </>
                         </div>
                         <div className="conversation-info">
                           <h4>{company.name || 'Company'} 🏢</h4>
@@ -2391,19 +2391,19 @@ function TrainerDashboard() {
                         onClick={() => loadMessages(student)}
                       >
                         <div className="conversation-avatar">
-                          {student.student_img ? (
-                            <img 
-                              src={student.student_img.startsWith('http') ? student.student_img : `http://localhost:5050${student.student_img}`} 
-                              alt={student.full_name}
-                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S';
-                              }}
-                            />
-                          ) : (
-                            student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S'
-                          )}
+                          <>
+                            {student.student_img && (
+                              <img 
+                                src={student.student_img.startsWith('http') ? student.student_img : `http://localhost:5050${student.student_img}`} 
+                                alt={student.full_name}
+                                style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
+                            )}
+                            <span style={{position: 'relative', zIndex: 0}}>
+                              {student.full_name ? student.full_name.charAt(0).toUpperCase() : 'S'}
+                            </span>
+                          </>
                         </div>
                         <div className="conversation-info">
                           <h4>{student.full_name || 'Student'}</h4>
@@ -2431,29 +2431,27 @@ function TrainerDashboard() {
                     {selectedStudent && (
                       <div className="chat-header">
                         <div className="conversation-avatar" style={selectedStudent.type === 'company' ? {background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'} : {}}>
-                          {selectedStudent.type === 'company' && selectedStudent.logo ? (
-                            <img 
-                              src={`http://localhost:5050${selectedStudent.logo}`} 
-                              alt={selectedStudent.name}
-                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedStudent.name ? selectedStudent.name.charAt(0).toUpperCase() : 'C';
-                              }}
-                            />
-                          ) : selectedStudent.type === 'student' && selectedStudent.student_img ? (
-                            <img 
-                              src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
-                              alt={selectedStudent.full_name}
-                              style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S';
-                              }}
-                            />
-                          ) : (
-                            selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : (selectedStudent.type === 'company' ? 'C' : 'S')
-                          )}
+                          <>
+                            {selectedStudent.type === 'company' && selectedStudent.logo && (
+                              <img 
+                                src={`http://localhost:5050${selectedStudent.logo}`} 
+                                alt={selectedStudent.name}
+                                style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
+                            )}
+                            {selectedStudent.type !== 'company' && selectedStudent.student_img && (
+                              <img 
+                                src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
+                                alt={selectedStudent.full_name}
+                                style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
+                            )}
+                            <span style={{position: 'relative', zIndex: 0}}>
+                              {selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : (selectedStudent.type === 'company' ? 'C' : 'S')}
+                            </span>
+                          </>
                         </div>
                         <div>
                           <h3>{selectedStudent.full_name} {selectedStudent.type === 'company' ? '🏢' : ''}</h3>
@@ -2487,27 +2485,27 @@ function TrainerDashboard() {
                               {/* Show avatar for receiver (student/company) on left */}
                               {!isSentByTrainer && selectedStudent && (
                                 <div className="message-avatar" style={selectedStudent.type === 'company' ? {background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'} : {}}>
-                                  {selectedStudent.type === 'company' && selectedStudent.logo ? (
-                                    <img 
-                                      src={`http://localhost:5050${selectedStudent.logo}`} 
-                                      alt={selectedStudent.name}
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = selectedStudent.name ? selectedStudent.name.charAt(0).toUpperCase() : 'C';
-                                      }}
-                                    />
-                                  ) : selectedStudent.student_img ? (
-                                    <img 
-                                      src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
-                                      alt={selectedStudent.full_name}
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : 'S';
-                                      }}
-                                    />
-                                  ) : (
-                                    selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : (selectedStudent.type === 'company' ? 'C' : 'S')
-                                  )}
+                                  <>
+                                    {selectedStudent.type === 'company' && selectedStudent.logo && (
+                                      <img 
+                                        src={`http://localhost:5050${selectedStudent.logo}`} 
+                                        alt={selectedStudent.name}
+                                        style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                    {selectedStudent.type !== 'company' && selectedStudent.student_img && (
+                                      <img 
+                                        src={selectedStudent.student_img.startsWith('http') ? selectedStudent.student_img : `http://localhost:5050${selectedStudent.student_img}`} 
+                                        alt={selectedStudent.full_name}
+                                        style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                    <span style={{position: 'relative', zIndex: 0}}>
+                                      {selectedStudent.full_name ? selectedStudent.full_name.charAt(0).toUpperCase() : (selectedStudent.type === 'company' ? 'C' : 'S')}
+                                    </span>
+                                  </>
                                 </div>
                               )}
                               <div className="message-bubble">
@@ -2522,18 +2520,19 @@ function TrainerDashboard() {
                               {/* Show avatar for sender (trainer) on right */}
                               {isSentByTrainer && (
                                 <div className="message-avatar">
-                                  {trainerData.profile_image ? (
-                                    <img 
-                                      src={`http://localhost:5050${trainerData.profile_image}`} 
-                                      alt={user.full_name}
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'T';
-                                      }}
-                                    />
-                                  ) : (
-                                    user.full_name ? user.full_name.charAt(0).toUpperCase() : 'T'
-                                  )}
+                                  <>
+                                    {trainerData.profile_image && (
+                                      <img 
+                                        src={`http://localhost:5050${trainerData.profile_image}`} 
+                                        alt={user.full_name}
+                                        style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', position: 'absolute'}}
+                                        onError={(e) => e.target.style.display = 'none'}
+                                      />
+                                    )}
+                                    <span style={{position: 'relative', zIndex: 0}}>
+                                      {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'T'}
+                                    </span>
+                                  </>
                                 </div>
                               )}
                             </div>
