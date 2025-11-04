@@ -98,9 +98,8 @@ async function initializeDatabase() {
     await Interview.createTable();
     console.log("✅ Interviews table initialized");
     
-    // Note: Events table should be created manually using scripts/updateEventsTable.js
-    // await Event.createTable();
-    // console.log("✅ Events table initialized");
+    await Event.createTable();
+    console.log("✅ Events table initialized");
   } catch (error) {
     console.error("❌ Error initializing database tables:", error);
   }
