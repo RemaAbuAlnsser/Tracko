@@ -47,6 +47,10 @@ function UniversityDashboard() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [registrationRequests, setRegistrationRequests] = useState([]);
+  const [weeklyReports, setWeeklyReports] = useState([]);
+  const [selectedWeeklyReport, setSelectedWeeklyReport] = useState(null);
+  const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
+  const [weeklyReportComment, setWeeklyReportComment] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -275,6 +279,13 @@ function UniversityDashboard() {
       loadStudents();
     }
   }, [activeMenu, universityData.id]);
+
+  // Load weekly reports immediately when university data is available (for badge count)
+  useEffect(() => {
+    if (universityData.id) {
+      loadWeeklyReports();
+    }
+  }, [universityData.id]);
 
   const loadPartnerships = async () => {
     if (!universityData.id) return;
@@ -541,6 +552,82 @@ function UniversityDashboard() {
     }
   };
 
+  const loadWeeklyReports = async () => {
+    if (!universityData.id) {
+      console.log('⚠️ Cannot load weekly reports: university ID is missing');
+      return;
+    }
+    
+    try {
+      console.log(`📚 Loading weekly reports for university ID: ${universityData.id}`);
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/university/${universityData.id}`);
+      const data = await response.json();
+      if (response.ok) {
+        console.log('✅ Loaded weekly reports:', data.reports);
+        setWeeklyReports(data.reports || []);
+      } else {
+        console.error('❌ Failed to load weekly reports:', data);
+      }
+    } catch (error) {
+      console.error('Error loading weekly reports:', error);
+    }
+  };
+
+  const handleViewStudentReports = (studentId, studentName) => {
+    // Get all reports for this student
+    const studentReports = weeklyReports.filter(r => r.student_id === studentId);
+    setSelectedWeeklyReport({ 
+      student_id: studentId,
+      student_name: studentName,
+      allReports: studentReports 
+    });
+    setWeeklyReportComment('');
+    setShowWeeklyReportModal(true);
+  };
+
+  const handleApproveWeeklyReport = async (reportId) => {
+    if (!reportId) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/${reportId}/university-review`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          approved: true,
+          university_comment: weeklyReportComment
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Weekly report approved successfully!' });
+        setWeeklyReportComment('');
+        loadWeeklyReports();
+        // Reload the student reports in the modal
+        const studentReports = weeklyReports.filter(r => r.student_id === selectedWeeklyReport.student_id);
+        setSelectedWeeklyReport({ 
+          ...selectedWeeklyReport,
+          allReports: studentReports 
+        });
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to approve report' });
+      }
+    } catch (error) {
+      console.error('Approve error:', error);
+      setMessage({ type: 'error', text: 'Failed to approve report' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   // Filter partnerships
   const filteredPartnerships = partnerships.filter(partnership => {
     const matchesSearch = partnership.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -707,11 +794,31 @@ function UniversityDashboard() {
           <button 
             className={`nav-item ${activeMenu === 'reports' ? 'active' : ''}`}
             onClick={() => setActiveMenu('reports')}
+            style={{ position: 'relative' }}
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             Reports & Analytics
+            {weeklyReports.filter(r => !r.university_approved).length > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                background: '#ef4444',
+                color: 'white',
+                borderRadius: '50%',
+                width: '20px',
+                height: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                fontWeight: 'bold'
+              }}>
+                {weeklyReports.filter(r => !r.university_approved).length}
+              </span>
+            )}
           </button>
 
           <button 
@@ -1858,10 +1965,216 @@ function UniversityDashboard() {
         )}
 
         {activeMenu === 'reports' && (
-          <div className="dashboard-content">
-            <h2>Reports & Analytics</h2>
-            <p>Reports page coming soon...</p>
-          </div>
+          <>
+            <div className="manage-header">
+              <div>
+                <h1>Reports & Analytics</h1>
+                <p>Review and approve weekly reports submitted by students</p>
+              </div>
+            </div>
+
+            {message.text && (
+              <div className={`alert alert-${message.type}`} style={{ marginTop: '20px' }}>
+                {message.text}
+              </div>
+            )}
+
+            {/* Weekly Reports Table */}
+            <div className="internships-table-container" style={{ marginTop: '30px' }}>
+              <div className="table-header-section">
+                <h3>Student Weekly Reports</h3>
+                <span className="posts-count">
+                  {(() => {
+                    const uniqueStudents = [...new Set(weeklyReports.map(r => r.student_id))];
+                    return uniqueStudents.length;
+                  })()} students
+                </span>
+              </div>
+
+              {weeklyReports.length === 0 ? (
+                <div className="empty-state">
+                  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3>No reports found</h3>
+                  <p>No weekly reports have been submitted yet</p>
+                </div>
+              ) : (
+                <div className="internships-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Latest Week</th>
+                        <th>Internship</th>
+                        <th>Last Submitted</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // Group reports by student_id and get the latest report for each student
+                        const studentReportsMap = {};
+                        weeklyReports.forEach(report => {
+                          if (!studentReportsMap[report.student_id] || 
+                              new Date(report.submitted_at) > new Date(studentReportsMap[report.student_id].submitted_at)) {
+                            studentReportsMap[report.student_id] = report;
+                          }
+                        });
+                        const latestReports = Object.values(studentReportsMap);
+                        
+                        return latestReports.map((report) => (
+                          <tr key={report.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {report.student_img ? (
+                                  <img 
+                                    src={`http://localhost:5050${report.student_img}`}
+                                    alt={report.student_name}
+                                    style={{ 
+                                      width: '40px', 
+                                      height: '40px', 
+                                      borderRadius: '50%', 
+                                      objectFit: 'cover' 
+                                    }}
+                                  />
+                                ) : (
+                                  <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'white',
+                                    fontSize: '16px',
+                                    fontWeight: '600'
+                                  }}>
+                                    {report.student_name?.charAt(0)}
+                                  </div>
+                                )}
+                                <div>
+                                  <strong>{report.student_name}</strong>
+                                  <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                    {report.student_email}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          <td>
+                            <span style={{
+                              padding: '6px 12px',
+                              background: '#dbeafe',
+                              color: '#1e40af',
+                              borderRadius: '8px',
+                              fontSize: '14px',
+                              fontWeight: '600'
+                            }}>
+                              Week {report.week_number}
+                            </span>
+                          </td>
+                          <td>
+                            {report.internship_title ? (
+                              <div>
+                                <strong style={{ fontSize: '13px' }}>{report.internship_title}</strong>
+                                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                  {report.company_name}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#9ca3af', fontSize: '13px' }}>No internship</span>
+                            )}
+                          </td>
+                          <td>
+                            {new Date(report.submitted_at).toLocaleDateString('en-GB', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </td>
+                          <td>
+                            {report.university_approved ? (
+                              <span style={{
+                                padding: '6px 12px',
+                                background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                                color: '#15803d',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}>
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                Approved
+                              </span>
+                            ) : (
+                              <span style={{
+                                padding: '6px 12px',
+                                background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                                color: '#92400e',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}>
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                </svg>
+                                Pending Review
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleViewStudentReports(report.student_id, report.student_name)}
+                              style={{
+                                padding: '8px 16px',
+                                background: report.university_approved 
+                                  ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
+                                  : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = 'none';
+                              }}
+                            >
+                              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                              </svg>
+                              {report.university_approved ? 'View Report' : 'Review Report'}
+                            </button>
+                          </td>
+                        </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {activeMenu === 'notifications' && (
@@ -2166,6 +2479,269 @@ function UniversityDashboard() {
                     </svg>
                     {loading ? 'Approving...' : 'Approve Final Report'}
                   </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Weekly Report Modal */}
+        {showWeeklyReportModal && selectedWeeklyReport && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setShowWeeklyReportModal(false)}
+          >
+            <div style={{
+              background: 'white',
+              borderRadius: '16px',
+              maxWidth: '700px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{
+                padding: '24px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '16px 16px 0 0'
+              }}>
+                <div>
+                  <h2 style={{ margin: 0, color: 'white', fontSize: '24px', fontWeight: '700' }}>
+                    Weekly Reports
+                  </h2>
+                  <p style={{ margin: '4px 0 0 0', color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px' }}>
+                    Student: {selectedWeeklyReport.student_name} ({selectedWeeklyReport.allReports?.length || 0} reports)
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowWeeklyReportModal(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '36px',
+                    height: '36px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                >
+                  <svg width="24" height="24" fill="white" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '24px' }}>
+                {/* All Reports Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Week</th>
+                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Submitted</th>
+                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Status</th>
+                        <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedWeeklyReport.allReports?.sort((a, b) => b.week_number - a.week_number).map((report) => (
+                        <tr key={report.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '12px' }}>
+                            <span style={{
+                              padding: '4px 8px',
+                              background: '#dbeafe',
+                              color: '#1e40af',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              fontWeight: '600'
+                            }}>
+                              Week {report.week_number}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>
+                            {new Date(report.submitted_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            {report.university_approved ? (
+                              <span style={{
+                                padding: '4px 8px',
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '600'
+                              }}>
+                                ✓ Approved
+                              </span>
+                            ) : (
+                              <span style={{
+                                padding: '4px 8px',
+                                background: '#fef3c7',
+                                color: '#92400e',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '600'
+                              }}>
+                                ⏳ Pending
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => {
+                                setSelectedWeeklyReport({ ...selectedWeeklyReport, ...report });
+                                setWeeklyReportComment(report.university_comment || '');
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {report.university_approved ? 'View' : 'Review'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Selected Report Details (shown when a report is clicked) */}
+                {selectedWeeklyReport.week_number && (
+                  <div style={{ marginTop: '24px', padding: '20px', background: '#f9fafb', borderRadius: '12px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
+                      Week {selectedWeeklyReport.week_number} Details
+                    </h3>
+                    
+                    {/* Report Content */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>Report Content:</h4>
+                      <div style={{
+                        padding: '12px',
+                        background: 'white',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        lineHeight: '1.6',
+                        color: '#4b5563',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {selectedWeeklyReport.report_text || 'No text content'}
+                      </div>
+                    </div>
+
+                    {/* Report File */}
+                    {selectedWeeklyReport.report_file && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <a
+                          href={`http://localhost:5050${selectedWeeklyReport.report_file}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            background: 'white',
+                            borderRadius: '6px',
+                            color: '#3b82f6',
+                            textDecoration: 'none',
+                            fontSize: '13px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          📎 Download File
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Comment & Approve Section */}
+                    {!selectedWeeklyReport.university_approved ? (
+                      <>
+                        <div style={{ marginBottom: '16px' }}>
+                          <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>Add Comment (Optional):</h4>
+                          <textarea
+                            value={weeklyReportComment}
+                            onChange={(e) => setWeeklyReportComment(e.target.value)}
+                            placeholder="Add feedback..."
+                            style={{
+                              width: '100%',
+                              minHeight: '80px',
+                              padding: '10px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              fontFamily: 'inherit',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleApproveWeeklyReport(selectedWeeklyReport.id)}
+                          disabled={loading}
+                          style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#22c55e',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            opacity: loading ? 0.6 : 1
+                          }}
+                        >
+                          {loading ? 'Approving...' : '✓ Approve Week ' + selectedWeeklyReport.week_number}
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{
+                        padding: '12px',
+                        background: '#dcfce7',
+                        borderRadius: '8px',
+                        color: '#15803d',
+                        fontSize: '13px',
+                        fontWeight: '600'
+                      }}>
+                        ✓ This report has been approved
+                        {selectedWeeklyReport.university_comment && (
+                          <div style={{ marginTop: '8px', color: '#166534', fontWeight: 'normal' }}>
+                            Comment: {selectedWeeklyReport.university_comment}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

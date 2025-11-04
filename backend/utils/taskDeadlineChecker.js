@@ -179,19 +179,23 @@ export async function checkOverdueTasks() {
     const notificationsToSend = [];
     
     for (const task of overdueTasks) {
-      // Check if already notified about this overdue task in the last 24 hours
+      // Check if EVER notified about this overdue task (send only once)
       const checkNotificationQuery = `
         SELECT id FROM notifications 
         WHERE user_id = ? 
           AND type = 'task_overdue'
-          AND message LIKE ?
-          AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          AND (message LIKE ? OR message LIKE ?)
       `;
       
+      const taskName = task.tasks || task.week_title;
       const existingNotification = await new Promise((resolve, reject) => {
         db.query(
           checkNotificationQuery, 
-          [task.student_user_id, `%${task.week_title}%`],
+          [
+            task.student_user_id, 
+            `%${taskName}%${task.plan_title}%`,
+            `%Week ${task.week_number}%${task.plan_title}%`
+          ],
           (err, results) => {
             if (err) reject(err);
             else resolve(results);
@@ -199,13 +203,18 @@ export async function checkOverdueTasks() {
         );
       });
 
+      // Only send notification if NEVER sent before for this overdue task
       if (existingNotification.length === 0) {
         notificationsToSend.push({
           user_id: task.student_user_id,
           title: '⚠️ Task Overdue',
-          message: `Your task "${task.tasks || task.week_title}" for ${task.plan_title} is overdue. The deadline was ${new Date(task.due_date).toLocaleString()}. Please submit as soon as possible.`,
+          message: `Your task "${taskName}" for ${task.plan_title} is overdue. The deadline was ${new Date(task.due_date).toLocaleString()}. Please submit as soon as possible.`,
           type: 'task_overdue'
         });
+        
+        console.log(`📤 Overdue notification queued for ${task.student_name}: ${taskName}`);
+      } else {
+        console.log(`⏭️  Skipping ${task.student_name} - already notified about overdue task: ${taskName}`);
       }
     }
 

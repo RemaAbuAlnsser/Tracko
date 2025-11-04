@@ -12,7 +12,7 @@ router.post("/", async (req, res) => {
 
     const { 
       student_id, 
-      trainer_id, 
+      university_id, 
       plan_id, 
       week_number, 
       report_text, 
@@ -35,7 +35,7 @@ router.post("/", async (req, res) => {
 
     // Check if report already exists for this student and week
     const checkQuery = `
-      SELECT id FROM Weekly_Reports 
+      SELECT id FROM weekly_reports 
       WHERE student_id = ? AND week_number = ?
       ORDER BY submitted_at DESC
       LIMIT 1
@@ -55,13 +55,14 @@ router.post("/", async (req, res) => {
       console.log(`📝 Updating existing report ID: ${existingReport.id}`);
       
       const updateQuery = `
-        UPDATE Weekly_Reports 
+        UPDATE weekly_reports 
         SET report_text = ?, 
             report_file = ?, 
-            trainer_id = ?,
+            university_id = ?,
             plan_id = ?,
             status = 'pending',
-            trainer_comment = NULL,
+            university_approved = FALSE,
+            university_comment = NULL,
             reviewed_at = NULL,
             submitted_at = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -70,7 +71,7 @@ router.post("/", async (req, res) => {
       await new Promise((resolve, reject) => {
         db.query(
           updateQuery, 
-          [report_text, report_file, trainer_id || null, plan_id || null, existingReport.id],
+          [report_text, report_file, university_id || null, plan_id || null, existingReport.id],
           (err, result) => {
             if (err) reject(err);
             else resolve(result);
@@ -82,36 +83,44 @@ router.post("/", async (req, res) => {
       console.log("✅ Weekly report updated successfully");
     } else {
       // Create new report
-      const result = await WeeklyReport.create({
-        student_id,
-        trainer_id: trainer_id || null,
-        plan_id: plan_id || null,
-        week_number,
-        report_text,
-        report_file
+      const insertQuery = `
+        INSERT INTO weekly_reports 
+        (student_id, university_id, plan_id, week_number, report_text, report_file)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      
+      const result = await new Promise((resolve, reject) => {
+        db.query(
+          insertQuery,
+          [student_id, university_id || null, plan_id || null, week_number, report_text, report_file],
+          (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          }
+        );
       });
 
       reportId = result.insertId;
       console.log("✅ Weekly report created successfully with ID:", reportId);
     }
 
-    // Send notification to trainer if trainer_id exists
-    if (trainer_id) {
+    // Send notification to university if university_id exists
+    if (university_id) {
       try {
-        // Get trainer user_id
-        const trainerQuery = `SELECT user_id FROM Trainers WHERE id = ?`;
-        const trainerResult = await new Promise((resolve, reject) => {
-          db.query(trainerQuery, [trainer_id], (err, results) => {
+        // Get university user_id
+        const universityQuery = `SELECT u.id as user_id FROM universities uni JOIN users u ON uni.email = u.email WHERE uni.id = ?`;
+        const universityResult = await new Promise((resolve, reject) => {
+          db.query(universityQuery, [university_id], (err, results) => {
             if (err) reject(err);
             else resolve(results);
           });
         });
 
-        if (trainerResult.length > 0) {
-          const trainerUserId = trainerResult[0].user_id;
+        if (universityResult.length > 0) {
+          const universityUserId = universityResult[0].user_id;
 
           // Get student name
-          const studentQuery = `SELECT u.full_name FROM Students s JOIN Users u ON s.user_id = u.id WHERE s.id = ?`;
+          const studentQuery = `SELECT u.full_name FROM students s JOIN users u ON s.user_id = u.id WHERE s.id = ?`;
           const studentResult = await new Promise((resolve, reject) => {
             db.query(studentQuery, [student_id], (err, results) => {
               if (err) reject(err);
@@ -123,14 +132,14 @@ router.post("/", async (req, res) => {
 
           // Create notification
           await Notification.create({
-            user_id: trainerUserId,
+            user_id: universityUserId,
             title: 'New Weekly Report',
-            message: `${studentName} submitted Week ${week_number} report`,
+            message: `${studentName} submitted Week ${week_number} report for review`,
             type: 'weekly_report',
             related_id: reportId
           });
 
-          console.log("🔔 Notification sent to trainer");
+          console.log("🔔 Notification sent to university");
         }
       } catch (notifError) {
         console.error("❌ Error sending notification:", notifError);
@@ -175,28 +184,6 @@ router.get("/student/:studentId", async (req, res) => {
   }
 });
 
-// Get all reports for a trainer
-router.get("/trainer/:trainerId", async (req, res) => {
-  try {
-    const { trainerId } = req.params;
-    console.log(`📚 Getting weekly reports for trainer ${trainerId}...`);
-
-    const reports = await WeeklyReport.findByTrainerId(trainerId);
-
-    console.log(`✅ Found ${reports.length} weekly reports`);
-
-    res.json({
-      success: true,
-      reports
-    });
-  } catch (error) {
-    console.error("❌ Error fetching weekly reports:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
-  }
-});
 
 // Get a specific report by ID
 router.get("/:id", async (req, res) => {
@@ -228,108 +215,8 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Review a weekly report
-router.put("/:id/review", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, trainer_comment } = req.body;
 
-    console.log(`🔍 Reviewing weekly report ${id} with status: ${status}`);
 
-    if (!status || !['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid status. Must be 'approved' or 'rejected'"
-      });
-    }
-
-    await WeeklyReport.review(id, status, trainer_comment);
-
-    // Send notification to student
-    try {
-      const report = await WeeklyReport.findById(id);
-      
-      if (report) {
-        const studentQuery = `SELECT user_id FROM Students WHERE id = ?`;
-        const studentResult = await new Promise((resolve, reject) => {
-          db.query(studentQuery, [report.student_id], (err, results) => {
-            if (err) reject(err);
-            else resolve(results);
-          });
-        });
-
-        if (studentResult.length > 0) {
-          const studentUserId = studentResult[0].user_id;
-          
-          await Notification.create({
-            user_id: studentUserId,
-            title: status === 'approved' ? 'Weekly Report Approved' : 'Weekly Report Needs Revision',
-            message: `Your Week ${report.week_number} report has been ${status}${trainer_comment ? ': ' + trainer_comment : ''}`,
-            type: 'weekly_report_review',
-            related_id: parseInt(id)
-          });
-
-          console.log("🔔 Review notification sent to student");
-        }
-      }
-    } catch (notifError) {
-      console.error("❌ Error sending notification:", notifError);
-    }
-
-    console.log(`✅ Weekly report ${id} reviewed with status: ${status}`);
-
-    res.json({
-      success: true,
-      message: "Weekly report reviewed successfully"
-    });
-  } catch (error) {
-    console.error("❌ Error reviewing weekly report:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
-  }
-});
-
-// Get pending reports count for trainer
-router.get("/trainer/:trainerId/pending-count", async (req, res) => {
-  try {
-    const { trainerId } = req.params;
-
-    const count = await WeeklyReport.getPendingCount(trainerId);
-
-    res.json({
-      success: true,
-      count
-    });
-  } catch (error) {
-    console.error("Error fetching pending weekly reports count:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
-  }
-});
-
-// Get pending reports count for a specific student with trainer
-router.get("/student/:studentId/trainer/:trainerId/pending-count", async (req, res) => {
-  try {
-    const { studentId, trainerId } = req.params;
-
-    const count = await WeeklyReport.getPendingCountByStudent(studentId, trainerId);
-
-    res.json({
-      success: true,
-      count
-    });
-  } catch (error) {
-    console.error("Error fetching student pending weekly reports count:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
-  }
-});
 
 // Update a weekly report
 router.put("/:id", async (req, res) => {
@@ -372,6 +259,112 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error deleting weekly report:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get all reports for a university
+router.get("/university/:universityId", async (req, res) => {
+  try {
+    const { universityId } = req.params;
+    console.log(`📚 Getting weekly reports for university ${universityId}...`);
+
+    const reports = await WeeklyReport.findByUniversityId(universityId);
+
+    console.log(`✅ Found ${reports.length} weekly reports`);
+
+    res.json({
+      success: true,
+      reports
+    });
+  } catch (error) {
+    console.error("❌ Error fetching weekly reports:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get pending reports count for university
+router.get("/university/:universityId/pending-count", async (req, res) => {
+  try {
+    const { universityId } = req.params;
+
+    const count = await WeeklyReport.getPendingCountByUniversity(universityId);
+
+    res.json({
+      success: true,
+      count
+    });
+  } catch (error) {
+    console.error("Error fetching pending weekly reports count:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// University review a weekly report
+router.put("/:id/university-review", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approved, university_comment } = req.body;
+
+    console.log(`🔍 University reviewing weekly report ${id} with approved: ${approved}`);
+
+    if (typeof approved !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid approved value. Must be true or false"
+      });
+    }
+
+    await WeeklyReport.universityReview(id, approved, university_comment);
+
+    // Send notification to student
+    try {
+      const report = await WeeklyReport.findById(id);
+      
+      if (report) {
+        const studentQuery = `SELECT user_id FROM Students WHERE id = ?`;
+        const studentResult = await new Promise((resolve, reject) => {
+          db.query(studentQuery, [report.student_id], (err, results) => {
+            if (err) reject(err);
+            else resolve(results);
+          });
+        });
+
+        if (studentResult.length > 0) {
+          const studentUserId = studentResult[0].user_id;
+          
+          await Notification.create({
+            user_id: studentUserId,
+            title: approved ? 'Weekly Report Approved by University' : 'Weekly Report Needs Revision',
+            message: `Your Week ${report.week_number} report has been ${approved ? 'approved' : 'rejected'} by the university${university_comment ? ': ' + university_comment : ''}`,
+            type: 'weekly_report_university_review',
+            related_id: parseInt(id)
+          });
+
+          console.log("🔔 University review notification sent to student");
+        }
+      }
+    } catch (notifError) {
+      console.error("❌ Error sending notification:", notifError);
+    }
+
+    console.log(`✅ Weekly report ${id} reviewed by university with approved: ${approved}`);
+
+    res.json({
+      success: true,
+      message: "Weekly report reviewed successfully"
+    });
+  } catch (error) {
+    console.error("❌ Error reviewing weekly report:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

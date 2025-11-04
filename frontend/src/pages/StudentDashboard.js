@@ -303,6 +303,12 @@ function StudentDashboard() {
   };
 
   const handleViewDetails = async (internshipId) => {
+    // Check if student has already been accepted to an internship
+    if (hasAcceptedInternship) {
+      alert('⚠️ You have already been accepted to an internship. You cannot apply to another internship.');
+      return;
+    }
+    
     try {
       setLoadingDetails(true);
       console.log('🔍 Loading internship details for ID:', internshipId);
@@ -558,35 +564,17 @@ function StudentDashboard() {
 
       // Get active plan for this student
       let activePlanId = null;
-      let trainerId = null;
-      let weekId = null;
 
       if (trainingPlans && trainingPlans.length > 0) {
         // Use the first active plan
         const activePlan = trainingPlans.find(plan => plan.status === 'active') || trainingPlans[0];
         activePlanId = activePlan.id;
-
-        // Get trainer_id from plan
-        const planResponse = await fetch(`http://localhost:5050/api/plans/${activePlanId}`);
-        const planData = await planResponse.json();
-        
-        if (planData.success && planData.plan) {
-          trainerId = planData.plan.trainer_id;
-          
-          // Find week_id if matching week number exists in plan
-          if (activePlan.weeks && activePlan.weeks.length > 0) {
-            const matchingWeek = activePlan.weeks.find(w => w.week_number === newReport.week_number);
-            if (matchingWeek) {
-              weekId = matchingWeek.id;
-            }
-          }
-        }
       }
 
-      // Submit report
+      // Submit report to university
       const reportData = {
         student_id: studentId,
-        trainer_id: trainerId,
+        university_id: studentData.university_id, // Send to university
         plan_id: activePlanId,
         week_number: newReport.week_number,
         report_text: newReport.report_text || '',
@@ -602,7 +590,7 @@ function StudentDashboard() {
       const data = await response.json();
 
       if (data.success) {
-        setMessage({ type: 'success', text: 'Weekly report submitted successfully!' });
+        setMessage({ type: 'success', text: 'Weekly report submitted to university successfully!' });
         setShowReportModal(false);
         setNewReport({
           week_number: 1,
@@ -2005,60 +1993,7 @@ function StudentDashboard() {
               <p>Internships matched to your skills and profile - sorted by compatibility</p>
             </div>
 
-            {hasAcceptedInternship ? (
-              <div className="empty-state" style={{ 
-                background: 'white',
-                color: '#1f2937',
-                padding: '3rem',
-                borderRadius: '12px',
-                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                border: '1px solid #e5e7eb'
-              }}>
-                <div style={{ 
-                  width: '80px',
-                  height: '80px',
-                  background: '#10b981',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1.5rem',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                }}>
-                  <svg width="48" height="48" fill="white" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                  </svg>
-                </div>
-                <h2 style={{ color: '#1f2937', fontSize: '2rem', marginBottom: '0.5rem', fontWeight: '700' }}>Congratulations!</h2>
-                <h3 style={{ color: '#10b981', fontSize: '1.3rem', marginBottom: '1.5rem', fontWeight: '600' }}>
-                  You have been accepted to an internship
-                </h3>
-                {acceptedInternshipInfo && (
-                  <div style={{ 
-                    background: '#f9fafb', 
-                    padding: '1.5rem', 
-                    borderRadius: '8px',
-                    marginTop: '1.5rem',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <p style={{ fontSize: '1rem', marginBottom: '0.75rem', color: '#4b5563' }}>
-                      <strong style={{ color: '#1f2937' }}>Internship:</strong> {acceptedInternshipInfo.internship_title}
-                    </p>
-                    <p style={{ fontSize: '1rem', color: '#4b5563' }}>
-                      <strong style={{ color: '#1f2937' }}>Company:</strong> {acceptedInternshipInfo.company_name}
-                    </p>
-                  </div>
-                )}
-                <p style={{ 
-                  marginTop: '1.5rem', 
-                  fontSize: '0.95rem',
-                  color: '#6b7280',
-                  lineHeight: '1.6'
-                }}>
-                  Check the <strong style={{ color: '#10b981' }}>Training Plans</strong> section to view your training schedule and tasks.
-                </p>
-              </div>
-            ) : loadingInternships ? (
+            {loadingInternships ? (
               <div className="loading-container">
                 <p>Loading internships...</p>
               </div>
