@@ -100,6 +100,18 @@ function TrainerDashboard() {
     unreadNotificationsCount: 0
   });
   
+  // Weekly Reports State
+  const [weeklyReports, setWeeklyReports] = useState([]);
+  const [showWeeklyReportsModal, setShowWeeklyReportsModal] = useState(false);
+  const [selectedWeeklyReport, setSelectedWeeklyReport] = useState(null);
+  const [showReportReviewModal, setShowReportReviewModal] = useState(false);
+  const [reportReviewStatus, setReportReviewStatus] = useState('approved');
+  const [reportReviewComment, setReportReviewComment] = useState('');
+  
+  // Edit Plan State
+  const [showEditPlanModal, setShowEditPlanModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -753,6 +765,89 @@ function TrainerDashboard() {
       }
     } catch (error) {
       console.error('Error loading plans:', error);
+    }
+  };
+
+  const handleReviewWeeklyReport = (report) => {
+    setSelectedWeeklyReport(report);
+    setShowReportReviewModal(true);
+    setReportReviewStatus('approved');
+    setReportReviewComment('');
+  };
+
+  const handleSubmitReportReview = async () => {
+    if (!selectedWeeklyReport) return;
+    
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/weekly-reports/${selectedWeeklyReport.id}/trainer-review`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          approved: reportReviewStatus === 'approved',
+          trainer_comment: reportReviewComment
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Report reviewed successfully!' });
+        setShowReportReviewModal(false);
+        setSelectedWeeklyReport(null);
+        // Reload weekly reports
+        if (selectedStudent) {
+          const reportsResponse = await fetch(`http://localhost:5050/api/weekly-reports/student/${selectedStudent.id}`);
+          const reportsData = await reportsResponse.json();
+          if (reportsData.success) {
+            setWeeklyReports(reportsData.reports || []);
+          }
+        }
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to review report' });
+      }
+    } catch (error) {
+      console.error('Review error:', error);
+      setMessage({ type: 'error', text: 'Failed to review report' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePlan = async (planId, updatedData) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/plans/${planId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Plan updated successfully!' });
+        setShowEditPlanModal(false);
+        setEditingPlan(null);
+        loadPlans();
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to update plan' });
+      }
+    } catch (error) {
+      console.error('Update error:', error);
+      setMessage({ type: 'error', text: 'Failed to update plan' });
+    } finally {
+      setLoading(false);
     }
   };
 
