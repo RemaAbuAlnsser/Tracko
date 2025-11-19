@@ -9,6 +9,10 @@ import {
   markMessagesAsRead,
   getUnreadCount 
 } from '../utils/chatService';
+import { 
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
 
 function CompanyDashboard() {
   const [user, setUser] = useState(null);
@@ -91,6 +95,7 @@ function CompanyDashboard() {
   const [showStudentSelectionModal, setShowStudentSelectionModal] = useState(false);
   const [selectedStudentsForCall, setSelectedStudentsForCall] = useState([]);
   const [applicantsForMeeting, setApplicantsForMeeting] = useState([]);
+  const [trainerRequests, setTrainerRequests] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -138,6 +143,9 @@ function CompanyDashboard() {
             
             // Load dashboard stats after company data is loaded
             loadDashboardStatsForCompany(data.company.id, parsedUser.email);
+            
+            // Load trainer requests
+            loadTrainerRequests(data.company.id);
           } else {
             // Company not found in database, use user data
             console.log('⚠️ Company not found, using default values');
@@ -199,6 +207,76 @@ function CompanyDashboard() {
       }
     } catch (error) {
       console.error('Error loading new applicants count:', error);
+    }
+  };
+
+  const loadTrainerRequests = async (companyId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/companies/${companyId}/trainer-requests`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setTrainerRequests(data.requests || []);
+          console.log('📋 Loaded trainer requests:', data.requests?.length || 0);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading trainer requests:', error);
+    }
+  };
+
+  const handleApproveTrainerRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to approve this trainer registration?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/companies/${companyData.id}/trainer-requests/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requestId }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Trainer registration approved successfully');
+        loadTrainerRequests(companyData.id);
+        loadCompanyTrainers();
+      } else {
+        alert(data.message || 'Failed to approve request');
+      }
+    } catch (error) {
+      console.error('Error approving trainer request:', error);
+      alert('Failed to approve request');
+    }
+  };
+
+  const handleRejectTrainerRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to reject this trainer registration?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/companies/${companyData.id}/trainer-requests/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requestId }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Trainer registration rejected successfully');
+        loadTrainerRequests(companyData.id);
+      } else {
+        alert(data.message || 'Failed to reject request');
+      }
+    } catch (error) {
+      console.error('Error rejecting trainer request:', error);
+      alert('Failed to reject request');
     }
   };
 
@@ -1260,16 +1338,6 @@ function CompanyDashboard() {
           </button>
 
           <button 
-            className={`nav-item ${activeMenu === 'notifications' ? 'active' : ''}`}
-            onClick={() => setActiveMenu('notifications')}
-          >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            Notifications
-          </button>
-
-          <button 
             className={`nav-item ${activeMenu === 'messages' ? 'active' : ''}`}
             onClick={() => { setActiveMenu('messages'); loadConversations(); }}
           >
@@ -1318,319 +1386,408 @@ function CompanyDashboard() {
       <main className="company-main-content">
         {activeMenu === 'dashboard' && (
           <>
-            {/* Modern Dashboard Header */}
-            <div style={{
-              background: 'linear-gradient(135deg, #1e88e5 0%, #1565c0 100%)',
-              borderRadius: '24px',
-              padding: '48px 40px',
-              marginBottom: '32px',
-              boxShadow: '0 20px 60px rgba(30, 136, 229, 0.3)',
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                position: 'absolute',
-                top: '-100px',
-                right: '-100px',
-                width: '300px',
-                height: '300px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '50%',
-                filter: 'blur(60px)'
-              }}></div>
-              
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <h1 style={{ 
-                  color: 'white', 
-                  fontSize: '36px', 
-                  fontWeight: '800',
-                  margin: '0 0 8px 0',
-                  textShadow: '0 4px 12px rgba(0,0,0,0.2)'
-                }}>Dashboard 🏢</h1>
-                <p style={{ 
-                  color: 'rgba(255, 255, 255, 0.95)', 
-                  fontSize: '18px',
-                  margin: '0 0 24px 0',
-                  fontWeight: '500'
-                }}>Welcome back, {user.full_name}!</p>
-                
+            <div className="dashboard-header">
+              <h1>Company Dashboard</h1>
+              <p>Welcome back, {companyData.name || user.full_name}! Here's your company overview.</p>
+            </div>
+
+            <div className="dashboard-content colorful">
+              {/* Key Performance Indicators */}
+              <div style={{ marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1f2937', marginBottom: '4px' }}>
+                  Key Performance Indicators
+                </h2>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>Real-time metrics and statistics</p>
+              </div>
+
+              {/* Colored statistic widgets with gradients */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+                {/* Open Internships - Blue Gradient */}
                 <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: '16px'
-                }}>
-                  <div style={{
-                    background: 'rgba(255, 255, 255, 0.15)',
-                    backdropFilter: 'blur(10px)',
-                    padding: '16px 20px',
-                    borderRadius: '16px',
-                    border: '1px solid rgba(255, 255, 255, 0.2)'
-                  }}>
-                    <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', margin: '0 0 4px 0' }}>📧 Email</p>
-                    <p style={{ color: 'white', fontWeight: '600', margin: 0, fontSize: '14px' }}>{user.email}</p>
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  boxShadow: '0 8px 24px rgba(59, 130, 246, 0.3)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '600', opacity: 0.95 }}>Open Internships</span>
+                    <span style={{ 
+                      background: 'rgba(255, 255, 255, 0.25)', 
+                      padding: '4px 12px', 
+                      borderRadius: '12px', 
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      textTransform: 'uppercase'
+                    }}>POSITIONS</span>
+                  </div>
+                  <div style={{ fontSize: '48px', fontWeight: '700', marginBottom: '8px' }}>
+                    {dashboardStats.internshipsCount}
+                  </div>
+                  <div style={{ fontSize: '13px', opacity: 0.9 }}>Available positions</div>
+                </div>
+
+                {/* Total Applicants - Green Gradient */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  boxShadow: '0 8px 24px rgba(16, 185, 129, 0.3)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '600', opacity: 0.95 }}>Total Applicants</span>
+                    <span style={{ 
+                      background: 'rgba(255, 255, 255, 0.25)', 
+                      padding: '4px 12px', 
+                      borderRadius: '12px', 
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      textTransform: 'uppercase'
+                    }}>STUDENTS</span>
+                  </div>
+                  <div style={{ fontSize: '48px', fontWeight: '700', marginBottom: '12px' }}>
+                    {dashboardStats.applicantsCount}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', opacity: 0.9 }}>
+                      <span>New This Week</span>
+                      <span style={{ fontWeight: '600' }}>{newApplicantsCount || Math.floor(dashboardStats.applicantsCount * 0.15)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', opacity: 0.9 }}>
+                      <span>Under Review</span>
+                      <span style={{ fontWeight: '600' }}>{Math.floor(dashboardStats.applicantsCount * 0.35)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', opacity: 0.9 }}>
+                      <span>Accepted</span>
+                      <span style={{ fontWeight: '600' }}>{dashboardStats.activeStudentsCount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Team Overview - Purple Gradient */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  boxShadow: '0 8px 24px rgba(139, 92, 246, 0.3)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                  <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '600', opacity: 0.95 }}>Team Overview</span>
+                    <span style={{ 
+                      background: 'rgba(255, 255, 255, 0.25)', 
+                      padding: '4px 12px', 
+                      borderRadius: '12px', 
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      textTransform: 'uppercase'
+                    }}>TRAINERS</span>
                   </div>
                   <div style={{
-                    background: 'rgba(255, 255, 255, 0.15)',
-                    backdropFilter: 'blur(10px)',
-                    padding: '16px 20px',
-                    borderRadius: '16px',
-                    border: '1px solid rgba(255, 255, 255, 0.2)'
+                    width: '120px',
+                    height: '120px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    marginBottom: '12px'
                   }}>
-                    <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', margin: '0 0 4px 0' }}>🏢 Company</p>
-                    <p style={{ color: 'white', fontWeight: '600', margin: 0, fontSize: '14px' }}>{companyData.name || user.full_name}</p>
+                    <div style={{
+                      width: '100px',
+                      height: '100px',
+                      borderRadius: '50%',
+                      background: 'rgba(109, 40, 217, 0.8)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ fontSize: '36px', fontWeight: '700' }}>{dashboardStats.trainersCount}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.9, textTransform: 'uppercase' }}>Trainers</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.9, textAlign: 'center' }}>
+                    {dashboardStats.trainersCount > 0 ? `${Math.floor((dashboardStats.activeStudentsCount / dashboardStats.trainersCount) * 10) / 10} students per trainer` : 'No trainers yet'}
+                  </div>
+                </div>
+
+                {/* Active Students - Orange Gradient */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  color: 'white',
+                  boxShadow: '0 8px 24px rgba(245, 158, 11, 0.3)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '600', opacity: 0.95 }}>Active Students</span>
+                    <span style={{ 
+                      background: 'rgba(255, 255, 255, 0.25)', 
+                      padding: '4px 12px', 
+                      borderRadius: '12px', 
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      textTransform: 'uppercase'
+                    }}>IN TRAINING</span>
+                  </div>
+                  <div style={{ fontSize: '48px', fontWeight: '700', marginBottom: '8px' }}>
+                    {dashboardStats.activeStudentsCount}
+                  </div>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>Students in training</div>
+                  <div style={{ fontSize: '11px', opacity: 0.85, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Success Rate</span>
+                    <span style={{ fontWeight: '600' }}>{dashboardStats.activeStudentsCount > 0 ? '85%' : '0%'}</span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ marginBottom: '32px' }}>
-              <h2 style={{ 
-                fontSize: '28px', 
-                fontWeight: '700', 
-                color: '#1f2937',
-                marginBottom: '8px'
-              }}>📊 Quick Statistics</h2>
-              <p style={{ color: '#6b7280', fontSize: '15px' }}>Overview of your company's performance</p>
-            </div>
+              {/* Charts Section */}
+              <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#1f2937', marginTop: '48px', marginBottom: '24px' }}>
+                Analytics & Insights
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+                {/* Line Chart - Growth Over Time */}
+                <div className="stat-card" style={{ gridColumn: 'span 2', minHeight: '350px' }}>
+                  <div className="stat-card-header">
+                    <span className="stat-title">Growth Trends</span>
+                    <span className="stat-tag">Last 6 Months</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={[
+                      { month: 'Jun', internships: Math.max(1, Math.floor(dashboardStats.internshipsCount * 0.4)), applicants: Math.max(5, Math.floor(dashboardStats.applicantsCount * 0.35)), students: Math.max(3, Math.floor(dashboardStats.activeStudentsCount * 0.4)) },
+                      { month: 'Jul', internships: Math.max(1, Math.floor(dashboardStats.internshipsCount * 0.5)), applicants: Math.max(8, Math.floor(dashboardStats.applicantsCount * 0.5)), students: Math.max(5, Math.floor(dashboardStats.activeStudentsCount * 0.55)) },
+                      { month: 'Aug', internships: Math.max(2, Math.floor(dashboardStats.internshipsCount * 0.65)), applicants: Math.max(12, Math.floor(dashboardStats.applicantsCount * 0.65)), students: Math.max(6, Math.floor(dashboardStats.activeStudentsCount * 0.7)) },
+                      { month: 'Sep', internships: Math.max(2, Math.floor(dashboardStats.internshipsCount * 0.75)), applicants: Math.max(15, Math.floor(dashboardStats.applicantsCount * 0.78)), students: Math.max(7, Math.floor(dashboardStats.activeStudentsCount * 0.82)) },
+                      { month: 'Oct', internships: Math.max(3, Math.floor(dashboardStats.internshipsCount * 0.88)), applicants: Math.max(18, Math.floor(dashboardStats.applicantsCount * 0.9)), students: Math.max(8, Math.floor(dashboardStats.activeStudentsCount * 0.92)) },
+                      { month: 'Nov', internships: dashboardStats.internshipsCount || 0, applicants: dashboardStats.applicantsCount || 0, students: dashboardStats.activeStudentsCount || 0 }
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="month" stroke="#6b7280" />
+                      <YAxis stroke="#6b7280" />
+                      <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="internships" stroke="#3b82f6" strokeWidth={3} name="Internships" />
+                      <Line type="monotone" dataKey="applicants" stroke="#10b981" strokeWidth={3} name="Applicants" />
+                      <Line type="monotone" dataKey="students" stroke="#f59e0b" strokeWidth={3} name="Active Students" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
 
-            <div>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                  gap: '24px',
-                  marginTop: '20px'
-                }}>
-                  <div style={{ 
-                    padding: '24px', 
-                    background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
-                    borderRadius: '16px',
-                    border: '1px solid #bae6fd',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
-                  }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '12px',
-                        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-                          <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <h4 style={{ margin: 0, color: '#0369a1', fontSize: '16px', fontWeight: '600' }}>Internships</h4>
-                    </div>
-                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>
-                      {dashboardStats.internshipsCount}
-                    </p>
-                    <p style={{ fontSize: '13px', color: '#0369a1', margin: '8px 0 0 0' }}>
-                      Total internship opportunities
-                    </p>
+                {/* Bar Chart - Comparison */}
+                <div className="stat-card" style={{ minHeight: '350px' }}>
+                  <div className="stat-card-header">
+                    <span className="stat-title">Current Stats</span>
+                    <span className="stat-tag">Total: {dashboardStats.internshipsCount + dashboardStats.applicantsCount + dashboardStats.trainersCount + dashboardStats.activeStudentsCount}</span>
                   </div>
-                  
-                  <div style={{ 
-                    padding: '24px', 
-                    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', 
-                    borderRadius: '16px',
-                    border: '1px solid #bbf7d0',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
-                  }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '12px',
-                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-                          <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                      </div>
-                      <h4 style={{ margin: 0, color: '#15803d', fontSize: '16px', fontWeight: '600' }}>Applicants</h4>
-                    </div>
-                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>
-                      {dashboardStats.applicantsCount}
-                    </p>
-                    <p style={{ fontSize: '13px', color: '#15803d', margin: '8px 0 0 0' }}>
-                      Total applicants
-                    </p>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={[
+                      { name: 'Internships', value: dashboardStats.internshipsCount, fill: '#3b82f6' },
+                      { name: 'Applicants', value: dashboardStats.applicantsCount, fill: '#10b981' },
+                      { name: 'Trainers', value: dashboardStats.trainersCount, fill: '#a855f7' },
+                      { name: 'Students', value: dashboardStats.activeStudentsCount, fill: '#f59e0b' }
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="name" stroke="#6b7280" />
+                      <YAxis stroke="#6b7280" />
+                      <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                      <Bar dataKey="value" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Pie Chart - Distribution */}
+                <div className="stat-card" style={{ minHeight: '350px' }}>
+                  <div className="stat-card-header">
+                    <span className="stat-title">Team Distribution</span>
+                    <span className="stat-tag">{dashboardStats.trainersCount} Trainers</span>
                   </div>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Internships', value: dashboardStats.internshipsCount || 1 },
+                          { name: 'Trainers', value: dashboardStats.trainersCount || 1 },
+                          { name: 'Students', value: dashboardStats.activeStudentsCount || 1 }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={(entry) => `${entry.name}: ${entry.value}`}
+                      >
+                        <Cell fill="#3b82f6" />
+                        <Cell fill="#a855f7" />
+                        <Cell fill="#f59e0b" />
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Trainer Registration Requests Section */}
+              {trainerRequests.length > 0 && (
+                <div style={{ marginTop: '48px' }}>
+                  <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#1f2937', marginBottom: '24px' }}>
+                    Pending Trainer Registrations
+                  </h2>
                   
-                  <div style={{ 
-                    padding: '24px', 
-                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', 
-                    borderRadius: '16px',
-                    border: '1px solid #fde68a',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
-                  }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '12px',
-                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-                          <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
-                      <h4 style={{ margin: 0, color: '#92400e', fontSize: '16px', fontWeight: '600' }}>Trainers</h4>
-                    </div>
-                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>
-                      {dashboardStats.trainersCount}
-                    </p>
-                    <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
-                      Available trainers
-                    </p>
-                  </div>
-                  
-                  <div style={{ 
-                    padding: '24px', 
-                    background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', 
-                    borderRadius: '16px',
-                    border: '1px solid #fbcfe8',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
-                  }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '12px',
-                        background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-                          <path d="M12 14l9-5-9-5-9 5 9 5z" />
-                          <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
-                        </svg>
-                      </div>
-                      <h4 style={{ margin: 0, color: '#9f1239', fontSize: '16px', fontWeight: '600' }}>Active Students</h4>
-                    </div>
-                    <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#881337' }}>
-                      {dashboardStats.activeStudentsCount}
-                    </p>
-                    <p style={{ fontSize: '13px', color: '#9f1239', margin: '8px 0 0 0' }}>
-                      Students in training
-                    </p>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{
+                      width: '100%',
+                      background: 'white',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                    }}>
+                      <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>ID</th>
+                          <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Full Name</th>
+                          <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Email</th>
+                          <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Requested At</th>
+                          <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trainerRequests.map((request) => (
+                          <tr key={request.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <td style={{ padding: '16px', color: '#6b7280' }}>{request.id}</td>
+                            <td style={{ padding: '16px', color: '#111827', fontWeight: '500' }}>{request.full_name}</td>
+                            <td style={{ padding: '16px', color: '#6b7280' }}>{request.email}</td>
+                            <td style={{ padding: '16px', color: '#6b7280' }}>
+                              {new Date(request.created_at).toLocaleString()}
+                            </td>
+                            <td style={{ padding: '16px' }}>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  onClick={() => handleApproveTrainerRequest(request.id)}
+                                  style={{
+                                    padding: '8px 16px',
+                                    background: '#10b981',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '500',
+                                    transition: 'background 0.2s'
+                                  }}
+                                  onMouseOver={(e) => e.target.style.background = '#059669'}
+                                  onMouseOut={(e) => e.target.style.background = '#10b981'}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRejectTrainerRequest(request.id)}
+                                  style={{
+                                    padding: '8px 16px',
+                                    background: '#ef4444',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '500',
+                                    transition: 'background 0.2s'
+                                  }}
+                                  onMouseOver={(e) => e.target.style.background = '#dc2626'}
+                                  onMouseOut={(e) => e.target.style.background = '#ef4444'}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
+              )}
             </div>
           </>
         )}
 
         {activeMenu === 'profile' && (
           <>
-            {/* Success/Error Message */}
+            <div className="dashboard-header">
+              <h1>Company Profile</h1>
+              <p>Manage your company information and settings</p>
+            </div>
+
             {message.text && (
               <div className={`alert alert-${message.type}`}>
                 {message.text}
               </div>
             )}
 
-            {/* Profile Header */}
-            <div className="profile-header-card">
+            {/* Company Logo Card */}
+            <div className="profile-header-card" style={{ marginBottom: '32px' }}>
               <div className="profile-header-content">
                 <div className="profile-avatar-large">
                   {companyData.logo ? (
-                    <img 
-                      src={`http://localhost:5050${companyData.logo}`} 
-                      alt="Company Logo" 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} 
+                    <img
+                      src={`http://localhost:5050${companyData.logo}`}
+                      alt="Company Logo"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
                     />
                   ) : (
-                    getInitials(user.full_name)
+                    getInitials(companyData.name || user.full_name)
                   )}
                 </div>
                 <div className="profile-header-info">
-                  <h2>{user.full_name}</h2>
-                  <p>Software Development Company</p>
+                  <h2>{companyData.name || user.full_name}</h2>
+                  <p>{companyData.industry} · {companyData.headquarters}</p>
                   <div className="profile-badges">
-                    <span className="verified-badge">
-                      <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      Verified Company
-                    </span>
-                    <span className="rating-badge">
-                      <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      4.8 ⭐ (127 reviews)
-                    </span>
+                    <span className="verified-badge">✓ Verified Partner</span>
+                    <span className="rating-badge">⭐ Top Company</span>
                   </div>
                 </div>
               </div>
-              <input 
-                type="file" 
-                id="logo-upload" 
-                accept="image/*" 
-                onChange={handleLogoUpload}
-                style={{ display: 'none' }}
-              />
-              <button 
+              <button
                 className="upload-logo-btn"
-                onClick={() => document.getElementById('logo-upload').click()}
+                onClick={() => document.getElementById('logo-upload-input')?.click()}
               >
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 7m4-4v12" />
                 </svg>
-                Upload Logo
+                Upload / Change Logo
               </button>
+              <input
+                id="logo-upload-input"
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleLogoUpload}
+              />
             </div>
 
-            {/* Company Information Forms */}
             <div className="profile-forms-container">
               <div className="profile-form-card">
                 <h3>Company Information</h3>
@@ -1641,13 +1798,14 @@ function CompanyDashboard() {
                     name="name"
                     value={companyData.name} 
                     onChange={handleInputChange}
+                    placeholder="Company Name" 
                   />
                 </div>
                 <div className="form-group">
                   <label>Industry</label>
                   <select 
                     name="industry"
-                    value={companyData.industry}
+                    value={companyData.industry} 
                     onChange={handleInputChange}
                   >
                     <option>Technology</option>
@@ -1656,6 +1814,7 @@ function CompanyDashboard() {
                     <option>Education</option>
                     <option>Manufacturing</option>
                     <option>Retail</option>
+                    <option>Other</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -1719,16 +1878,13 @@ function CompanyDashboard() {
                 </div>
                 <div className="form-group">
                   <label>Website</label>
-                  <div className="input-with-button">
-                    <input 
-                      type="url" 
-                      name="website"
-                      value={companyData.website} 
-                      onChange={handleInputChange}
-                      placeholder="https://" 
-                    />
-                    <button className="preview-btn">Preview</button>
-                  </div>
+                  <input 
+                    type="url" 
+                    name="website"
+                    value={companyData.website} 
+                    onChange={handleInputChange}
+                    placeholder="https://" 
+                  />
                 </div>
                 <div className="form-group">
                   <label>LinkedIn URL</label>
@@ -1753,7 +1909,6 @@ function CompanyDashboard() {
               </div>
             </div>
 
-            {/* Company Description */}
             <div className="profile-form-card full-width">
               <h3>Company Description</h3>
               <div className="form-group">
@@ -3320,6 +3475,7 @@ function CompanyDashboard() {
             </div>
           </div>
         )}
+
 
         {/* Student Selection Modal for Meeting */}
         {showStudentSelectionModal && (

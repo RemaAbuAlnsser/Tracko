@@ -69,6 +69,28 @@ router.post("/signup", async (req, res) => {
     const result = await RegistrationRequest.create({ full_name, email, password, user_type });
     console.log("✅ Registration request created with ID:", result.insertId);
 
+    // Helper function to send to admin
+    async function sendToAdmin() {
+      console.log("⚠️ Sending to admin as fallback");
+      const adminQuery = "SELECT id FROM Users WHERE user_type = 'admin'";
+      const admins = await new Promise((resolve, reject) => {
+        db.query(adminQuery, (err, results) => {
+          if (err) reject(err);
+          else resolve(results);
+        });
+      });
+      
+      for (const admin of admins) {
+        await Notification.create({
+          user_id: admin.id,
+          title: "New Registration Request",
+          message: `${full_name} (${email}) has requested to register as ${user_type}. Request ID: ${result.insertId}`,
+          type: "general"
+        });
+        console.log("✅ Notification sent to admin:", admin.id);
+      }
+    }
+
     // Send notifications based on user type
     console.log("📬 Determining notification recipient for user_type:", user_type);
     
@@ -77,14 +99,12 @@ router.post("/signup", async (req, res) => {
       const domain = email.split('@')[1];
       console.log("🔍 Student detected! Looking for university with domain:", domain);
       
-      // Find university by domain
       const university = await University.findByDomain(domain);
       console.log("🔎 University search result:", university ? `Found: ${university.name}` : 'Not found');
       
       if (university) {
         console.log("✅ Found university:", university.name, "- ID:", university.id);
         
-        // Get the university user from Users table - convert to Promise
         const universityUserQuery = "SELECT id FROM Users WHERE email = ? AND user_type = 'university'";
         const users = await new Promise((resolve, reject) => {
           db.query(universityUserQuery, [university.email], (err, results) => {
@@ -103,54 +123,51 @@ router.post("/signup", async (req, res) => {
           });
           console.log("✅ Notification sent to university user:", universityUser.id);
         } else {
-          console.log("⚠️ University found but no user account - sending to admin");
-          await sendToAdmin();
+          console.log("⚠️ University found but no user account");
         }
       } else {
-        // If no university found, send to admin as fallback
-        console.log("⚠️ No university found for domain:", domain, "- sending to admin");
-        await sendToAdmin();
+        console.log("⚠️ No university found for domain:", domain);
       }
+    } else if (user_type === 'trainer') {
+      // For trainers, send notification to their company
+      const domain = email.split('@')[1];
+      console.log("🔍 Trainer detected! Email:", email);
+      console.log("🔍 Extracted domain:", domain);
+      console.log("🔍 Looking for company with this domain...");
       
-      // Helper function to send to admin
-      async function sendToAdmin() {
-        const adminQuery = "SELECT id FROM Users WHERE user_type = 'admin'";
-        const admins = await new Promise((resolve, reject) => {
-          db.query(adminQuery, (err, results) => {
+      const company = await Company.findByDomain(domain);
+      console.log("🔎 Company search result:", company ? `Found: ${company.name} (ID: ${company.id}, Email: ${company.email})` : 'Not found');
+      
+      if (company) {
+        console.log("✅ Found company:", company.name, "- ID:", company.id);
+        
+        const companyUserQuery = "SELECT id FROM Users WHERE email = ? AND user_type = 'company'";
+        const users = await new Promise((resolve, reject) => {
+          db.query(companyUserQuery, [company.email], (err, results) => {
             if (err) reject(err);
             else resolve(results);
           });
         });
         
-        for (const admin of admins) {
+        if (users.length > 0) {
+          const companyUser = users[0];
           await Notification.create({
-            user_id: admin.id,
-            title: "New Registration Request",
-            message: `${full_name} (${email}) has requested to register as ${user_type}. Request ID: ${result.insertId}`,
-            type: "general"
+            user_id: companyUser.id,
+            title: "New Trainer Registration Request",
+            message: `${full_name} (${email}) has requested to register as a trainer. Request ID: ${result.insertId}`,
+            type: "registration_request"
           });
-          console.log("✅ Notification sent to admin:", admin.id);
+          console.log("✅ Notification sent to company user:", companyUser.id);
+        } else {
+          console.log("⚠️ Company found but no user account");
         }
+      } else {
+        console.log("⚠️ No company found for domain:", domain);
       }
     } else {
-      // For other user types (company, trainer, university), send to admin
-      const adminQuery = "SELECT id FROM Users WHERE user_type = 'admin'";
-      const admins = await new Promise((resolve, reject) => {
-        db.query(adminQuery, (err, results) => {
-          if (err) reject(err);
-          else resolve(results);
-        });
-      });
-      
-      for (const admin of admins) {
-        await Notification.create({
-          user_id: admin.id,
-          title: "New Registration Request",
-          message: `${full_name} (${email}) has requested to register as ${user_type}. Request ID: ${result.insertId}`,
-          type: "general"
-        });
-        console.log("✅ Notification sent to admin:", admin.id);
-      }
+      // For other user types (company, university), send to admin
+      console.log("ℹ️ User type is", user_type, "- sending to admin");
+      await sendToAdmin();
     }
 
     res.status(201).json({ 

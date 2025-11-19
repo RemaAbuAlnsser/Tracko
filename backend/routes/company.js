@@ -1,6 +1,9 @@
 import express from "express";
 import Company from "../models/Company.js";
 import db from "../config/database.js";
+import RegistrationRequest from "../models/RegistrationRequest.js";
+import User from "../models/User.js";
+import Trainer from "../models/Trainer.js";
 
 const router = express.Router();
 
@@ -476,6 +479,170 @@ router.get("/:id/stats", async (req, res) => {
 
   } catch (error) {
     console.error("Get company stats error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get trainer registration requests for a company
+router.get("/:companyId/trainer-requests", async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    
+    // Get company email to match with trainer email domain
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found"
+      });
+    }
+    
+    const domain = company.email.split('@')[1];
+    
+    // Get all pending trainer requests that match company domain
+    const query = `
+      SELECT * FROM Registration_Requests 
+      WHERE user_type = 'trainer' 
+      AND status = 'pending'
+      AND email LIKE ?
+      ORDER BY created_at DESC
+    `;
+    
+    const requests = await new Promise((resolve, reject) => {
+      db.query(query, [`%@${domain}`], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    
+    res.json({
+      success: true,
+      requests: requests || []
+    });
+    
+  } catch (error) {
+    console.error("Error fetching trainer requests:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Approve trainer registration request
+router.post("/:companyId/trainer-requests/approve", async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    const { requestId } = req.body;
+    
+    if (!requestId) {
+      return res.status(400).json({
+        success: false,
+        message: "Request ID is required"
+      });
+    }
+    
+    // Get the request details
+    const request = await RegistrationRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Registration request not found"
+      });
+    }
+    
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: "Request has already been processed"
+      });
+    }
+    
+    if (request.user_type !== 'trainer') {
+      return res.status(400).json({
+        success: false,
+        message: "This is not a trainer request"
+      });
+    }
+    
+    // Create user in Users table
+    const userResult = await User.create({
+      full_name: request.full_name,
+      email: request.email,
+      password: request.password,
+      user_type: 'trainer'
+    });
+    
+    const userId = userResult.insertId;
+    
+    // Create trainer record
+    await Trainer.create({
+      company_id: companyId,
+      user_id: userId,
+      status: 'active'
+    });
+    
+    // Update request status to approved
+    await RegistrationRequest.updateStatus(requestId, 'approved');
+    
+    res.json({
+      success: true,
+      message: "Trainer registration approved successfully",
+      userId
+    });
+    
+  } catch (error) {
+    console.error("Error approving trainer request:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Reject trainer registration request
+router.post("/:companyId/trainer-requests/reject", async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    
+    if (!requestId) {
+      return res.status(400).json({
+        success: false,
+        message: "Request ID is required"
+      });
+    }
+    
+    // Get the request details
+    const request = await RegistrationRequest.findById(requestId);
+    
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Registration request not found"
+      });
+    }
+    
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: "Request has already been processed"
+      });
+    }
+    
+    // Update request status to rejected
+    await RegistrationRequest.updateStatus(requestId, 'rejected');
+    
+    res.json({
+      success: true,
+      message: "Trainer registration rejected successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error rejecting trainer request:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

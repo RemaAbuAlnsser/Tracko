@@ -199,7 +199,7 @@ router.post("/stats", isAdmin, async (req, res) => {
         totalInternships: "SELECT COUNT(*) as count FROM Internships",
         totalPartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships",
         totalNotifications: "SELECT COUNT(*) as count FROM notifications WHERE user_id IN (SELECT id FROM Users WHERE user_type = 'admin')",
-        pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending' AND user_type != 'student'",
+        pendingRequests: "SELECT COUNT(*) as count FROM Registration_Requests WHERE status = 'pending' AND (user_type = 'company' OR user_type = 'university')",
         activeInternships: "SELECT COUNT(*) as count FROM Internships",
         activePartnerships: "SELECT COUNT(*) as count FROM University_Company_Partnerships WHERE status = 'active'",
         unreadNotifications: "SELECT COUNT(*) as count FROM notifications WHERE is_read = FALSE AND user_id IN (SELECT id FROM Users WHERE user_type = 'admin')",
@@ -362,10 +362,14 @@ router.post("/users/delete", isAdmin, async (req, res) => {
   }
 });
 
-// Get all registration requests
+// Get all registration requests (only company and university for admin)
 router.post("/registration-requests", isAdmin, async (req, res) => {
   try {
-    const requests = await RegistrationRequest.getAll();
+    const allRequests = await RegistrationRequest.getAll();
+    // Filter to show only company and university requests to admin
+    const requests = allRequests.filter(req => 
+      req.user_type === 'company' || req.user_type === 'university'
+    );
     res.json({ 
       success: true,
       requests 

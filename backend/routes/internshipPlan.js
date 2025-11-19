@@ -10,6 +10,40 @@ InternshipPlan.createTables().catch(err => {
   console.error('Error initializing plan tables:', err);
 });
 
+// Get all plans for a specific trainer
+router.get("/trainer/:trainerId", async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    const query = `
+      SELECT ip.*, i.title as internship_title, i.description as internship_description
+      FROM Internship_Plans ip
+      LEFT JOIN Internships i ON ip.internship_id = i.id
+      WHERE ip.trainer_id = ?
+      ORDER BY ip.created_at DESC
+    `;
+    
+    const plans = await new Promise((resolve, reject) => {
+      db.query(query, [trainerId], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    
+    res.json({
+      success: true,
+      plans: plans || []
+    });
+  } catch (error) {
+    console.error('Error fetching trainer plans:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching trainer plans',
+      error: error.message
+    });
+  }
+});
+
 // Create a new plan
 router.post("/", async (req, res) => {
   try {
