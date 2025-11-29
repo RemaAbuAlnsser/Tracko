@@ -1,0 +1,24 @@
+# Node modules
+node_modules/
+ai_service/
+
+# Environment variables
+.env
+
+# AI Service
+#ai_service/
+
+# Logs
+*.log
+
+# Build output
+/dist
+/build
+
+# OS files (macOS)
+.DS_Store
+
+# Temporary files
+*.tmp
+
+
