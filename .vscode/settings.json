@@ -15,5 +15,6 @@
             "database": "trackoDB",
             "askForPassword": true
         }
-    ]
+    ],
+    "java.compile.nullAnalysis.mode": "automatic"
 }

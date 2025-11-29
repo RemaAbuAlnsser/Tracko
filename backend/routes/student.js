@@ -226,6 +226,81 @@ router.get("/university/:universityId", async (req, res) => {
   }
 });
 
+// Update student profile by user_id (for mobile app)
+router.put("/:userId/profile", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log("📱 Updating student profile for user ID:", userId);
+    console.log("📦 Request body:", req.body);
+    
+    // First find the student by user_id
+    const student = await Student.findByUserId(userId);
+    if (!student) {
+      console.log("❌ Student not found for user ID:", userId);
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+    
+    console.log("✅ Found student:", student.id);
+    
+    const {
+      full_name,
+      email,
+      phone,
+      major,
+      gpa,
+      academic_year,
+      skills
+    } = req.body;
+    
+    // Update User table fields
+    if (full_name !== undefined || email !== undefined) {
+      const updateUserQuery = `
+        UPDATE Users 
+        SET full_name = COALESCE(?, full_name), 
+            email = COALESCE(?, email)
+        WHERE id = ?
+      `;
+      
+      await new Promise((resolve, reject) => {
+        db.query(updateUserQuery, [full_name || null, email || null, userId], (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+      
+      console.log("✅ User table updated");
+    }
+    
+    // Update Student table fields
+    const updateData = {
+      major: major !== undefined ? (major === '' ? null : major) : student.major,
+      academic_year: academic_year !== undefined ? (academic_year === '' ? null : academic_year) : student.academic_year,
+      gpa: gpa !== undefined ? (gpa === '' || gpa === null ? null : parseFloat(gpa)) : student.gpa,
+      skills: skills !== undefined ? (skills === '' ? null : skills) : student.skills
+    };
+    
+    console.log("📤 Student update data:", updateData);
+    
+    await Student.update(student.id, updateData);
+    
+    console.log("✅ Student profile updated successfully");
+    
+    res.json({
+      success: true,
+      message: "Profile updated successfully"
+    });
+  } catch (error) {
+    console.error("❌ Error updating student profile:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Update student profile
 router.put("/:id", async (req, res) => {
   try {

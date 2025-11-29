@@ -24,9 +24,13 @@ import taskDeadlineRoutes from "./routes/taskDeadlines.js";
 import eventRoutes from "./routes/events.js";
 import videoCallRoutes from "./routes/videoCall.js";
 import interviewRoutes from "./routes/interview.js";
+import messageRoutes from "./routes/messages.js";
+import profileRoutes from "./routes/profile.js";
 import WeeklyReport from "./models/WeeklyReport.js";
 import Event from "./models/Event.js";
 import Interview from "./models/Interview.js";
+import Message from "./models/Message.js";
+import StudentProfile from "./models/StudentProfile.js";
 import { setupTaskDeadlineCron } from "./cron/taskDeadlineCron.js";
 import { sendInterviewReminders } from "./jobs/interviewReminders.js";
 
@@ -70,6 +74,8 @@ app.use("/api/task-deadlines", taskDeadlineRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/video-call", videoCallRoutes);
 app.use("/api/interviews", interviewRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api", profileRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ 
@@ -100,13 +106,23 @@ async function initializeDatabase() {
     
     await Event.createTable();
     console.log("✅ Events table initialized");
+    
+    await Message.createTable();
+    console.log("✅ Messages table initialized");
+    
+    // Insert sample messages for testing
+    await Message.insertSampleData();
+    
+    // Initialize student profiles table
+    await StudentProfile.createTable();
+    console.log("✅ Student profiles table initialized");
   } catch (error) {
     console.error("❌ Error initializing database tables:", error);
   }
 }
 
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`Server running on port ${PORT} (accessible from all interfaces)`);
   await initializeDatabase();
   
   // Setup cron jobs for task deadline notifications

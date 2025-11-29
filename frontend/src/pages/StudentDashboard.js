@@ -2488,8 +2488,10 @@ function StudentDashboard() {
                               alt={contact.name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
                               onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = contact.name ? contact.name.charAt(0).toUpperCase() : 'U';
+                                if (e.target && e.target.parentElement) {
+                                  e.target.style.display = 'none';
+                                  e.target.parentElement.textContent = contact.name ? contact.name.charAt(0).toUpperCase() : 'U';
+                                }
                               }}
                             />
                           ) : contact.type === 'trainer' && contact.profile_image ? (
@@ -2498,8 +2500,10 @@ function StudentDashboard() {
                               alt={contact.full_name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
                               onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'T';
+                                if (e.target && e.target.parentElement) {
+                                  e.target.style.display = 'none';
+                                  e.target.parentElement.textContent = contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'T';
+                                }
                               }}
                             />
                           ) : (
@@ -2537,8 +2541,10 @@ function StudentDashboard() {
                             alt={selectedTrainer.name}
                             style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
                             onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
+                              if (e.target && e.target.parentElement) {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
+                              }
                             }}
                           />
                         ) : selectedTrainer.type === 'trainer' && selectedTrainer.profile_image ? (
@@ -2547,8 +2553,10 @@ function StudentDashboard() {
                             alt={selectedTrainer.full_name}
                             style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
                             onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                              if (e.target && e.target.parentElement) {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                              }
                             }}
                           />
                         ) : (
@@ -2591,8 +2599,10 @@ function StudentDashboard() {
                                       src={`http://localhost:5050${selectedTrainer.logo}`} 
                                       alt={selectedTrainer.name}
                                       onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
+                                        if (e.target && e.target.parentElement) {
+                                          e.target.style.display = 'none';
+                                          e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
+                                        }
                                       }}
                                     />
                                   ) : selectedTrainer.profile_image ? (
@@ -2600,8 +2610,10 @@ function StudentDashboard() {
                                       src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                                       alt={selectedTrainer.full_name}
                                       onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                                        if (e.target && e.target.parentElement) {
+                                          e.target.style.display = 'none';
+                                          e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                                        }
                                       }}
                                     />
                                   ) : (
@@ -2626,8 +2638,10 @@ function StudentDashboard() {
                                       src={`http://localhost:5050${studentData.student_img}`} 
                                       alt={user.full_name}
                                       onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S';
+                                        if (e.target && e.target.parentElement) {
+                                          e.target.style.display = 'none';
+                                          e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S';
+                                        }
                                       }}
                                     />
                                   ) : (

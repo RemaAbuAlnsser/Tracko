@@ -15,6 +15,47 @@ router.get("/test", (req, res) => {
   res.json({ message: "Auth routes are working!" });
 });
 
+// Create user directly (for testing)
+router.post("/create-user", async (req, res) => {
+  try {
+    const { full_name, email, password, user_type } = req.body;
+    console.log("Creating user directly:", { full_name, email, user_type });
+    
+    const result = await User.create({ full_name, email, password, user_type });
+    console.log("User created:", result);
+    
+    res.json({ success: true, message: "User created successfully", userId: result.insertId });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+});
+
+// Get table structure (for debugging)
+router.get("/table-structure", async (req, res) => {
+  try {
+    console.log("Getting table structure...");
+    const query = "DESCRIBE users";
+    
+    return new Promise((resolve, reject) => {
+      db.query(query, (err, results) => {
+        if (err) {
+          console.error("Database error:", err);
+          res.status(500).json({ success: false, message: "Server error", error: err.message });
+          reject(err);
+        } else {
+          console.log("Table structure:", results);
+          res.json({ success: true, structure: results });
+          resolve(results);
+        }
+      });
+    });
+  } catch (error) {
+    console.error("Error getting table structure:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+});
+
 // Signup endpoint
 router.post("/signup", async (req, res) => {
   try {
