@@ -27,10 +27,10 @@ interface StudentDashboardScreenProps {
   onLogout?: () => void;
 }
 
-type TabKey = 'overview' | 'internships' | 'applications' | 'chat' | 'notifications' | 'profile';
+type TabKey = 'dashboard' | 'profile' | 'cv-upload' | 'internships' | 'saved' | 'status' | 'notifications' | 'messages' | 'plans';
 
 const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userData, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -58,6 +58,16 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   // Internships and applications
   const [internships, setInternships] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
+  const [savedInternships, setSavedInternships] = useState<any[]>([]);
+  const [trainingPlans, setTrainingPlans] = useState<any[]>([]);
+  const [weeklyReports, setWeeklyReports] = useState<any[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  
+  // CV Upload
+  const [selectedCV, setSelectedCV] = useState<any>(null);
+  const [cvAnalysis, setCvAnalysis] = useState<any>(null);
+  const [isUploadingCV, setIsUploadingCV] = useState(false);
+  const [isAnalyzingCV, setIsAnalyzingCV] = useState(false);
   
   // Chat
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
@@ -94,13 +104,13 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   }, [activeTab, studentData.id]);
 
   useEffect(() => {
-    if (activeTab === 'applications' && studentData.id) {
+    if (activeTab === 'status' && studentData.id) {
       fetchApplications();
     }
   }, [activeTab, studentData.id]);
 
   useEffect(() => {
-    if (activeTab === 'chat' && studentData.id) {
+    if (activeTab === 'messages' && studentData.id) {
       loadContacts();
     }
   }, [activeTab, studentData.id]);
@@ -344,7 +354,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     }
   }, [selectedContactId]);
 
-  const renderOverview = () => {
+  const renderDashboard = () => {
     const screenWidth = Dimensions.get('window').width;
     
     return (
@@ -361,7 +371,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
         <View style={styles.kpiGrid}>
           <TouchableOpacity 
             style={[styles.kpiCard, styles.kpiCardBlue]}
-            onPress={() => setActiveTab('applications')}
+            onPress={() => setActiveTab('status')}
           >
             <View style={styles.kpiHeader}>
               <Text style={styles.kpiLabel}>Applications</Text>
@@ -389,7 +399,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
           <TouchableOpacity 
             style={[styles.kpiCard, styles.kpiCardOrange]}
-            onPress={() => setActiveTab('applications')}
+            onPress={() => setActiveTab('status')}
           >
             <View style={styles.kpiHeader}>
               <Text style={styles.kpiLabel}>Accepted</Text>
@@ -491,7 +501,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     );
   };
 
-  const renderApplications = () => {
+  const renderApplicationsStatus = () => {
     return (
       <ScrollView style={styles.tabContent}>
         <View style={styles.dashboardHeader}>
@@ -532,7 +542,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     );
   };
 
-  const renderChat = () => {
+  const renderMessages = () => {
     return (
       <View style={styles.chatContainer}>
         <View style={styles.chatSidebar}>
@@ -827,22 +837,160 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     );
   };
 
+  const renderCVUpload = () => {
+    return (
+      <ScrollView style={styles.tabContent}>
+        <View style={styles.dashboardHeader}>
+          <Text style={styles.dashboardTitle}>CV Upload & Analysis</Text>
+          <Text style={styles.dashboardSubtitle}>
+            Upload your CV for AI-powered analysis
+          </Text>
+        </View>
+
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>CV Upload Feature</Text>
+          <Text style={styles.emptySubtext}>
+            This feature will be available soon. Use the web version to upload and analyze your CV.
+          </Text>
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderSavedInternships = () => {
+    return (
+      <ScrollView style={styles.tabContent}>
+        <View style={styles.dashboardHeader}>
+          <Text style={styles.dashboardTitle}>Saved Internships</Text>
+          <Text style={styles.dashboardSubtitle}>
+            Internships you've bookmarked for later
+          </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Saved Internships</Text>
+        <Text style={styles.sectionSubtitle}>{savedInternships.length} saved</Text>
+
+        {savedInternships.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No saved internships</Text>
+            <Text style={styles.emptySubtext}>Save internships to view them here</Text>
+          </View>
+        ) : (
+          savedInternships.map((item: any) => (
+            <View key={item.id} style={styles.internshipCard}>
+              <View style={styles.internshipHeader}>
+                <View style={styles.companyLogo}>
+                  <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                </View>
+                <View style={styles.internshipInfo}>
+                  <Text style={styles.companyNameText}>{item.company_name}</Text>
+                  <Text style={styles.companyIndustryText}>{item.company_industry}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.internshipTitleText}>{item.title}</Text>
+
+              <TouchableOpacity 
+                style={[styles.button, styles.applyButton]}
+                onPress={() => Alert.alert('Apply', `Apply to ${item.title}`)}
+              >
+                <Text style={styles.buttonText}>Apply Now</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+      </ScrollView>
+    );
+  };
+
+  const renderTrainingPlans = () => {
+    return (
+      <ScrollView style={styles.tabContent}>
+        <View style={styles.dashboardHeader}>
+          <Text style={styles.dashboardTitle}>Training Plans</Text>
+          <Text style={styles.dashboardSubtitle}>
+            Your training plan and weekly reports
+          </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Training Plans</Text>
+        <Text style={styles.sectionSubtitle}>{trainingPlans.length} plans</Text>
+
+        {trainingPlans.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No training plans yet</Text>
+            <Text style={styles.emptySubtext}>
+              Training plans will appear here once you're accepted to an internship
+            </Text>
+          </View>
+        ) : (
+          trainingPlans.map((plan: any) => (
+            <View key={plan.id} style={styles.applicationCard}>
+              <Text style={styles.applicationTitle}>{plan.plan_name || 'Training Plan'}</Text>
+              <Text style={styles.applicationCompany}>Duration: {plan.duration} weeks</Text>
+              <TouchableOpacity 
+                style={[styles.button, styles.applyButton]}
+                onPress={() => setSelectedPlan(plan)}
+              >
+                <Text style={styles.buttonText}>View Details</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+
+        <Text style={styles.sectionTitle}>Weekly Reports</Text>
+        <Text style={styles.sectionSubtitle}>{weeklyReports.length} reports</Text>
+
+        {weeklyReports.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No weekly reports</Text>
+            <Text style={styles.emptySubtext}>Submit weekly reports through the web version</Text>
+          </View>
+        ) : (
+          weeklyReports.map((report: any) => (
+            <View key={report.id} style={styles.applicationCard}>
+              <Text style={styles.applicationTitle}>Week {report.week_number}</Text>
+              <Text style={styles.applicationDate}>
+                Submitted: {new Date(report.submitted_at).toLocaleDateString()}
+              </Text>
+              <View style={[
+                styles.statusBadge,
+                report.trainer_approved && styles.statusActive,
+                !report.trainer_approved && styles.statusPending,
+              ]}>
+                <Text style={styles.statusText}>
+                  {report.trainer_approved ? 'Approved' : 'Pending'}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'overview':
-        return renderOverview();
-      case 'internships':
-        return renderInternships();
-      case 'applications':
-        return renderApplications();
-      case 'chat':
-        return renderChat();
-      case 'notifications':
-        return renderNotifications();
+      case 'dashboard':
+        return renderDashboard();
       case 'profile':
         return renderProfile();
+      case 'cv-upload':
+        return renderCVUpload();
+      case 'internships':
+        return renderInternships();
+      case 'saved':
+        return renderSavedInternships();
+      case 'status':
+        return renderApplicationsStatus();
+      case 'notifications':
+        return renderNotifications();
+      case 'messages':
+        return renderMessages();
+      case 'plans':
+        return renderTrainingPlans();
       default:
-        return renderOverview();
+        return renderDashboard();
     }
   };
 

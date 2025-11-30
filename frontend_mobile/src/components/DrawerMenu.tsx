@@ -66,10 +66,15 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
         ];
       case 'student':
         return [
-          { key: 'overview', label: 'Overview', icon: 'grid' },
-          { key: 'internships', label: 'Internships', icon: 'briefcase' },
-          { key: 'chat', label: 'Chat', icon: 'message', badge: unreadCount },
-          { key: 'notifications', label: 'Notifications', icon: 'bell' },
+          { key: 'dashboard', label: 'Dashboard', icon: 'grid' },
+          { key: 'profile', label: 'Profile & Edit', icon: 'user' },
+          { key: 'cv-upload', label: 'CV Upload & Analysis', icon: 'file' },
+          { key: 'internships', label: 'AI-Matched Internships', icon: 'briefcase' },
+          { key: 'saved', label: 'Saved Internships', icon: 'bookmark' },
+          { key: 'status', label: 'Applications Status', icon: 'list' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: unreadCount },
+          { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
+          { key: 'plans', label: 'Training Plans', icon: 'calendar' },
         ];
       default:
         return [];
