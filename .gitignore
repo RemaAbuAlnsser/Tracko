@@ -1,6 +1,7 @@
 # Node modules
 backend/node_modules/
 frontend/node_modules/
+node_modules
 
 # Build output
 frontend/build/
@@ -38,3 +39,7 @@ frontend_mobile/ios/Pods/
 frontend_mobile/.expo/
 frontend_mobile/.expo-shared/
 frontend_mobile/metro-cache/
+*.apk
+*.aab
+*.so
+node_modules

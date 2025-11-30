@@ -18,7 +18,6 @@ import {
   getUnreadCount,
 } from '../utils/chatService';
 import { launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
-import DocumentPicker from 'react-native-document-picker';
 
 interface StudentDashboardScreenProps {
   userData?: any;
@@ -447,31 +446,24 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     }
   };
 
-  // Handle CV file selection
+  // Handle CV file selection - Temporary simplified version
   const selectCVFile = async () => {
     try {
-      console.log('📄 Starting CV file selection...');
+      console.log('📄 CV file selection feature...');
       
-      const result = await DocumentPicker.pick({
-        type: [DocumentPicker.types.pdf, DocumentPicker.types.doc, DocumentPicker.types.docx],
-        allowMultiSelection: false,
-      });
-
-      if (result && result.length > 0) {
-        const file = result[0];
-        console.log('✅ Selected CV file:', file);
-        
-        setCvFile(file);
-        const fileSize = file.size ? (file.size / 1024 / 1024).toFixed(2) : 'Unknown';
-        Alert.alert('Success', `CV file selected: ${file.name}\n\nSize: ${fileSize} MB`);
-      }
+      Alert.alert(
+        'CV Upload',
+        'CV file selection will be available in the next update. For now, please use the web version to upload your CV.',
+        [
+          {
+            text: 'OK',
+            onPress: () => console.log('User acknowledged CV upload limitation')
+          }
+        ]
+      );
     } catch (error) {
-      if (DocumentPicker.isCancel(error)) {
-        console.log('👤 User cancelled CV file selection');
-      } else {
-        console.error('💥 Error selecting CV file:', error);
-        Alert.alert('Error', 'Failed to select CV file. Please try again.');
-      }
+      console.error('💥 Error in CV selection:', error);
+      Alert.alert('Error', 'An error occurred. Please try again.');
     }
   };
 
