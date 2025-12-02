@@ -486,6 +486,53 @@ router.get("/:id/stats", async (req, res) => {
   }
 });
 
+// Get all trainers for a company
+router.get("/:companyId/trainers", async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    console.log(`👥 Getting trainers for company ${companyId}`);
+    
+    // Get company email to match with trainer email domain
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found"
+      });
+    }
+    
+    const domain = company.email.split('@')[1];
+    console.log(`🔍 Looking for trainers with domain: ${domain}`);
+    
+    // Get all approved trainers that match company domain
+    const query = `
+      SELECT t.*, u.full_name, u.email 
+      FROM Trainers t
+      JOIN Users u ON t.user_id = u.id
+      WHERE u.email LIKE ?
+      AND u.user_type = 'trainer'
+      ORDER BY u.full_name ASC
+    `;
+    
+    const trainers = await new Promise((resolve, reject) => {
+      db.query(query, [`%@${domain}`], (err, results) => {
+        if (err) reject(err);
+        else resolve(results);
+      });
+    });
+    
+    console.log(`✅ Found ${trainers.length} trainers`);
+    res.json(trainers || []);
+    
+  } catch (error) {
+    console.error("Error fetching trainers:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
 // Get trainer registration requests for a company
 router.get("/:companyId/trainer-requests", async (req, res) => {
   try {
