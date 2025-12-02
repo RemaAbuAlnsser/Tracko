@@ -5,13 +5,15 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
-  Alert,
-  Dimensions,
   TextInput,
+  Alert,
+  ActivityIndicator,
+  Platform,
   Modal,
+  Dimensions,
   FlatList,
 } from 'react-native';
+import DrawerMenu from '../components/DrawerMenu';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import {
   loadChatMessages,
@@ -109,6 +111,7 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
   const [schedulingInterview, setSchedulingInterview] = useState(false);
   const [showInterviewTypeModal, setShowInterviewTypeModal] = useState(false);
   const [showInternshipSelectModal, setShowInternshipSelectModal] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5050' : 'http://localhost:5050';
 
@@ -2579,126 +2582,52 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
 
   return (
     <View style={styles.container}>
-      {/* Header with Company Info */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.companyAvatar}>
-            <Text style={styles.avatarText}>{getInitials(companyData.name || userData?.full_name || 'CO')}</Text>
-          </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.companyName}>{companyData.name || userData?.full_name || 'Company'}</Text>
-            <View style={styles.companyBadge}>
-              <Text style={styles.badgeText}>Company</Text>
-            </View>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Tab Navigation */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabBar}
-        contentContainerStyle={styles.tabBarContent}
+      {/* Drawer Menu Modal */}
+      <Modal
+        visible={drawerVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setDrawerVisible(false)}
       >
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'dashboard' && styles.activeTab]}
-          onPress={() => handleTabChange('dashboard')}
+          style={styles.drawerOverlay}
+          activeOpacity={1}
+          onPress={() => setDrawerVisible(false)}
         >
-          <Text style={[styles.tabText, activeTab === 'dashboard' && styles.activeTabText]}>
-            Dashboard
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'profile' && styles.activeTab]}
-          onPress={() => handleTabChange('profile')}
-        >
-          <Text style={[styles.tabText, activeTab === 'profile' && styles.activeTabText]}>
-            Profile & Edit
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'post' && styles.activeTab]}
-          onPress={() => handleTabChange('post')}
-        >
-          <Text style={[styles.tabText, activeTab === 'post' && styles.activeTabText]}>
-            Post New Internship
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'manage' && styles.activeTab]}
-          onPress={() => handleTabChange('manage')}
-        >
-          <Text style={[styles.tabText, activeTab === 'manage' && styles.activeTabText]}>
-            Manage Internships
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'applicants' && styles.activeTab]}
-          onPress={() => handleTabChange('applicants')}
-        >
-          <View style={styles.tabWithBadge}>
-            <Text style={[styles.tabText, activeTab === 'applicants' && styles.activeTabText]}>
-              Applicants List
-            </Text>
-            {newApplicantsCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationText}>{newApplicantsCount}</Text>
-              </View>
-            )}
+          <View style={styles.drawerContainer} onStartShouldSetResponder={() => true}>
+            <DrawerMenu
+              userType="company"
+              userData={companyData}
+              activeMenu={activeTab}
+              onMenuSelect={(menu) => {
+                handleTabChange(menu as TabKey);
+                setDrawerVisible(false);
+              }}
+              onLogout={() => {
+                setDrawerVisible(false);
+                onLogout?.();
+              }}
+              unreadCount={totalUnreadMessages}
+            />
           </View>
         </TouchableOpacity>
+      </Modal>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'details' && styles.activeTab]}
-          onPress={() => handleTabChange('details')}
-        >
-          <Text style={[styles.tabText, activeTab === 'details' && styles.activeTabText]}>
-            Accepted Students
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'messages' && styles.activeTab]}
-          onPress={() => handleTabChange('messages')}
-        >
-          <View style={styles.tabWithBadge}>
-            <Text style={[styles.tabText, activeTab === 'messages' && styles.activeTabText]}>
-              Messages/Chat
-            </Text>
-            {totalUnreadMessages > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationText}>{totalUnreadMessages}</Text>
-              </View>
-            )}
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => setDrawerVisible(true)}
+          >
+            <Text style={styles.menuIcon}>☰</Text>
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Company Dashboard</Text>
+            <Text style={styles.headerSubtitle}>{companyData.name || userData?.full_name}</Text>
           </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'interviews' && styles.activeTab]}
-          onPress={() => handleTabChange('interviews')}
-        >
-          <Text style={[styles.tabText, activeTab === 'interviews' && styles.activeTabText]}>
-            Interviews
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'meetings' && styles.activeTab]}
-          onPress={() => handleTabChange('meetings')}
-        >
-          <Text style={[styles.tabText, activeTab === 'meetings' && styles.activeTabText]}>
-            Meetings
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+        </View>
+      </View>
 
       {/* Content Area */}
       <View style={styles.contentContainer}>
@@ -3200,14 +3129,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+  // Drawer styles
+  drawerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+  },
+  drawerContainer: {
+    width: '75%',
+    maxWidth: 300,
+    height: '100%',
+    backgroundColor: '#ffffff',
+  },
+  // Header styles
   header: {
     backgroundColor: '#1e3a8a',
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
     paddingBottom: 16,
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -3217,85 +3156,34 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-  companyAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3b82f6',
+  menuButton: {
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  avatarText: {
+  menuIcon: {
+    fontSize: 24,
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  headerInfo: {
+  headerTextContainer: {
     flex: 1,
   },
-  companyName: {
-    color: '#ffffff',
+  headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 4,
-  },
-  companyBadge: {
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  badgeText: {
     color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '600',
+    marginBottom: 2,
   },
-  logoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
-  logoutButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabBar: {
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    maxHeight: 56,
-  },
-  tabBarContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginHorizontal: 6,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
-    minWidth: 120,
-  },
-  activeTab: {
-    borderBottomColor: '#1e3a8a',
-    backgroundColor: '#f0f4ff',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#64748b',
-    textAlign: 'center',
-  },
-  activeTabText: {
-    color: '#1e3a8a',
-    fontWeight: '700',
+  contentContainer: {
+    flex: 1,
   },
   tabWithBadge: {
     flexDirection: 'row',
@@ -3316,9 +3204,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '700',
-  },
-  contentContainer: {
-    flex: 1,
   },
   content: {
     padding: 16,
@@ -4829,6 +4714,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
+  },
+  // Interview Form Styles
+  formCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  formCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 16,
+  },
+  submitButton: {
+    backgroundColor: '#1e3a8a',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalCloseButton: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  modalCloseButtonText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

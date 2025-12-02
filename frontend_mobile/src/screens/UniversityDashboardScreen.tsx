@@ -82,50 +82,6 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
 
   const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5050' : 'http://localhost:5050';
 
-  useEffect(() => {
-    if (userData?.email) {
-      fetchUniversityData();
-    }
-  }, [userData]);
-
-  useEffect(() => {
-    if (universityData.id) {
-      fetchDashboardStats();
-      fetchRegistrationRequests();
-    }
-  }, [universityData.id]);
-
-  useEffect(() => {
-    if (activeTab === 'partnerships' && universityData.id) {
-      fetchPartnerships();
-      fetchCompanies();
-    }
-  }, [activeTab, universityData.id]);
-
-  useEffect(() => {
-    if (activeTab === 'students' && universityData.id) {
-      fetchStudents();
-    }
-  }, [activeTab, universityData.id]);
-
-  useEffect(() => {
-    if (activeTab === 'internships' && universityData.id) {
-      fetchInternships();
-    }
-  }, [activeTab, universityData.id]);
-
-  useEffect(() => {
-    if (activeTab === 'reports' && universityData.id) {
-      fetchWeeklyReports();
-    }
-  }, [activeTab, universityData.id]);
-
-  useEffect(() => {
-    if (activeTab === 'notifications' && userData?.id) {
-      fetchNotifications();
-    }
-  }, [activeTab, userData?.id]);
-
   const fetchUniversityData = async () => {
     if (!userData?.email) {
       console.log('🎓 No user email available');
@@ -410,6 +366,51 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
       setLoading(false);
     }
   };
+
+  // useEffect hooks - placed after all function definitions
+  useEffect(() => {
+    if (userData?.email) {
+      fetchUniversityData();
+    }
+  }, [userData?.email]);
+
+  useEffect(() => {
+    if (universityData.id) {
+      fetchDashboardStats();
+      fetchRegistrationRequests();
+    }
+  }, [universityData.id]);
+
+  useEffect(() => {
+    if (activeTab === 'partnerships' && universityData.id) {
+      fetchPartnerships();
+      fetchCompanies();
+    }
+  }, [activeTab, universityData.id]);
+
+  useEffect(() => {
+    if (activeTab === 'students' && universityData.id) {
+      fetchStudents();
+    }
+  }, [activeTab, universityData.id]);
+
+  useEffect(() => {
+    if (activeTab === 'internships' && universityData.id) {
+      fetchInternships();
+    }
+  }, [activeTab, universityData.id]);
+
+  useEffect(() => {
+    if (activeTab === 'reports' && universityData.id) {
+      fetchWeeklyReports();
+    }
+  }, [activeTab, universityData.id]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications' && userData?.id) {
+      fetchNotifications();
+    }
+  }, [activeTab, userData?.id]);
 
   const renderDashboard = () => {
     const screenWidth = Dimensions.get('window').width;
