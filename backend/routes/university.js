@@ -25,6 +25,43 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get university by email
+router.get("/email/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const decodedEmail = decodeURIComponent(email);
+    
+    console.log('🎓 Fetching university by email:', decodedEmail);
+    
+    const university = await new Promise((resolve, reject) => {
+      db.query("SELECT * FROM Universities WHERE email = ?", [decodedEmail], (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0]);
+      });
+    });
+    
+    if (!university) {
+      console.log('🎓 University not found for email:', decodedEmail);
+      return res.status(404).json({
+        success: false,
+        message: "University not found"
+      });
+    }
+    
+    console.log('🎓 University found:', university.name);
+    res.json({
+      success: true,
+      data: university
+    });
+  } catch (error) {
+    console.error("Error fetching university by email:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch university"
+    });
+  }
+});
+
 // Get university by ID
 router.get("/:id", async (req, res) => {
   try {

@@ -127,6 +127,11 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
   }, [activeTab, userData?.id]);
 
   const fetchUniversityData = async () => {
+    if (!userData?.email) {
+      console.log('🎓 No user email available');
+      return;
+    }
+
     try {
       console.log('🎓 Fetching university data for email:', userData.email);
       const encodedEmail = encodeURIComponent(userData.email);
@@ -136,6 +141,13 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
       const response = await fetch(url);
       console.log('🎓 Response status:', response.status);
       
+      if (!response.ok) {
+        console.error('🎓 Response not OK:', response.status, response.statusText);
+        const text = await response.text();
+        console.error('🎓 Response text:', text.substring(0, 200));
+        return;
+      }
+
       const data = await response.json();
       console.log('🎓 Response data:', data);
       
