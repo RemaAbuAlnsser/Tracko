@@ -14,9 +14,10 @@ interface LoginScreenProps {
   onGoToSignUp: () => void;
   onStudentLogin?: (userData: any) => void;
   onCompanyLogin?: (userData: any) => void;
+  onUniversityLogin?: (userData: any) => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin, onCompanyLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin, onCompanyLogin, onUniversityLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,6 +58,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin,
         } else if (userType === 'company' && onCompanyLogin) {
           console.log('🔐 Calling onCompanyLogin with user data:', data.user);
           onCompanyLogin(data.user);
+        } else if (userType === 'university' && onUniversityLogin) {
+          console.log('🔐 Calling onUniversityLogin with user data:', data.user);
+          onUniversityLogin(data.user);
         } else {
           console.log('🔐 User type not supported or callback not provided:', userType);
           Alert.alert('Success', `Logged in successfully as ${userType}`);

@@ -14,8 +14,9 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import StudentDashboardScreen from './src/screens/StudentDashboardScreen';
 import CompanyDashboardScreen from './src/screens/CompanyDashboardScreen';
+import UniversityDashboardScreen from './src/screens/UniversityDashboardScreen';
 
-type Screen = 'splash' | 'login' | 'signup' | 'studentDashboard' | 'companyDashboard';
+type Screen = 'splash' | 'login' | 'signup' | 'studentDashboard' | 'companyDashboard' | 'universityDashboard';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('splash');
@@ -39,6 +40,10 @@ function App() {
               setUserData(user);
               setScreen('companyDashboard');
             }}
+            onUniversityLogin={(user) => {
+              setUserData(user);
+              setScreen('universityDashboard');
+            }}
           />
         )}
         {screen === 'signup' && (
@@ -55,6 +60,15 @@ function App() {
         )}
         {screen === 'companyDashboard' && (
           <CompanyDashboardScreen 
+            userData={userData}
+            onLogout={() => {
+              setUserData(null);
+              setScreen('login');
+            }} 
+          />
+        )}
+        {screen === 'universityDashboard' && (
+          <UniversityDashboardScreen 
             userData={userData}
             onLogout={() => {
               setUserData(null);
