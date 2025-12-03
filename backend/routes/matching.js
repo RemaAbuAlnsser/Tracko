@@ -156,6 +156,17 @@ router.get("/student/:userId", async (req, res) => {
     // Get matches
     const matches = await InternshipMatch.getByStudentId(student.id, minMatch);
 
+    console.log(`✅ Found ${matches.length} matches for student ${student.id}`);
+    if (matches.length > 0) {
+      console.log(`📊 Sample match:`, {
+        id: matches[0].id,
+        internship_id: matches[0].internship_id,
+        student_id: matches[0].student_id,
+        match_percentage: matches[0].match_percentage,
+        internship_title: matches[0].internship_title
+      });
+    }
+
     res.status(200).json({
       success: true,
       count: matches.length,
@@ -357,22 +368,31 @@ router.get("/student/:userId/saved", async (req, res) => {
 router.post("/student/:userId/apply/:internshipId", async (req, res) => {
   try {
     const { userId, internshipId } = req.params;
+    const { hours_per_week } = req.body;
     
-    console.log(`📝 Student ${userId} applying to internship ${internshipId}...`);
+    console.log(`\n📝 ========== APPLY TO INTERNSHIP ==========`);
+    console.log(`User ID: ${userId}`);
+    console.log(`Internship ID: ${internshipId}`);
+    console.log(`Hours per week: ${hours_per_week}`);
+    console.log(`Request body:`, req.body);
 
     // Find student
     const student = await Student.findByUserId(userId);
     if (!student) {
+      console.log(`❌ Student not found for user_id: ${userId}`);
       return res.status(404).json({
         success: false,
         message: "Student not found"
       });
     }
 
-    // Apply to internship
-    await InternshipMatch.applyToInternship(student.id, internshipId);
+    console.log(`✅ Found student: ${student.id} (${student.full_name})`);
 
-    console.log(`✅ Student ${student.id} applied to internship ${internshipId}`);
+    // Apply to internship with hours
+    await InternshipMatch.applyToInternship(student.id, internshipId, hours_per_week);
+
+    console.log(`✅ Student ${student.id} applied to internship ${internshipId} with ${hours_per_week} hours/week`);
+    console.log(`========================================\n`);
 
     res.status(200).json({
       success: true,
@@ -381,9 +401,10 @@ router.post("/student/:userId/apply/:internshipId", async (req, res) => {
 
   } catch (error) {
     console.error("❌ Apply to internship error:", error);
+    console.error("Error details:", error.message);
     res.status(500).json({
       success: false,
-      message: "Server error"
+      message: error.message || "Server error"
     });
   }
 });

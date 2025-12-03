@@ -47,7 +47,7 @@ router.get("/:id", async (req, res) => {
     
     res.json({
       success: true,
-      student
+      data: student
     });
   } catch (error) {
     console.error("Error fetching student:", error);
@@ -256,16 +256,17 @@ router.put("/:userId/profile", async (req, res) => {
     } = req.body;
     
     // Update User table fields
-    if (full_name !== undefined || email !== undefined) {
+    if (full_name !== undefined || email !== undefined || phone !== undefined) {
       const updateUserQuery = `
         UPDATE Users 
         SET full_name = COALESCE(?, full_name), 
-            email = COALESCE(?, email)
+            email = COALESCE(?, email),
+            phone = COALESCE(?, phone)
         WHERE id = ?
       `;
       
       await new Promise((resolve, reject) => {
-        db.query(updateUserQuery, [full_name || null, email || null, userId], (err, result) => {
+        db.query(updateUserQuery, [full_name || null, email || null, phone || null, userId], (err, result) => {
           if (err) reject(err);
           else resolve(result);
         });
@@ -288,9 +289,13 @@ router.put("/:userId/profile", async (req, res) => {
     
     console.log("✅ Student profile updated successfully");
     
+    // Fetch the updated student data to return
+    const updatedStudent = await Student.findByUserId(userId);
+    
     res.json({
       success: true,
-      message: "Profile updated successfully"
+      message: "Profile updated successfully",
+      data: updatedStudent
     });
   } catch (error) {
     console.error("❌ Error updating student profile:", error);
@@ -499,6 +504,59 @@ router.get("/company/:companyId/active", async (req, res) => {
     });
   } catch (error) {
     console.error("Get active students count error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+// Get student applications
+router.get("/:studentId/applications", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    console.log(`📝 Getting applications for student ID: ${studentId}`);
+    
+    const query = `
+      SELECT 
+        im.id,
+        im.student_id,
+        im.internship_id,
+        im.status,
+        im.applied_at,
+        im.hours_per_week,
+        i.title as internship_title,
+        i.description as internship_description,
+        i.specialization,
+        c.id as company_id,
+        c.name as company_name,
+        c.logo as company_logo
+      FROM Internship_Matches im
+      INNER JOIN Internships i ON im.internship_id = i.id
+      INNER JOIN Company c ON i.company_id = c.id
+      WHERE im.student_id = ? AND im.applied = 1
+      ORDER BY im.applied_at DESC
+    `;
+    
+    db.query(query, [studentId], (err, results) => {
+      if (err) {
+        console.error("❌ Error fetching applications:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Server error"
+        });
+      }
+      
+      console.log(`✅ Found ${results.length} applications for student ${studentId}`);
+      
+      res.json({
+        success: true,
+        applications: results
+      });
+    });
+  } catch (error) {
+    console.error("❌ Get applications error:", error);
     res.status(500).json({
       success: false,
       message: "Server error"

@@ -464,13 +464,17 @@ class InternshipMatch {
     
     // Apply to internship
     const query = `
-      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, match_percentage, hours_per_week)
-      VALUES (?, ?, TRUE, NOW(), 0, ?)
-      ON DUPLICATE KEY UPDATE applied = TRUE, applied_at = NOW(), hours_per_week = VALUES(hours_per_week)
+      INSERT INTO Internship_Matches (student_id, internship_id, applied, applied_at, status, match_percentage, hours_per_week)
+      VALUES (?, ?, 1, NOW(), 'pending', 0, ?)
+      ON DUPLICATE KEY UPDATE 
+        applied = 1, 
+        applied_at = NOW(), 
+        status = 'pending', 
+        hours_per_week = ?
     `;
     
     const result = await new Promise((resolve, reject) => {
-      db.query(query, [studentId, internshipId, hoursPerWeek], (err, result) => {
+      db.query(query, [studentId, internshipId, hoursPerWeek, hoursPerWeek], (err, result) => {
         if (err) reject(err);
         else resolve(result);
       });
@@ -868,8 +872,6 @@ class InternshipMatch {
       INNER JOIN Internships i ON im.internship_id = i.id
       INNER JOIN Company c ON i.company_id = c.id
       WHERE im.student_id = ? AND im.saved = TRUE
-        AND i.capacity > 0
-        AND (i.number_of_students IS NULL OR i.number_of_students < i.capacity)
       ORDER BY im.last_updated DESC
     `;
     
