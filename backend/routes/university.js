@@ -29,31 +29,32 @@ router.get("/", async (req, res) => {
 router.get("/email/:email", async (req, res) => {
   try {
     const { email } = req.params;
-    console.log("🎓 Fetching university by email:", email);
+    const decodedEmail = decodeURIComponent(email);
     
-    const query = "SELECT * FROM Universities WHERE email = ?";
+    console.log("🎓 Fetching university by email:", decodedEmail);
+    
     const university = await new Promise((resolve, reject) => {
-      db.query(query, [email], (err, results) => {
+      db.query("SELECT * FROM Universities WHERE email = ?", [decodedEmail], (err, results) => {
         if (err) reject(err);
         else resolve(results[0]);
       });
     });
     
-    console.log("🎓 University found:", university ? university.name : "Not found");
-    
     if (!university) {
+      console.log('🎓 University not found for email:', decodedEmail);
       return res.status(404).json({
         success: false,
         message: "University not found"
       });
     }
     
+    console.log('🎓 University found:', university.name);
     res.json({
       success: true,
       data: university
     });
   } catch (error) {
-    console.error("Error fetching university:", error);
+    console.error("Error fetching university by email:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch university"
