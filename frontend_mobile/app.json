@@ -1,7 +1,4 @@
 {
-  "name": "TempApp",
-  "displayName": "Tracko",
-  "plugins": [
-    "expo-asset"
-  ]
+  "name": "frontend_mobile",
+  "displayName": "Tracko"
 }

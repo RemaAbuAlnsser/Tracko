@@ -52,6 +52,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin,
       if (response.ok) {
         const userType = data.user?.user_type;
         console.log('🔐 User type detected:', userType);
+        console.log('🔐 onStudentLogin exists?', !!onStudentLogin);
+        console.log('🔐 onCompanyLogin exists?', !!onCompanyLogin);
+        console.log('🔐 Full user data:', JSON.stringify(data.user));
 
         if (userType === 'student' && onStudentLogin) {
           console.log('🔐 Calling onStudentLogin with user data:', data.user);
@@ -67,6 +70,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin,
           onTrainerLogin(data.user);
         } else {
           console.log('🔐 User type not supported or callback not provided:', userType);
+          console.log('🔐 Conditions check: student?', userType === 'student', 'company?', userType === 'company', 'university?', userType === 'university');
           Alert.alert('Success', `Logged in successfully as ${userType}`);
         }
       } else {

@@ -23,6 +23,9 @@ function App() {
   const [screen, setScreen] = useState<Screen>('splash');
   const [userData, setUserData] = useState<any>(null);
 
+  console.log('📱 App.tsx: Current screen:', screen);
+  console.log('📱 App.tsx: Current userData:', userData);
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" />
@@ -38,11 +41,15 @@ function App() {
               setScreen('studentDashboard');
             }}
             onCompanyLogin={(user) => {
+              console.log('🏢 App.tsx: onCompanyLogin called with user:', user);
               setUserData(user);
+              console.log('🏢 App.tsx: Setting screen to companyDashboard');
               setScreen('companyDashboard');
             }}
             onUniversityLogin={(user) => {
+              console.log('🎓 App.tsx: onUniversityLogin called with user:', user);
               setUserData(user);
+              console.log('🎓 App.tsx: Setting screen to universityDashboard');
               setScreen('universityDashboard');
             }}
             onTrainerLogin={(user) => {

@@ -71,7 +71,6 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'cv-upload', label: 'CV Upload & Analysis', icon: 'file' },
           { key: 'internships', label: 'AI-Matched Internships', icon: 'briefcase' },
           { key: 'saved', label: 'Saved Internships', icon: 'bookmark' },
-          { key: 'status', label: 'Applications Status', icon: 'list' },
           { key: 'notifications', label: 'Notifications', icon: 'bell', badge: unreadCount },
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'calendar' },

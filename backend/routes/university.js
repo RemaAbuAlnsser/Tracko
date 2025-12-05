@@ -31,7 +31,7 @@ router.get("/email/:email", async (req, res) => {
     const { email } = req.params;
     const decodedEmail = decodeURIComponent(email);
     
-    console.log('🎓 Fetching university by email:', decodedEmail);
+    console.log("🎓 Fetching university by email:", decodedEmail);
     
     const university = await new Promise((resolve, reject) => {
       db.query("SELECT * FROM Universities WHERE email = ?", [decodedEmail], (err, results) => {
