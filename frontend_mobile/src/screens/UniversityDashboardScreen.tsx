@@ -98,6 +98,15 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
   const [messagesChannel, setMessagesChannel] = useState<any>(null);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const [showContactsList, setShowContactsList] = useState(true);
+  
+  // Weekly Reports Modal state
+  const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
+  const [selectedWeeklyReport, setSelectedWeeklyReport] = useState<any>(null);
+  const [weeklyReportComment, setWeeklyReportComment] = useState('');
+  
+  // Full Report View Modal state
+  const [showFullReportModal, setShowFullReportModal] = useState(false);
+  const [selectedFullReport, setSelectedFullReport] = useState<any>(null);
 
   const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5050' : 'http://localhost:5050';
 
@@ -277,6 +286,75 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Weekly Reports functions
+  const handleViewStudentReports = async (studentId: number, studentName: string) => {
+    try {
+      console.log('📊 Loading reports for student:', studentId);
+      const response = await fetch(`${baseUrl}/api/weekly-reports/student/${studentId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSelectedWeeklyReport({
+          student_id: studentId,
+          student_name: studentName,
+          allReports: data.reports || []
+        });
+        setWeeklyReportComment('');
+        setShowWeeklyReportModal(true);
+      } else {
+        Alert.alert('Error', 'Failed to load student reports');
+      }
+    } catch (error) {
+      console.error('Error loading student reports:', error);
+      Alert.alert('Error', 'Failed to load student reports');
+    }
+  };
+
+  const handleApproveWeeklyReport = async (reportId: number) => {
+    if (!reportId) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`${baseUrl}/api/weekly-reports/${reportId}/university-review`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          approved: true,
+          university_comment: weeklyReportComment
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Report approved successfully!' });
+        setShowWeeklyReportModal(false);
+        fetchWeeklyReports(); // Refresh reports
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to approve report' });
+      }
+    } catch (error) {
+      console.error('Error approving report:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewFullReport = (report: any) => {
+    setSelectedFullReport(report);
+    setShowFullReportModal(true);
+  };
+
+  const handleViewFinalReport = (student: any) => {
+    if (student.final_report) {
+      setSelectedFullReport(student.final_report);
+      setShowFullReportModal(true);
     }
   };
 
@@ -1179,7 +1257,8 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
   };
 
   const renderStudents = () => {
-    const filteredStudents = students.filter(s => {
+    const filteredStudents = (students || []).filter(s => {
+      if (!s) return false;
       const matchesSearch = 
         s.full_name?.toLowerCase().includes(studentsSearchTerm.toLowerCase()) ||
         s.email?.toLowerCase().includes(studentsSearchTerm.toLowerCase()) ||
@@ -1206,99 +1285,113 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
         </View>
 
         <Text style={styles.sectionTitle}>University Students</Text>
-        <Text style={styles.sectionSubtitle}>{filteredStudents.length} students</Text>
+        <Text style={styles.sectionSubtitle}>{filteredStudents?.length || 0} students</Text>
 
-        {filteredStudents.length === 0 ? (
+        {(filteredStudents?.length || 0) === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No students found</Text>
             <Text style={styles.emptySubtext}>No students are registered from your university yet</Text>
           </View>
         ) : (
-          filteredStudents.map((student) => {
-            const currentInternship = student.internships?.find((i: any) => 
-              i.match_status === 'accepted' || i.match_status === 'pending'
-            ) || student.internships?.[0];
+          <View style={styles.studentsTable}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Student</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>Major</Text>
+              <Text style={[styles.tableHeaderText, { flex: 0.8 }]}>GPA</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>Status</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>Final Report</Text>
+            </View>
             
-            const hasCompletedTraining = student.final_report && student.final_report.university_approved;
-            const isInTraining = currentInternship && currentInternship.match_status === 'accepted';
+            {filteredStudents?.map((student) => {
+              if (!student) return null;
+              
+              const currentInternship = student.internships?.find((i: any) => 
+                i.match_status === 'accepted' || i.match_status === 'pending'
+              ) || student.internships?.[0];
+              
+              const hasCompletedTraining = student.final_report && student.final_report.university_approved;
+              const isInTraining = currentInternship && currentInternship.match_status === 'accepted';
 
-            return (
-              <View key={student.id} style={styles.studentCard}>
-                <View style={styles.studentHeader}>
-                  <View style={styles.studentAvatar}>
-                    <Text style={styles.avatarText}>{student.full_name?.charAt(0) || '?'}</Text>
+              return (
+                <View key={student?.id || Math.random()} style={styles.tableRow}>
+                  <View style={[styles.tableCellStudent, { flex: 2 }]}>
+                    <View style={styles.studentAvatar}>
+                      {student.student_img && student.student_img.trim() !== '' ? (
+                        <Image 
+                          source={{ 
+                            uri: student.student_img.startsWith('http') 
+                              ? student.student_img 
+                              : `${baseUrl}${student.student_img}` 
+                          }}
+                          style={styles.studentAvatarImageSmall}
+                        />
+                      ) : (
+                        <Text style={styles.avatarTextSmall}>{student.full_name?.charAt(0) || '?'}</Text>
+                      )}
+                    </View>
+                    <View style={styles.studentInfo}>
+                      <Text style={styles.studentNameTable}>{student.full_name || 'Unknown'}</Text>
+                      <Text style={styles.studentEmailTable}>{student.email || 'No email'}</Text>
+                    </View>
                   </View>
-                  <View style={styles.studentInfo}>
-                    <Text style={styles.studentName}>{student.full_name}</Text>
-                    <Text style={styles.studentEmail}>{student.email}</Text>
+                  
+                  <View style={[styles.tableCell, { flex: 1.2 }]}>
+                    <Text style={styles.tableCellText}>{student.major || 'N/A'}</Text>
                   </View>
-                </View>
-
-                <View style={styles.studentDetails}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Major:</Text>
-                    <Text style={styles.detailValue}>{student.major || 'N/A'}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Academic Year:</Text>
-                    <Text style={styles.detailValue}>{student.academic_year || 'N/A'}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>GPA:</Text>
+                  
+                  <View style={[styles.tableCell, { flex: 0.8 }]}>
                     {student.gpa ? (
                       <View style={[
-                        styles.gpaBadge,
+                        styles.gpaBadgeSmall,
                         student.gpa >= 3.5 ? styles.gpaHigh : student.gpa >= 3.0 ? styles.gpaMedium : styles.gpaLow
                       ]}>
-                        <Text style={styles.gpaText}>{student.gpa}</Text>
+                        <Text style={styles.gpaTextSmall}>{student.gpa || '0.0'}</Text>
                       </View>
                     ) : (
-                      <Text style={styles.detailValue}>N/A</Text>
+                      <Text style={styles.tableCellText}>N/A</Text>
+                    )}
+                  </View>
+                  
+                  <View style={[styles.tableCell, { flex: 1.2 }]}>
+                    {hasCompletedTraining ? (
+                      <View style={[styles.statusBadgeSmall, styles.statusCompleted]}>
+                        <Text style={styles.statusTextSmall}>✓ Completed</Text>
+                      </View>
+                    ) : isInTraining ? (
+                      <View style={[styles.statusBadgeSmall, styles.statusInTraining]}>
+                        <Text style={styles.statusTextSmall}>In Training</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.statusBadgeSmall, styles.statusNotStarted]}>
+                        <Text style={styles.statusTextSmall}>Not Started</Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  <View style={[styles.tableCell, { flex: 1.2 }]}>
+                    {student.final_report ? (
+                      <TouchableOpacity 
+                        style={styles.viewFinalReportButton}
+                        onPress={() => handleViewFinalReport(student)}
+                      >
+                        <Text style={styles.viewFinalReportButtonText}>View Report</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.tableCellText}>Not Submitted</Text>
                     )}
                   </View>
                 </View>
-
-                <View style={styles.statusSection}>
-                  <Text style={styles.detailLabel}>Training Status:</Text>
-                  {hasCompletedTraining ? (
-                    <View style={[styles.statusBadge, styles.statusCompleted]}>
-                      <Text style={styles.statusText}>Training Completed</Text>
-                    </View>
-                  ) : isInTraining ? (
-                    <View style={[styles.statusBadge, styles.statusInTraining]}>
-                      <Text style={styles.statusText}>In Training</Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.statusBadge, styles.statusNotStarted]}>
-                      <Text style={styles.statusText}>Not Started</Text>
-                    </View>
-                  )}
-                </View>
-
-                {currentInternship && (
-                  <View style={styles.internshipSection}>
-                    <Text style={styles.detailLabel}>Current Internship:</Text>
-                    <Text style={styles.internshipTitle}>{currentInternship.internship_title}</Text>
-                    <Text style={styles.internshipCompany}>{currentInternship.company_name}</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      currentInternship.match_status === 'accepted' && styles.statusActive,
-                      currentInternship.match_status === 'pending' && styles.statusPending,
-                    ]}>
-                      <Text style={styles.statusText}>{currentInternship.match_status}</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            );
-          })
+              );
+            })}
+          </View>
         )}
       </ScrollView>
     );
   };
 
   const renderInternships = () => {
-    const filteredInternships = internships.filter(i => {
+    const filteredInternships = (internships || []).filter(i => {
+      if (!i) return false;
       const matchesSearch = 
         i.title?.toLowerCase().includes(internshipSearchTerm.toLowerCase()) ||
         i.company_name?.toLowerCase().includes(internshipSearchTerm.toLowerCase()) ||
@@ -1320,19 +1413,32 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
         </View>
 
         <Text style={styles.sectionTitle}>Available Internships</Text>
-        <Text style={styles.sectionSubtitle}>{filteredInternships.length} internships</Text>
+        <Text style={styles.sectionSubtitle}>{filteredInternships?.length || 0} internships</Text>
 
-        {filteredInternships.length === 0 ? (
+        {(filteredInternships?.length || 0) === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No internships found</Text>
             <Text style={styles.emptySubtext}>No internship opportunities available yet</Text>
           </View>
         ) : (
-          filteredInternships.map((internship) => (
-            <View key={internship.id} style={styles.internshipCard}>
+          filteredInternships?.map((internship) => {
+            if (!internship) return null;
+            return (
+            <View key={internship?.id || Math.random()} style={styles.internshipCard}>
               <View style={styles.internshipHeader}>
                 <View style={styles.companyLogo}>
-                  <Text style={styles.avatarText}>{internship.company_name?.charAt(0) || 'C'}</Text>
+                  {internship.company_logo && internship.company_logo.trim() !== '' ? (
+                    <Image 
+                      source={{ 
+                        uri: internship.company_logo.startsWith('http') 
+                          ? internship.company_logo 
+                          : `${baseUrl}${internship.company_logo}` 
+                      }}
+                      style={styles.companyLogoImage}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{internship.company_name?.charAt(0) || 'C'}</Text>
+                  )}
                 </View>
                 <View style={styles.internshipInfo}>
                   <Text style={styles.companyNameText}>{internship.company_name}</Text>
@@ -1385,7 +1491,8 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
                 </View>
               )}
             </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     );
@@ -1395,7 +1502,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
     console.log('📊 Rendering reports, total reports:', weeklyReports?.length || 0);
     console.log('📊 First report:', weeklyReports?.[0]);
     
-    if (!weeklyReports || weeklyReports.length === 0) {
+    if (!weeklyReports || (weeklyReports?.length || 0) === 0) {
       return (
         <ScrollView style={styles.tabContent}>
           <Text style={styles.sectionTitle}>Student Weekly Reports</Text>
@@ -1439,19 +1546,32 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
         ) : null}
 
         <Text style={styles.sectionTitle}>Student Weekly Reports</Text>
-        <Text style={styles.sectionSubtitle}>{studentCount} students</Text>
+        <Text style={styles.sectionSubtitle}>{studentCount || 0} students</Text>
 
-        {latestReports.length === 0 ? (
+        {(latestReports?.length || 0) === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No reports found</Text>
             <Text style={styles.emptySubtext}>No weekly reports have been submitted yet</Text>
           </View>
         ) : (
-          latestReports.map((report: any) => (
+          latestReports?.map((report: any) => {
+            if (!report) return null;
+            return (
             <View key={report.id} style={styles.reportCard}>
               <View style={styles.studentHeader}>
                 <View style={styles.studentAvatar}>
-                  <Text style={styles.avatarText}>{report.student_name?.charAt(0) || '?'}</Text>
+                  {report.student_img && report.student_img.trim() !== '' ? (
+                    <Image 
+                      source={{ 
+                        uri: report.student_img.startsWith('http') 
+                          ? report.student_img 
+                          : `${baseUrl}${report.student_img}` 
+                      }}
+                      style={styles.studentAvatarImage}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{report.student_name?.charAt(0) || '?'}</Text>
+                  )}
                 </View>
                 <View style={styles.studentInfo}>
                   <Text style={styles.studentName}>{report.student_name}</Text>
@@ -1503,14 +1623,15 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
                   styles.button,
                   report.university_approved ? styles.viewButton : styles.reviewButton
                 ]}
-                onPress={() => Alert.alert('View Report', `Viewing report for ${report.student_name}`)}
+                onPress={() => handleViewStudentReports(report.student_id, report.student_name)}
               >
                 <Text style={styles.buttonText}>
                   {report.university_approved ? 'View Report' : 'Review Report'}
                 </Text>
               </TouchableOpacity>
             </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     );
@@ -1842,6 +1963,8 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
                 onLogout?.();
               }}
               pendingCount={registrationRequests.length}
+              unreadCount={totalUnreadMessages}
+              notificationCount={notifications.filter(n => !n.is_read).length}
             />
           </View>
         </TouchableOpacity>
@@ -1863,6 +1986,164 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
       </View>
 
       {renderTabContent()}
+
+      {/* Weekly Reports Modal */}
+      <Modal
+        visible={showWeeklyReportModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Weekly Reports - {selectedWeeklyReport?.student_name}
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowWeeklyReportModal(false)}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {selectedWeeklyReport?.allReports?.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No reports found</Text>
+                <Text style={styles.emptySubtext}>This student hasn't submitted any reports yet</Text>
+              </View>
+            ) : (
+              <View style={styles.reportsTable}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderText, { flex: 1 }]}>Week</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 2 }]}>Submitted</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Status</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Actions</Text>
+                </View>
+                
+                {selectedWeeklyReport?.allReports?.map((report: any) => (
+                  <View key={report.id} style={styles.tableRow}>
+                    <Text style={[styles.tableCellText, { flex: 1 }]}>
+                      Week {report.week_number}
+                    </Text>
+                    <Text style={[styles.tableCellText, { flex: 2 }]}>
+                      {new Date(report.submitted_at).toLocaleDateString()}
+                    </Text>
+                    <View style={[styles.tableCellStatus, { flex: 1.5 }]}>
+                      <View style={[
+                        styles.statusBadgeSmall,
+                        report.university_approved ? styles.statusCompleted : styles.statusPending
+                      ]}>
+                        <Text style={styles.statusTextSmall}>
+                          {report.university_approved ? '✓ Approved' : 'Pending'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.tableCellActions, { flex: 1.5 }]}>
+                      <TouchableOpacity 
+                        style={styles.tableViewButton}
+                        onPress={() => handleViewFullReport(report)}
+                      >
+                        <Text style={styles.tableViewButtonText}>View</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Full Report View Modal */}
+      <Modal
+        visible={showFullReportModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Week {selectedFullReport?.week_number} - Full Report
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowFullReportModal(false)}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {selectedFullReport && (
+              <View style={styles.fullReportContainer}>
+                <Text style={styles.fullReportTitle}>
+                  Week {selectedFullReport.week_number} Details
+                </Text>
+                
+                {/* Report Content Section */}
+                <View style={styles.reportContentSection}>
+                  <Text style={styles.reportSectionTitle}>Report Content:</Text>
+                  <View style={styles.reportContentBox}>
+                    <Text style={styles.reportContentText}>
+                      {selectedFullReport.report_text || 'No text content'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Report File Section */}
+                {selectedFullReport.report_file && (
+                  <View style={styles.reportFileSection}>
+                    <TouchableOpacity 
+                      style={styles.downloadButton}
+                      onPress={() => {
+                        // Handle file download
+                        Alert.alert('Download', 'File download functionality would be implemented here');
+                      }}
+                    >
+                      <Text style={styles.downloadButtonText}>📎 Download File</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Approval Section */}
+                {selectedFullReport.university_approved ? (
+                  <View style={styles.approvedSection}>
+                    <Text style={styles.approvedText}>✓ This report has been approved</Text>
+                    {selectedFullReport.university_comment && (
+                      <View style={styles.commentSection}>
+                        <Text style={styles.commentLabel}>University Comment:</Text>
+                        <Text style={styles.commentText}>{selectedFullReport.university_comment}</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.approvalSection}>
+                    <Text style={styles.reportSectionTitle}>Add Comment (Optional):</Text>
+                    <TextInput
+                      style={styles.commentInput}
+                      placeholder="Enter your comment here..."
+                      value={weeklyReportComment}
+                      onChangeText={setWeeklyReportComment}
+                      multiline
+                      numberOfLines={4}
+                    />
+                    <TouchableOpacity
+                      style={styles.approveReportButton}
+                      onPress={() => handleApproveWeeklyReport(selectedFullReport.id)}
+                      disabled={loading}
+                    >
+                      <Text style={styles.approveReportButtonText}>
+                        {loading ? 'Approving...' : '✓ Approve Report'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -2816,6 +3097,315 @@ const styles = StyleSheet.create({
   showContactsButtonText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+  },
+  modalHeader: {
+    backgroundColor: '#3b82f6',
+    padding: 20,
+    paddingTop: 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    flex: 1,
+  },
+  closeButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  reportActions: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  viewReportButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  viewReportButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  detailSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+  },
+  detailValueLong: {
+    fontSize: 14,
+    color: '#374151',
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  // Table styles
+  reportsTable: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginTop: 16,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tableHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    alignItems: 'center',
+  },
+  tableCellText: {
+    fontSize: 14,
+    color: '#374151',
+    textAlign: 'center',
+  },
+  tableCellStatus: {
+    alignItems: 'center',
+  },
+  tableCellActions: {
+    alignItems: 'center',
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusTextSmall: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  tableViewButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  tableViewButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Full Report Modal styles
+  fullReportContainer: {
+    padding: 16,
+  },
+  fullReportTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  reportContentSection: {
+    marginBottom: 16,
+  },
+  reportSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  reportContentBox: {
+    padding: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  reportContentText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#4b5563',
+  },
+  reportFileSection: {
+    marginBottom: 16,
+  },
+  downloadButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 6,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignSelf: 'flex-start',
+  },
+  downloadButtonText: {
+    color: '#3b82f6',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  approvedSection: {
+    padding: 12,
+    backgroundColor: '#dcfce7',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  approvedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#166534',
+    marginBottom: 8,
+  },
+  commentSection: {
+    marginTop: 8,
+  },
+  commentLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  commentText: {
+    fontSize: 13,
+    color: '#4b5563',
+    lineHeight: 18,
+  },
+  approvalSection: {
+    marginTop: 16,
+  },
+  commentInput: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: 'top',
+    marginBottom: 12,
+    minHeight: 80,
+  },
+  approveReportButton: {
+    backgroundColor: '#16a34a',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  approveReportButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Student Avatar Image style
+  studentAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  // Company Logo Image style
+  companyLogoImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  // Students Table styles
+  studentsTable: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginTop: 16,
+  },
+  tableCellStudent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  studentAvatarImageSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  avatarTextSmall: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  studentNameTable: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  studentEmailTable: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  tableCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gpaBadgeSmall: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  gpaTextSmall: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  // Final Report styles
+  finalReportBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  reportApproved: {
+    backgroundColor: '#dcfce7',
+  },
+  reportPending: {
+    backgroundColor: '#fef3c7',
+  },
+  finalReportText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  viewFinalReportButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  viewFinalReportButtonText: {
+    color: '#ffffff',
+    fontSize: 10,
     fontWeight: '600',
   },
 });

@@ -17,6 +17,7 @@ interface DrawerMenuProps {
   onLogout: () => void;
   unreadCount?: number;
   pendingCount?: number;
+  notificationCount?: number;
 }
 
 const DrawerMenu: React.FC<DrawerMenuProps> = ({
@@ -27,6 +28,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
   onLogout,
   unreadCount = 0,
   pendingCount = 0,
+  notificationCount = 0,
 }) => {
   const getInitials = (name: string) => {
     if (!name) return '?';
@@ -47,10 +49,10 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'partnerships', label: 'Company Partnerships', icon: 'users' },
           { key: 'students', label: 'Students Management', icon: 'graduation' },
           { key: 'internships', label: 'Internship Opportunities', icon: 'briefcase' },
-          { key: 'reports', label: 'Reports & Analytics', icon: 'chart', badge: pendingCount },
-          { key: 'notifications', label: 'Notifications', icon: 'bell' },
+          { key: 'reports', label: 'Reports & Analytics', icon: 'chart' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: notificationCount },
           { key: 'messages', label: 'Messages/Chat', icon: 'message', badge: unreadCount },
-          { key: 'requests', label: 'Registration Requests', icon: 'clipboard' },
+          { key: 'requests', label: 'Registration Requests', icon: 'clipboard', badge: pendingCount },
         ];
       case 'company':
         return [
