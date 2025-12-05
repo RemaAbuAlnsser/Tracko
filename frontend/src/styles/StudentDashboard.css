@@ -2665,20 +2665,24 @@
 
 /* Custom Scrollbar for Conversations */
 .conversations-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .conversations-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 
 .conversations-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+  background: #d1d5db;
+  border-radius: 2px;
 }
 
 .conversations-list::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #9ca3af;
+}
+
+.conversations-list::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .conversation-item {
@@ -2798,20 +2802,24 @@
 
 /* Custom Scrollbar for Messages */
 .messages-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .messages-list::-webkit-scrollbar-track {
-  background: #f9fafb;
+  background: transparent;
 }
 
 .messages-list::-webkit-scrollbar-thumb {
   background: #d1d5db;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .messages-list::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+.messages-list::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .message-item {
