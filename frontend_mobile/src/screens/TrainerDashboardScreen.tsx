@@ -22,6 +22,14 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import DrawerMenu from '../components/DrawerMenu';
+import {
+  loadChatMessages,
+  sendChatMessage,
+  subscribeToMessages,
+  unsubscribeFromMessages,
+  markMessagesAsRead,
+  getUnreadCount,
+} from '../utils/chatService';
 
 
 type TrainerDashboardScreenProps = {
@@ -30,7 +38,7 @@ type TrainerDashboardScreenProps = {
   route?: any;
 };
 
-type TabKey = 'dashboard' | 'profile' | 'internships' | 'students' | 'reports' | 'schedule' | 'notifications' | 'messages' | 'videocall' | 'plans';
+type TabKey = 'dashboard' | 'profile' | 'internships' | 'students' | 'reports' | 'schedule' | 'notifications' | 'messages' | 'plans';
 
 const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userData, onLogout, route }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
@@ -151,6 +159,15 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showPlanWeeksModal, setShowPlanWeeksModal] = useState(false);
   
+  // Chat/Messages state
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messagesChannel, setMessagesChannel] = useState<any>(null);
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const [showContactsList, setShowContactsList] = useState(true);
+  
   const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5050' : 'http://localhost:5050';
   
   // Check for deep link navigation
@@ -185,6 +202,50 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
       }
     }
   }, [activeTab, trainerData.id]);
+
+  // Chat useEffect hooks
+  useEffect(() => {
+    if (activeTab === 'messages' && trainerData.id) {
+      loadContacts();
+    }
+  }, [activeTab, trainerData.id]);
+
+  // Subscribe to real-time messages
+  useEffect(() => {
+    if (!userData?.id || activeTab !== 'messages') return;
+
+    const handleNewMessage = (newMsg: any) => {
+      console.log('📨 New message received:', newMsg);
+      
+      // If message is for current conversation, add it to messages
+      if (selectedContactId && 
+          (Number(newMsg.sender_id) === Number(selectedContactId) || 
+           Number(newMsg.receiver_id) === Number(selectedContactId))) {
+        setMessages(prev => {
+          // Check if message already exists by id and created_at
+          if (prev.some(msg => msg.id === newMsg.id && msg.created_at === newMsg.created_at)) {
+            return prev;
+          }
+          return [...prev, newMsg];
+        });
+        
+        // Mark as read if it's from the selected contact
+        if (Number(newMsg.sender_id) === Number(selectedContactId)) {
+          markMessagesAsRead(selectedContactId, userData.id);
+        }
+      }
+      
+      // Reload contacts to update unread counts
+      loadContacts();
+    };
+
+    const channel = subscribeToMessages(userData.id, handleNewMessage);
+    setMessagesChannel(channel);
+
+    return () => {
+      unsubscribeFromMessages(channel);
+    };
+  }, [userData, activeTab, selectedContactId]);
 
   // Load trainer data
   const loadTrainerData = async () => {
@@ -600,6 +661,135 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
       }
     } catch (error) {
       console.error('Error loading plans:', error);
+    }
+  };
+
+  // Chat/Messages functions
+  const loadContacts = async () => {
+    if (!trainerData.id) {
+      console.log('⚠️ No trainerId available');
+      return;
+    }
+    
+    console.log('📋 Loading conversations for trainer:', trainerData.id);
+    
+    try {
+      let allConversations: any[] = [];
+      
+      // Load students
+      try {
+        console.log('👥 Fetching students...');
+        const studentsResponse = await fetch(`${baseUrl}/api/trainers/${trainerData.id}/students`);
+        const studentsData = await studentsResponse.json();
+        console.log('📥 Students data:', studentsData);
+        
+        if (studentsData.success && studentsData.students && studentsData.students.length > 0) {
+          const studentsWithUnread = await Promise.all(
+            studentsData.students.map(async (student: any) => {
+              const unreadCount = await getUnreadCount(userData.id, student.user_id);
+              return {
+                ...student,
+                type: 'student',
+                unread_count: unreadCount
+              };
+            })
+          );
+          allConversations = [...studentsWithUnread];
+          console.log('✅ Added', studentsWithUnread.length, 'students to conversations');
+        } else {
+          console.log('ℹ️ No students found');
+        }
+      } catch (studentError) {
+        console.error('❌ Error loading students:', studentError);
+      }
+      
+      // Load company
+      try {
+        console.log('🏢 Fetching company...');
+        const companyResponse = await fetch(`${baseUrl}/api/trainers/${trainerData.id}/company`);
+        const companyData = await companyResponse.json();
+        console.log('📥 Company data:', companyData);
+        
+        if (companyData.success && companyData.company) {
+          const company = companyData.company;
+          const unreadCount = await getUnreadCount(userData.id, company.user_id);
+          allConversations.unshift({
+            ...company,
+            type: 'company',
+            full_name: company.name,
+            unread_count: unreadCount
+          });
+          console.log('✅ Added company to conversations');
+        } else {
+          console.log('ℹ️ No company found for this trainer');
+        }
+      } catch (companyError) {
+        console.error('❌ Error loading company:', companyError);
+      }
+      
+      console.log('📊 Total conversations:', allConversations.length);
+      setContacts(allConversations);
+      
+      // Calculate total unread messages
+      const totalUnread = allConversations.reduce((sum: number, conv: any) => sum + (conv.unread_count || 0), 0);
+      setTotalUnreadMessages(totalUnread);
+      
+    } catch (error) {
+      console.error('❌ Error loading conversations:', error);
+    }
+  };
+
+  const loadMessages = async (contactId: number) => {
+    if (!userData?.id || !contactId) return;
+    
+    try {
+      console.log('💬 Loading messages between:', userData.id, 'and:', contactId);
+      const chatMessages = await loadChatMessages(userData.id, contactId);
+      
+      // Remove duplicate messages based on id and created_at
+      const uniqueMessages = chatMessages.filter((msg: any, index: number, array: any[]) => {
+        return array.findIndex((m: any) => m.id === msg.id && m.created_at === msg.created_at) === index;
+      });
+      
+      console.log('🔍 Unique messages after filtering:', uniqueMessages.length, 'from', chatMessages.length);
+      setMessages(uniqueMessages);
+      await markMessagesAsRead(contactId, userData.id);
+      
+      // Update unread count for this contact to 0 and recalculate total
+      setContacts(prev => prev.map(contact => 
+        contact.user_id === contactId ? { ...contact, unread_count: 0 } : contact
+      ));
+      
+      const updatedTotal = contacts.reduce((sum, contact) => {
+        if (contact.user_id === contactId) return sum;
+        return sum + (contact.unread_count || 0);
+      }, 0);
+      setTotalUnreadMessages(updatedTotal);
+      
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedContactId || !userData?.id) return;
+
+    const trimmed = newMessage.trim();
+
+    try {
+      setNewMessage('');
+      const result = await sendChatMessage(userData.id, selectedContactId, trimmed);
+      
+      if (result.success && result.data && result.data[0]) {
+        setMessages(prev => [...prev, result.data[0]]);
+      } else {
+        setNewMessage(trimmed);
+        Alert.alert('Error', 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setNewMessage(trimmed);
+      Alert.alert('Error', 'Failed to send message');
     }
   };
 
@@ -2815,6 +3005,231 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
     );
   };
 
+  // Render Messages
+  const renderMessages = () => {
+    return (
+      <View style={styles.chatContainer}>
+        {showContactsList && (
+          <View style={styles.chatSidebar}>
+            <View style={styles.chatSidebarHeader}>
+              <Text style={styles.chatSidebarTitle}>Conversations</Text>
+              <TouchableOpacity 
+                style={styles.toggleButton}
+                onPress={() => setShowContactsList(false)}
+              >
+                <Text style={styles.toggleButtonText}>←</Text>
+              </TouchableOpacity>
+            </View>
+          {contacts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No contacts yet</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.contactsList}>
+              {contacts.map((contact, index) => {
+                const isCompany = contact.type === 'company';
+                const contactImage = isCompany ? contact.logo : contact.student_img;
+                const contactName = contact.full_name || contact.name || (isCompany ? 'Company' : 'Student');
+                const contactInitial = contactName.charAt(0).toUpperCase();
+                
+                return (
+                  <TouchableOpacity
+                    key={`contact-${contact.user_id || contact.id || index}`}
+                    style={[
+                      styles.contactItem,
+                      selectedContactId === contact.user_id && styles.contactItemSelected
+                    ]}
+                    onPress={() => {
+                      if (contact.user_id) {
+                        setSelectedContactId(contact.user_id);
+                        loadMessages(contact.user_id);
+                      }
+                    }}
+                  >
+                    <View style={styles.contactAvatar}>
+                      {contactImage && contactImage.trim() !== '' ? (
+                        <>
+                          <Image 
+                            source={{ 
+                              uri: contactImage.startsWith('http') 
+                                ? contactImage 
+                                : `${baseUrl}${contactImage}` 
+                            }}
+                            style={styles.contactAvatarImage}
+                          />
+                          <Text style={[styles.contactAvatarText, { position: 'absolute', opacity: 0 }]}>
+                            {contactInitial}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.contactAvatarText}>
+                          {contactInitial}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.contactInfo}>
+                      <Text style={styles.contactName}>{contactName}</Text>
+                      <Text style={styles.contactEmail}>{contact.email}</Text>
+                    </View>
+                    {contact.unread_count > 0 && (
+                      <View style={styles.unreadBadge}>
+                        <Text style={styles.unreadBadgeText}>{contact.unread_count}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+          </View>
+        )}
+
+        <View style={[styles.chatMain, !showContactsList && styles.chatMainExpanded]}>
+          <View style={styles.chatHeaderRow}>
+            {!showContactsList && (
+              <TouchableOpacity 
+                style={styles.showContactsButton}
+                onPress={() => setShowContactsList(true)}
+              >
+                <Text style={styles.showContactsButtonText}>→ Contacts</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.chatHeaderContent}>
+              <Text style={styles.chatHeaderTitle}>
+                {contacts.find(c => c.user_id === selectedContactId)?.full_name || 'Messages'}
+              </Text>
+              <Text style={styles.chatSubtitle}>Real-time messaging with students</Text>
+            </View>
+          </View>
+
+          <ScrollView
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+          >
+            {messages.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  {selectedContactId ? 'No messages yet. Start the conversation!' : 'Select a student to start chatting'}
+                </Text>
+              </View>
+            ) : (
+              messages.map((msg, index) => {
+                const isSentByTrainer = Number(msg.sender_id) === Number(userData?.id);
+                return (
+                  <View
+                    key={`message-${msg.id}-${msg.created_at}-${index}`}
+                    style={[
+                      styles.messageItem,
+                      isSentByTrainer ? styles.messageItemSent : styles.messageItemReceived
+                    ]}
+                  >
+                    {/* Avatar for received messages (student/company) */}
+                    {!isSentByTrainer && (
+                      <View style={styles.messageAvatar}>
+                        {(() => {
+                          const selectedContact = contacts.find(c => c.user_id === selectedContactId);
+                          const isCompany = selectedContact?.type === 'company';
+                          const contactImage = isCompany ? selectedContact?.logo : selectedContact?.student_img;
+                          const contactName = selectedContact?.full_name || selectedContact?.name || (isCompany ? 'Company' : 'Student');
+                          
+                          return contactImage && contactImage.trim() !== '' ? (
+                            <>
+                              <Image 
+                                source={{ 
+                                  uri: contactImage.startsWith('http') 
+                                    ? contactImage 
+                                    : `${baseUrl}${contactImage}` 
+                                }}
+                                style={styles.messageAvatarImage}
+                              />
+                              <Text style={[styles.messageAvatarText, { position: 'absolute', opacity: 0 }]}>
+                                {contactName.charAt(0).toUpperCase()}
+                              </Text>
+                            </>
+                          ) : (
+                            <Text style={styles.messageAvatarText}>
+                              {contactName.charAt(0).toUpperCase()}
+                            </Text>
+                          );
+                        })()}
+                      </View>
+                    )}
+                    
+                    <View style={[
+                      styles.messageBubble,
+                      isSentByTrainer ? styles.messageBubbleSent : styles.messageBubbleReceived
+                    ]}>
+                      <Text style={[
+                        styles.messageText,
+                        isSentByTrainer ? styles.messageTextSent : styles.messageTextReceived
+                      ]}>
+                        {msg.message}
+                      </Text>
+                      <Text style={styles.messageTime}>
+                        {new Date(msg.created_at).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </Text>
+                    </View>
+
+                    {/* Avatar for sent messages (trainer) */}
+                    {isSentByTrainer && (
+                      <View style={styles.messageAvatar}>
+                        {trainerData.profile_image && trainerData.profile_image.trim() !== '' ? (
+                          <>
+                            <Image 
+                              source={{ 
+                                uri: trainerData.profile_image.startsWith('http') 
+                                  ? trainerData.profile_image 
+                                  : `${baseUrl}${trainerData.profile_image}` 
+                              }}
+                              style={styles.messageAvatarImage}
+                            />
+                            <Text style={[styles.messageAvatarText, { position: 'absolute', opacity: 0 }]}>
+                              {trainerData.user.name?.charAt(0).toUpperCase() || userData?.full_name?.charAt(0).toUpperCase() || 'T'}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={styles.messageAvatarText}>
+                            {trainerData.user.name?.charAt(0).toUpperCase() || userData?.full_name?.charAt(0).toUpperCase() || 'T'}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {selectedContactId && (
+            <View style={styles.messageInputContainer}>
+              <TextInput
+                style={styles.messageInput}
+                value={newMessage}
+                onChangeText={setNewMessage}
+                placeholder="Type your message..."
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  !newMessage.trim() && styles.sendButtonDisabled
+                ]}
+                onPress={handleSendMessage}
+                disabled={!newMessage.trim()}
+              >
+                <Text style={styles.sendButtonText}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   // Render Training Plans
   const renderPlans = () => {
     const statusOptions = [
@@ -3298,9 +3713,7 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
       case 'notifications':
         return renderNotifications();
       case 'messages':
-        return renderPlaceholder('Messages');
-      case 'videocall':
-        return renderPlaceholder('Video Call');
+        return renderMessages();
       case 'plans':
         return renderPlans();
       default:
@@ -5629,6 +6042,237 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     lineHeight: 20,
+  },
+  // Chat styles
+  chatContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  chatSidebar: {
+    width: 200,
+    backgroundColor: '#fff',
+    borderRightWidth: 1,
+    borderRightColor: '#e5e7eb',
+  },
+  chatSidebarTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  contactsList: {
+    flex: 1,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  contactItemSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  contactAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  contactAvatarText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  contactAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  contactEmail: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  chatMain: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  chatHeaderRow: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chatHeaderContent: {
+    flex: 1,
+  },
+  chatHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  chatSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  messagesContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  messagesContent: {
+    flexGrow: 1,
+  },
+  messageItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    alignItems: 'flex-end',
+  },
+  messageItemSent: {
+    justifyContent: 'flex-end',
+  },
+  messageItemReceived: {
+    justifyContent: 'flex-start',
+  },
+  messageBubble: {
+    maxWidth: '70%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  messageBubbleSent: {
+    backgroundColor: '#dcf8c6',
+    borderBottomRightRadius: 4,
+  },
+  messageBubbleReceived: {
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  messageTextSent: {
+    color: '#000',
+  },
+  messageTextReceived: {
+    color: '#1f2937',
+  },
+  messageTime: {
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  messageInputContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  messageInput: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    fontSize: 14,
+    maxHeight: 100,
+  },
+  sendButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  messageAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  messageAvatarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  messageAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  // Toggle contacts styles
+  chatSidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  toggleButton: {
+    padding: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#6b7280',
+  },
+  chatMainExpanded: {
+    flex: 1,
+  },
+  showContactsButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  showContactsButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

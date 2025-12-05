@@ -62,7 +62,6 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'details', label: 'Applicant Details', icon: 'file' },
           { key: 'messages', label: 'Messages/Chat', icon: 'message', badge: unreadCount },
           { key: 'interviews', label: 'Interviews', icon: 'calendar' },
-          { key: 'meetings', label: 'Meetings', icon: 'video' },
         ];
       case 'student':
         return [
@@ -85,7 +84,6 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'schedule', label: 'Schedule & Events', icon: 'calendar' },
           { key: 'notifications', label: 'Notifications', icon: 'bell' },
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
-          { key: 'videocall', label: 'Video Calls', icon: 'video' },
           { key: 'plans', label: 'Training Plans', icon: 'clipboard' },
         ];
       default:
