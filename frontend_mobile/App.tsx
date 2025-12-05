@@ -16,8 +16,9 @@ import StudentDashboardScreen from './src/screens/StudentDashboardScreen';
 import CompanyDashboardScreen from './src/screens/CompanyDashboardScreen';
 import UniversityDashboardScreen from './src/screens/UniversityDashboardScreen';
 import TrainerDashboardScreen from './src/screens/TrainerDashboardScreen';
+import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 
-type Screen = 'splash' | 'login' | 'signup' | 'studentDashboard' | 'companyDashboard' | 'universityDashboard' | 'trainerDashboard';
+type Screen = 'splash' | 'login' | 'signup' | 'studentDashboard' | 'companyDashboard' | 'universityDashboard' | 'trainerDashboard' | 'adminDashboard';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('splash');
@@ -56,6 +57,12 @@ function App() {
               setUserData(user);
               setScreen('trainerDashboard');
             }}
+            onAdminLogin={(user) => {
+              console.log('👨‍💼 App.tsx: onAdminLogin called with user:', user);
+              setUserData(user);
+              console.log('👨‍💼 App.tsx: Setting screen to adminDashboard');
+              setScreen('adminDashboard');
+            }}
           />
         )}
         {screen === 'signup' && (
@@ -90,6 +97,15 @@ function App() {
         )}
         {screen === 'trainerDashboard' && (
           <TrainerDashboardScreen 
+            userData={userData}
+            onLogout={() => {
+              setUserData(null);
+              setScreen('login');
+            }} 
+          />
+        )}
+        {screen === 'adminDashboard' && (
+          <AdminDashboardScreen 
             userData={userData}
             onLogout={() => {
               setUserData(null);

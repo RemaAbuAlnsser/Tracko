@@ -16,9 +16,10 @@ interface LoginScreenProps {
   onCompanyLogin?: (userData: any) => void;
   onUniversityLogin?: (userData: any) => void;
   onTrainerLogin?: (userData: any) => void;
+  onAdminLogin?: (userData: any) => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin, onCompanyLogin, onUniversityLogin, onTrainerLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin, onCompanyLogin, onUniversityLogin, onTrainerLogin, onAdminLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,9 +69,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToSignUp, onStudentLogin,
         } else if (userType === 'trainer' && onTrainerLogin) {
           console.log('🔐 Calling onTrainerLogin with user data:', data.user);
           onTrainerLogin(data.user);
+        } else if (userType === 'admin' && onAdminLogin) {
+          console.log('🔐 Calling onAdminLogin with user data:', data.user);
+          onAdminLogin(data.user);
         } else {
           console.log('🔐 User type not supported or callback not provided:', userType);
-          console.log('🔐 Conditions check: student?', userType === 'student', 'company?', userType === 'company', 'university?', userType === 'university');
+          console.log('🔐 Conditions check: student?', userType === 'student', 'company?', userType === 'company', 'university?', userType === 'university', 'admin?', userType === 'admin');
           Alert.alert('Success', `Logged in successfully as ${userType}`);
         }
       } else {

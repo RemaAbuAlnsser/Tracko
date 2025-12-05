@@ -92,12 +92,22 @@ function StudentDashboard() {
     
     setUser(parsedUser);
     console.log('👤 User loaded:', parsedUser);
-    loadDashboardData();
+    
+    // Load dashboard data immediately with user data
+    loadDashboardDataWithUser(parsedUser);
+    
     loadStudentData(parsedUser.id);
     loadPartnershipInternships(parsedUser.id);
     loadSavedInternshipsWithUser(parsedUser);
     loadNotificationsOnLogin(parsedUser);
   }, [navigate]);
+
+  // Load dashboard data when user is set
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+  }, [user]);
 
   // Load trainers when user is available to show unread messages badge
   useEffect(() => {
@@ -117,7 +127,7 @@ function StudentDashboard() {
   useEffect(() => {
     if (studentId) {
       loadTrainingPlans();
-      loadDashboardStats();
+      // loadDashboardStats(); // Temporarily disabled to avoid conflicts
       loadWeeklyReports();
     }
   }, [studentId]);
@@ -615,55 +625,94 @@ function StudentDashboard() {
   };
 
   const loadDashboardData = async () => {
-    // Load applications and recommended internships
-    // This is placeholder data - replace with actual API calls
-    setApplications([
-      {
-        id: 1,
-        title: 'Software Engineer Intern',
-        company: 'TechCorp',
-        timeAgo: '2 days ago',
-        status: 'interview'
-      },
-      {
-        id: 2,
-        title: 'Product Manager Intern',
-        company: 'StartupX',
-        timeAgo: '1 week ago',
-        status: 'under_review'
-      },
-      {
-        id: 3,
-        title: 'Data Science Intern',
-        company: 'BigData Inc',
-        timeAgo: '2 weeks ago',
-        status: 'applied'
+    try {
+      if (!user?.id) {
+        console.log('❌ No user ID available for loading dashboard data');
+        return;
       }
-    ]);
+      
+      console.log('📊 Loading dashboard data for user:', user.id);
+      
+      // Load real applications data
+      const applicationsResponse = await fetch(`http://localhost:5050/api/students/${user.id}/applications`);
+      const applicationsData = await applicationsResponse.json();
+      
+      console.log('📝 Applications response:', applicationsData);
+      
+      if (applicationsData.success) {
+        setApplications(applicationsData.applications || []);
+        console.log('✅ Set applications:', applicationsData.applications?.length || 0);
+      }
+      
+      // Load real recommended internships
+      const internshipsResponse = await fetch(`http://localhost:5050/api/matching/student/${user.id}`);
+      const internshipsData = await internshipsResponse.json();
+      
+      console.log('🎯 Internships response:', internshipsData);
+      
+      if (internshipsData.success) {
+        setRecommendedInternships(internshipsData.data || []);
+        console.log('✅ Set internships:', internshipsData.data?.length || 0);
+      }
+      
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Keep placeholder data as fallback
+      setApplications([]);
+      setRecommendedInternships([]);
+    }
+  };
 
-    setRecommendedInternships([
-      {
-        id: 1,
-        title: 'DevOps Intern',
-        company: 'CloudTech',
-        location: 'Remote',
-        match: 96
-      },
-      {
-        id: 2,
-        title: 'ML Engineer Intern',
-        company: 'AI Innovations',
-        location: 'Hybrid',
-        match: 92
-      },
-      {
-        id: 3,
-        title: 'Backend Developer Intern',
-        company: 'FinanceFlow',
-        location: 'On-site',
-        match: 89
+  const loadDashboardDataWithUser = async (userData) => {
+    try {
+      if (!userData?.id) {
+        console.log('❌ No user ID available for loading dashboard data');
+        return;
       }
-    ]);
+      
+      console.log('📊 Loading dashboard data for user:', userData.id);
+      
+      // First get student ID from user ID
+      const studentResponse = await fetch(`http://localhost:5050/api/students/user/${userData.id}`);
+      const studentData = await studentResponse.json();
+      
+      if (!studentData.success || !studentData.student) {
+        console.log('❌ No student data found for user:', userData.id);
+        return;
+      }
+      
+      const studentId = studentData.student.id;
+      console.log('👤 Found student ID:', studentId);
+      
+      // Load real applications data using student ID
+      const applicationsResponse = await fetch(`http://localhost:5050/api/students/${studentId}/applications`);
+      const applicationsData = await applicationsResponse.json();
+      
+      console.log('📝 Applications response:', applicationsData);
+      
+      if (applicationsData.success) {
+        setApplications(applicationsData.applications || []);
+        console.log('✅ Set applications:', applicationsData.applications?.length || 0);
+      }
+      
+      // Load real recommended internships using user ID (this endpoint expects user ID)
+      const internshipsResponse = await fetch(`http://localhost:5050/api/matching/student/${userData.id}`);
+      const internshipsData = await internshipsResponse.json();
+      
+      console.log('🎯 Internships response:', internshipsData);
+      
+      if (internshipsData.success) {
+        setRecommendedInternships(internshipsData.data || []);
+        setMatchedInternshipsCount(internshipsData.data?.length || 0); // Also update the count
+        console.log('✅ Set internships:', internshipsData.data?.length || 0);
+      }
+      
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Keep placeholder data as fallback
+      setApplications([]);
+      setRecommendedInternships([]);
+    }
   };
 
   const loadNotificationsOnLogin = async (userData) => {
@@ -764,6 +813,8 @@ function StudentDashboard() {
       const matchesData = await matchesResponse.json();
       if (matchesData.success) {
         setMatchedInternshipsCount(matchesData.data.length);
+        setRecommendedInternships(matchesData.data || []); // Also update recommendedInternships
+        console.log('🎯 Updated recommendedInternships from loadDashboardStats:', matchesData.data?.length || 0);
         // Count interviews (you can adjust this based on your interview status)
         const interviewsScheduled = matchesData.data.filter(m => m.status === 'interview_scheduled').length;
         setInterviewsCount(interviewsScheduled);
@@ -1001,10 +1052,23 @@ function StudentDashboard() {
   const handleCVChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      console.log('Selected file:', file.name, 'Type:', file.type, 'Size:', file.size);
+      
       // Check file type
-      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (!allowedTypes.includes(file.type)) {
+      const allowedTypes = [
+        'application/pdf', 
+        'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      
+      // Also check file extension as backup
+      const fileName = file.name.toLowerCase();
+      const allowedExtensions = ['.pdf', '.doc', '.docx'];
+      const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+      
+      if (!allowedTypes.includes(file.type) && !hasValidExtension) {
         setMessage({ type: 'error', text: 'Please upload PDF, DOC, or DOCX file only' });
+        console.log('File rejected - Type:', file.type, 'Name:', file.name);
         return;
       }
       
@@ -1511,6 +1575,49 @@ function StudentDashboard() {
               }}>
                 <div style={{ 
                   padding: '24px', 
+                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #fde68a',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('applications')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#92400e', fontSize: '16px', fontWeight: '600' }}>Applications</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#78350f' }}>
+                    {console.log('📊 Applications count in render:', applications.length, applications) || applications.length}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
+                    Total applications submitted
+                  </p>
+                </div>
+
+                <div style={{ 
+                  padding: '24px', 
                   background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
                   borderRadius: '16px',
                   border: '1px solid #bae6fd',
@@ -1545,7 +1652,7 @@ function StudentDashboard() {
                     <h4 style={{ margin: 0, color: '#0369a1', fontSize: '16px', fontWeight: '600' }}>Matched Internships</h4>
                   </div>
                   <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#0c4a6e' }}>
-                    {matchedInternshipsCount}
+                    {console.log('🔍 Debug values:', { matchedInternshipsCount, recommendedInternshipsLength: recommendedInternships.length, recommendedInternships }) || (matchedInternshipsCount || recommendedInternships.length || 0)}
                   </p>
                   <p style={{ fontSize: '13px', color: '#0369a1', margin: '8px 0 0 0' }}>
                     Internships matching your profile
@@ -1635,6 +1742,49 @@ function StudentDashboard() {
                   </p>
                   <p style={{ fontSize: '13px', color: '#92400e', margin: '8px 0 0 0' }}>
                     Pending notifications
+                  </p>
+                </div>
+
+                <div style={{ 
+                  padding: '24px', 
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', 
+                  borderRadius: '16px',
+                  border: '1px solid #bbf7d0',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+                onClick={() => setActiveMenu('applications')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h4 style={{ margin: 0, color: '#15803d', fontSize: '16px', fontWeight: '600' }}>Accepted Applications</h4>
+                  </div>
+                  <p style={{ fontSize: '36px', fontWeight: 'bold', margin: 0, color: '#14532d' }}>
+                    {applications.filter(app => app.status === 'accepted').length}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#15803d', margin: '8px 0 0 0' }}>
+                    Successfully accepted
                   </p>
                 </div>
 

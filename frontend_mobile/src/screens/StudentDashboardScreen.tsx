@@ -125,10 +125,17 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
   useEffect(() => {
     if (studentData.id) {
-      fetchDashboardStats();
       fetchApplications();
+      fetchInternships(); // Also fetch internships for dashboard stats
     }
   }, [studentData.id]);
+
+  // Update dashboard stats when applications or internships change
+  useEffect(() => {
+    if (studentData.id) {
+      fetchDashboardStats();
+    }
+  }, [applications, internships, studentData.id]);
 
   useEffect(() => {
     if (activeTab === 'internships' && userData?.id && studentData.id) {
@@ -306,14 +313,26 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch(`${baseUrl}/api/students/${studentData.id}/statistics`);
-      const data = await response.json();
+      // Calculate stats from existing data
+      const applicationsCount = applications.length;
+      const matchedInternshipsCount = internships.length;
+      const acceptedApplicationsCount = applications.filter(app => app.status === 'accepted').length;
       
-      if (data.success) {
-        setDashboardStats(data.data);
-      }
+      console.log('📊 Calculating dashboard stats:', {
+        applicationsCount,
+        matchedInternshipsCount,
+        acceptedApplicationsCount,
+        applicationsData: applications,
+        internshipsData: internships
+      });
+      
+      setDashboardStats({
+        applicationsCount,
+        matchedInternshipsCount,
+        acceptedApplicationsCount,
+      });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('Error calculating stats:', error);
     }
   };
 

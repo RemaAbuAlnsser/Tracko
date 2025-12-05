@@ -10,23 +10,37 @@ import {
 } from 'react-native';
 
 interface DrawerMenuProps {
-  userType: 'student' | 'company' | 'university' | 'trainer';
-  userData: any;
-  activeMenu: string;
-  onMenuSelect: (menu: string) => void;
+  userType: 'student' | 'company' | 'university' | 'trainer' | 'admin';
+  userData?: any;
+  activeMenu?: string;
+  activeTab?: string;
+  onMenuSelect?: (menu: string) => void;
+  onTabChange?: (tab: string) => void;
   onLogout: () => void;
   unreadCount?: number;
   pendingCount?: number;
+  notificationCount?: number;
+  userName?: string;
+  userEmail?: string;
+  visible?: boolean;
+  onClose?: () => void;
 }
 
 const DrawerMenu: React.FC<DrawerMenuProps> = ({
   userType,
   userData,
   activeMenu,
+  activeTab,
   onMenuSelect,
+  onTabChange,
   onLogout,
   unreadCount = 0,
   pendingCount = 0,
+  notificationCount = 0,
+  userName,
+  userEmail,
+  visible,
+  onClose,
 }) => {
   const getInitials = (name: string) => {
     if (!name) return '?';
@@ -47,10 +61,10 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'partnerships', label: 'Company Partnerships', icon: 'users' },
           { key: 'students', label: 'Students Management', icon: 'graduation' },
           { key: 'internships', label: 'Internship Opportunities', icon: 'briefcase' },
-          { key: 'reports', label: 'Reports & Analytics', icon: 'chart', badge: pendingCount },
-          { key: 'notifications', label: 'Notifications', icon: 'bell' },
+          { key: 'reports', label: 'Reports & Analytics', icon: 'chart' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: notificationCount },
           { key: 'messages', label: 'Messages/Chat', icon: 'message', badge: unreadCount },
-          { key: 'requests', label: 'Registration Requests', icon: 'clipboard' },
+          { key: 'requests', label: 'Registration Requests', icon: 'clipboard', badge: pendingCount },
         ];
       case 'company':
         return [
@@ -86,6 +100,18 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'clipboard' },
         ];
+      case 'admin':
+        return [
+          { key: 'overview', label: 'Overview', icon: 'grid' },
+          { key: 'users', label: 'All Users', icon: 'users' },
+          { key: 'companies', label: 'Companies', icon: 'briefcase' },
+          { key: 'universities', label: 'Universities', icon: 'graduation' },
+          { key: 'students', label: 'Students', icon: 'user' },
+          { key: 'trainers', label: 'Trainers', icon: 'users' },
+          { key: 'internships', label: 'Internships', icon: 'briefcase' },
+          { key: 'partnerships', label: 'Partnerships', icon: 'users' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: pendingCount },
+        ];
       default:
         return [];
     }
@@ -103,6 +129,8 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
         return 'Student';
       case 'trainer':
         return 'Trainer';
+      case 'admin':
+        return 'Administrator';
       default:
         return '';
     }
@@ -127,7 +155,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           </View>
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={2}>
-              {userData?.name || userData?.full_name || 'User'}
+              {userName || userData?.name || userData?.full_name || 'User'}
             </Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{getUserTypeLabel()}</Text>
@@ -140,8 +168,14 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           {getMenuItems().map((item) => (
             <TouchableOpacity
               key={item.key}
-              style={[styles.navItem, activeMenu === item.key && styles.navItemActive]}
-              onPress={() => onMenuSelect(item.key)}
+              style={[styles.navItem, (activeMenu === item.key || activeTab === item.key) && styles.navItemActive]}
+              onPress={() => {
+                if (onMenuSelect) {
+                  onMenuSelect(item.key);
+                } else if (onTabChange) {
+                  onTabChange(item.key);
+                }
+              }}
             >
               <View style={styles.navItemContent}>
                 <Text style={[styles.navText, activeMenu === item.key && styles.navTextActive]}>
