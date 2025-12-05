@@ -97,12 +97,13 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   const [showHoursModal, setShowHoursModal] = useState(false);
   const [hoursPerWeek, setHoursPerWeek] = useState('20');
   
-  // Chat
+  // Chat/Messages state
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [contacts, setContacts] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+  const [showContactsList, setShowContactsList] = useState(true);
   const [messagesChannel, setMessagesChannel] = useState<any>(null);
   
   // Notifications
@@ -1624,8 +1625,17 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   const renderMessages = () => {
     return (
       <View style={styles.chatContainer}>
-        <View style={styles.chatSidebar}>
-          <Text style={styles.chatSidebarTitle}>Contacts</Text>
+        {showContactsList && (
+          <View style={styles.chatSidebar}>
+            <View style={styles.chatSidebarHeader}>
+              <Text style={styles.chatSidebarTitle}>Contacts</Text>
+              <TouchableOpacity 
+                style={styles.toggleButton}
+                onPress={() => setShowContactsList(false)}
+              >
+                <Text style={styles.toggleButtonText}>←</Text>
+              </TouchableOpacity>
+            </View>
           {contacts.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No contacts yet</Text>
@@ -1685,14 +1695,25 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
               ))}
             </ScrollView>
           )}
-        </View>
+          </View>
+        )}
 
-        <View style={styles.chatMain}>
+        <View style={[styles.chatMain, !showContactsList && styles.chatMainExpanded]}>
           <View style={styles.chatHeaderRow}>
-            <Text style={styles.chatHeaderTitle}>
-              {contacts.find(c => c.user_id === selectedContactId)?.full_name || 'Chat'}
-            </Text>
-            <Text style={styles.chatSubtitle}>Real-time messaging</Text>
+            {!showContactsList && (
+              <TouchableOpacity 
+                style={styles.showContactsButton}
+                onPress={() => setShowContactsList(true)}
+              >
+                <Text style={styles.showContactsButtonText}>→ Contacts</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.chatHeaderContent}>
+              <Text style={styles.chatHeaderTitle}>
+                {contacts.find(c => c.user_id === selectedContactId)?.full_name || 'Chat'}
+              </Text>
+              <Text style={styles.chatSubtitle}>Real-time messaging</Text>
+            </View>
           </View>
 
           <ScrollView
@@ -3312,9 +3333,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   contactItem: {
     flexDirection: 'row',
@@ -3373,6 +3391,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chatHeaderContent: {
+    flex: 1,
   },
   chatHeaderTitle: {
     fontSize: 18,
@@ -3465,6 +3488,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#9ca3af',
   },
   sendButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Toggle contacts styles
+  chatSidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  toggleButton: {
+    padding: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#6b7280',
+  },
+  chatMainExpanded: {
+    flex: 1,
+  },
+  showContactsButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  showContactsButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
