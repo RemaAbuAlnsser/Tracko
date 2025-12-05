@@ -1696,19 +1696,25 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           </View>
 
           <ScrollView
-            style={styles.messagesList}
-            contentContainerStyle={{ paddingVertical: 8 }}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
           >
-            {messages.map(msg => {
-              const isFromMe = msg.sender_id === userData?.id;
-              const time = new Date(msg.created_at).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
+            {messages.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  {selectedContactId ? 'No messages yet. Start the conversation!' : 'Select a contact to start chatting'}
+                </Text>
+              </View>
+            ) : (
+              messages.map(msg => {
+              const isFromMe = Number(msg.sender_id) === Number(userData?.id);
+              const time = new Date(msg.created_at).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
               });
               return (
                 <View
-                  key={msg.id}
+                  key={`message-${msg.id}-${msg.created_at}`}
                   style={[
                     styles.messageItem,
                     isFromMe ? styles.messageItemSent : styles.messageItemReceived,
@@ -1781,12 +1787,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
                     >
                       {msg.message}
                     </Text>
-                    <Text 
-                      style={[
-                        styles.messageTime,
-                        isFromMe ? styles.messageTimeSent : styles.messageTimeReceived,
-                      ]}
-                    >
+                    <Text style={styles.messageTime}>
                       {time}
                     </Text>
                   </View>
@@ -1807,23 +1808,32 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
                   )}
                 </View>
               );
-            })}
+              })
+            )}
           </ScrollView>
 
-          <View style={styles.messageInputRow}>
+          {selectedContactId && (
+            <View style={styles.messageInputContainer}>
             <TextInput
               style={styles.messageInput}
-              placeholder="Type a message..."
+              placeholder="Type your message..."
               value={newMessage}
               onChangeText={setNewMessage}
+              multiline
+              maxLength={500}
             />
             <TouchableOpacity
-              style={styles.messageSendButton}
+              style={[
+                styles.sendButton,
+                !newMessage.trim() && styles.sendButtonDisabled
+              ]}
               onPress={handleSendMessage}
+              disabled={!newMessage.trim()}
             >
-              <Text style={styles.messageSendText}>Send</Text>
+              <Text style={styles.sendButtonText}>Send</Text>
             </TouchableOpacity>
-          </View>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -3373,9 +3383,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
   },
-  messagesList: {
+  messagesContainer: {
     flex: 1,
     padding: 16,
+  },
+  messagesContent: {
+    flexGrow: 1,
   },
   messageItem: {
     flexDirection: 'row',
@@ -3422,14 +3435,9 @@ const styles = StyleSheet.create({
   },
   messageTime: {
     fontSize: 10,
-  },
-  messageTimeSent: {
-    color: '#667781',
-  },
-  messageTimeReceived: {
     color: '#9ca3af',
   },
-  messageInputRow: {
+  messageInputContainer: {
     flexDirection: 'row',
     padding: 16,
     backgroundColor: '#fff',
@@ -3444,15 +3452,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginRight: 8,
     fontSize: 14,
+    maxHeight: 100,
   },
-  messageSendButton: {
+  sendButton: {
     backgroundColor: '#3b82f6',
     borderRadius: 24,
     paddingHorizontal: 20,
     paddingVertical: 8,
     justifyContent: 'center',
   },
-  messageSendText: {
+  sendButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  sendButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
