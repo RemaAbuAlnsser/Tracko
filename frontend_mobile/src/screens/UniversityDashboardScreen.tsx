@@ -11,9 +11,18 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
+  Image,
 } from 'react-native';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import DrawerMenu from '../components/DrawerMenu';
+import {
+  loadChatMessages,
+  sendChatMessage,
+  subscribeToMessages,
+  unsubscribeFromMessages,
+  markMessagesAsRead,
+  getUnreadCount,
+} from '../utils/chatService';
 
 interface UniversityDashboardScreenProps {
   userData?: any;
@@ -34,6 +43,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
     address: '',
     website: '',
     description: '',
+    logo: '',
   });
   const [dashboardStats, setDashboardStats] = useState({
     studentsCount: 0,
@@ -79,6 +89,14 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
   
   // Notifications state
   const [notifications, setNotifications] = useState<any[]>([]);
+  
+  // Chat/Messages state
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messagesChannel, setMessagesChannel] = useState<any>(null);
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
 
   const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5050' : 'http://localhost:5050';
 
@@ -261,6 +279,101 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
     }
   };
 
+  // Chat/Messages functions
+  const loadContacts = async () => {
+    if (!universityData.id) return;
+    
+    try {
+      console.log('🎓 Loading students as contacts for university:', universityData.id);
+      const response = await fetch(`${baseUrl}/api/students/university/${universityData.id}`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        console.log('✅ Loaded students:', data.data.length);
+        
+        // Filter out duplicates and students without user_id
+        const uniqueStudents = data.data.filter((student: any, index: number, array: any[]) => {
+          return student.user_id && array.findIndex((s: any) => s.user_id === student.user_id) === index;
+        });
+        
+        console.log('🔍 Unique students after filtering:', uniqueStudents.length);
+        
+        // Load unread counts for each student
+        const studentsWithUnread = await Promise.all(
+          uniqueStudents.map(async (student: any) => {
+            const unreadCount = await getUnreadCount(userData.id, student.user_id);
+            return {
+              ...student,
+              unread_count: unreadCount
+            };
+          })
+        );
+        
+        setContacts(studentsWithUnread);
+        
+        // Calculate total unread messages
+        const totalUnread = studentsWithUnread.reduce((sum: number, student: any) => sum + (student.unread_count || 0), 0);
+        setTotalUnreadMessages(totalUnread);
+      }
+    } catch (error) {
+      console.error('Error loading contacts:', error);
+    }
+  };
+
+  const loadMessages = async (contactId: number) => {
+    if (!userData?.id || !contactId) return;
+    
+    try {
+      console.log('💬 Loading messages between:', userData.id, 'and:', contactId);
+      const chatMessages = await loadChatMessages(userData.id, contactId);
+      
+      // Remove duplicate messages based on id and created_at
+      const uniqueMessages = chatMessages.filter((msg: any, index: number, array: any[]) => {
+        return array.findIndex((m: any) => m.id === msg.id && m.created_at === msg.created_at) === index;
+      });
+      
+      console.log('🔍 Unique messages after filtering:', uniqueMessages.length, 'from', chatMessages.length);
+      setMessages(uniqueMessages);
+      await markMessagesAsRead(contactId, userData.id);
+      
+      // Update unread count for this contact to 0 and recalculate total
+      setContacts(prev => prev.map(contact => 
+        contact.user_id === contactId ? { ...contact, unread_count: 0 } : contact
+      ));
+      
+      const updatedTotal = contacts.reduce((sum, contact) => {
+        if (contact.user_id === contactId) return sum;
+        return sum + (contact.unread_count || 0);
+      }, 0);
+      setTotalUnreadMessages(updatedTotal);
+      
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedContactId || !userData?.id) return;
+
+    const trimmed = newMessage.trim();
+
+    try {
+      setNewMessage('');
+      const result = await sendChatMessage(userData.id, selectedContactId, trimmed);
+      
+      if (result.success && result.data && result.data[0]) {
+        setMessages(prev => [...prev, result.data[0]]);
+      } else {
+        setNewMessage(trimmed);
+        Alert.alert('Error', 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setNewMessage(trimmed);
+      Alert.alert('Error', 'Failed to send message');
+    }
+  };
+
   const handleApproveRequest = async (requestId: number) => {
     Alert.alert(
       'Confirm Approval',
@@ -411,6 +524,50 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
       fetchNotifications();
     }
   }, [activeTab, userData?.id]);
+
+  // Chat useEffect hooks
+  useEffect(() => {
+    if (activeTab === 'messages' && universityData.id) {
+      loadContacts();
+    }
+  }, [activeTab, universityData.id]);
+
+  // Subscribe to real-time messages
+  useEffect(() => {
+    if (!userData?.id || activeTab !== 'messages') return;
+
+    const handleNewMessage = (newMsg: any) => {
+      console.log('📨 New message received:', newMsg);
+      
+      // If message is for current conversation, add it to messages
+      if (selectedContactId && 
+          (Number(newMsg.sender_id) === Number(selectedContactId) || 
+           Number(newMsg.receiver_id) === Number(selectedContactId))) {
+        setMessages(prev => {
+          // Check if message already exists by id and created_at
+          if (prev.some(msg => msg.id === newMsg.id && msg.created_at === newMsg.created_at)) {
+            return prev;
+          }
+          return [...prev, newMsg];
+        });
+        
+        // Mark as read if it's from the selected contact
+        if (Number(newMsg.sender_id) === Number(selectedContactId)) {
+          markMessagesAsRead(selectedContactId, userData.id);
+        }
+      }
+      
+      // Reload contacts to update unread counts
+      loadContacts();
+    };
+
+    const channel = subscribeToMessages(userData.id, handleNewMessage);
+    setMessagesChannel(channel);
+
+    return () => {
+      unsubscribeFromMessages(channel);
+    };
+  }, [userData, activeTab, selectedContactId]);
 
   const renderDashboard = () => {
     const screenWidth = Dimensions.get('window').width;
@@ -595,7 +752,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
         
         {message.text ? (
           <View style={[styles.messageBox, message.type === 'success' ? styles.successBox : styles.errorBox]}>
-            <Text style={styles.messageText}>{message.text}</Text>
+            <Text style={styles.alertMessageText}>{message.text}</Text>
           </View>
         ) : null}
 
@@ -729,7 +886,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
         
         {message.text ? (
           <View style={[styles.messageBox, message.type === 'success' ? styles.successBox : styles.errorBox]}>
-            <Text style={styles.messageText}>{message.text}</Text>
+            <Text style={styles.alertMessageText}>{message.text}</Text>
           </View>
         ) : null}
         
@@ -849,7 +1006,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
 
         {message.text ? (
           <View style={[styles.messageBox, message.type === 'success' ? styles.successBox : styles.errorBox]}>
-            <Text style={styles.messageText}>{message.text}</Text>
+            <Text style={styles.alertMessageText}>{message.text}</Text>
           </View>
         ) : null}
 
@@ -1276,7 +1433,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
 
         {message.text ? (
           <View style={[styles.messageBox, message.type === 'success' ? styles.successBox : styles.errorBox]}>
-            <Text style={styles.messageText}>{message.text}</Text>
+            <Text style={styles.alertMessageText}>{message.text}</Text>
           </View>
         ) : null}
 
@@ -1407,6 +1564,199 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
     );
   };
 
+  const renderMessages = () => {
+    return (
+      <View style={styles.chatContainer}>
+        <View style={styles.chatSidebar}>
+          <Text style={styles.chatSidebarTitle}>Students</Text>
+          {contacts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No students yet</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.contactsList}>
+              {contacts.map((contact, index) => (
+                <TouchableOpacity
+                  key={`contact-${contact.user_id || contact.id || index}`}
+                  style={[
+                    styles.contactItem,
+                    selectedContactId === contact.user_id && styles.contactItemSelected
+                  ]}
+                  onPress={() => {
+                    if (contact.user_id) {
+                      setSelectedContactId(contact.user_id);
+                      loadMessages(contact.user_id);
+                    }
+                  }}
+                >
+                  <View style={styles.contactAvatar}>
+                    {contact.student_img && contact.student_img.trim() !== '' ? (
+                      <>
+                        <Image 
+                          source={{ 
+                            uri: contact.student_img.startsWith('http') 
+                              ? contact.student_img 
+                              : `${baseUrl}${contact.student_img}` 
+                          }}
+                          style={styles.contactAvatarImage}
+                        />
+                        <Text style={[styles.contactAvatarText, { position: 'absolute', opacity: 0 }]}>
+                          {contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'S'}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.contactAvatarText}>
+                        {contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'S'}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.contactInfo}>
+                    <Text style={styles.contactName}>{contact.full_name || 'Student'}</Text>
+                    <Text style={styles.contactEmail}>{contact.email}</Text>
+                  </View>
+                  {contact.unread_count > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>{contact.unread_count}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        <View style={styles.chatMain}>
+          <View style={styles.chatHeaderRow}>
+            <Text style={styles.chatHeaderTitle}>
+              {contacts.find(c => c.user_id === selectedContactId)?.full_name || 'Messages'}
+            </Text>
+            <Text style={styles.chatSubtitle}>Real-time messaging with students</Text>
+          </View>
+
+          <ScrollView
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
+          >
+            {messages.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  {selectedContactId ? 'No messages yet. Start the conversation!' : 'Select a student to start chatting'}
+                </Text>
+              </View>
+            ) : (
+              messages.map((msg, index) => {
+                const isSentByUniversity = Number(msg.sender_id) === Number(userData?.id);
+                return (
+                  <View
+                    key={`message-${msg.id}-${msg.created_at}-${index}`}
+                    style={[
+                      styles.messageItem,
+                      isSentByUniversity ? styles.messageItemSent : styles.messageItemReceived
+                    ]}
+                  >
+                    {/* Avatar for received messages (student) */}
+                    {!isSentByUniversity && (
+                      <View style={styles.messageAvatar}>
+                        {(() => {
+                          const selectedContact = contacts.find(c => c.user_id === selectedContactId);
+                          return selectedContact?.student_img && selectedContact.student_img.trim() !== '' ? (
+                            <>
+                              <Image 
+                                source={{ 
+                                  uri: selectedContact.student_img.startsWith('http') 
+                                    ? selectedContact.student_img 
+                                    : `${baseUrl}${selectedContact.student_img}` 
+                                }}
+                                style={styles.messageAvatarImage}
+                              />
+                              <Text style={[styles.messageAvatarText, { position: 'absolute', opacity: 0 }]}>
+                                {selectedContact?.full_name?.charAt(0).toUpperCase() || 'S'}
+                              </Text>
+                            </>
+                          ) : (
+                            <Text style={styles.messageAvatarText}>
+                              {selectedContact?.full_name?.charAt(0).toUpperCase() || 'S'}
+                            </Text>
+                          );
+                        })()}
+                      </View>
+                    )}
+                    
+                    <View style={[
+                      styles.messageBubble,
+                      isSentByUniversity ? styles.messageBubbleSent : styles.messageBubbleReceived
+                    ]}>
+                      <Text style={[
+                        styles.messageText,
+                        isSentByUniversity ? styles.messageTextSent : styles.messageTextReceived
+                      ]}>
+                        {msg.message}
+                      </Text>
+                      <Text style={styles.messageTime}>
+                        {new Date(msg.created_at).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </Text>
+                    </View>
+
+                    {/* Avatar for sent messages (university) */}
+                    {isSentByUniversity && (
+                      <View style={styles.messageAvatar}>
+                        {universityData.logo && universityData.logo.trim() !== '' ? (
+                          <>
+                            <Image 
+                              source={{ 
+                                uri: universityData.logo.startsWith('http') 
+                                  ? universityData.logo 
+                                  : `${baseUrl}${universityData.logo}` 
+                              }}
+                              style={styles.messageAvatarImage}
+                            />
+                            <Text style={[styles.messageAvatarText, { position: 'absolute', opacity: 0 }]}>
+                              {universityData.name?.charAt(0).toUpperCase() || userData?.full_name?.charAt(0).toUpperCase() || 'U'}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={styles.messageAvatarText}>
+                            {universityData.name?.charAt(0).toUpperCase() || userData?.full_name?.charAt(0).toUpperCase() || 'U'}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {selectedContactId && (
+            <View style={styles.messageInputContainer}>
+              <TextInput
+                style={styles.messageInput}
+                value={newMessage}
+                onChangeText={setNewMessage}
+                placeholder="Type your message..."
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  !newMessage.trim() && styles.sendButtonDisabled
+                ]}
+                onPress={handleSendMessage}
+                disabled={!newMessage.trim()}
+              >
+                <Text style={styles.sendButtonText}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   const renderPlaceholder = (title: string) => {
     return (
       <ScrollView style={styles.tabContent}>
@@ -1437,7 +1787,7 @@ const UniversityDashboardScreen: React.FC<UniversityDashboardScreenProps> = ({ u
       case 'notifications':
         return renderNotifications();
       case 'messages':
-        return renderPlaceholder('Messages/Chat');
+        return renderMessages();
       default:
         return renderDashboard();
     }
@@ -1768,7 +2118,7 @@ const styles = StyleSheet.create({
     borderColor: '#fecaca',
     borderWidth: 1,
   },
-  messageText: {
+  alertMessageText: {
     fontSize: 14,
     color: '#1f2937',
   },
@@ -2215,6 +2565,201 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  // Chat styles
+  chatContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  chatSidebar: {
+    width: 200,
+    backgroundColor: '#fff',
+    borderRightWidth: 1,
+    borderRightColor: '#e5e7eb',
+  },
+  chatSidebarTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  contactsList: {
+    flex: 1,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  contactItemSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  contactAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  contactAvatarText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  contactAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  contactEmail: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  chatMain: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  chatHeaderRow: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  chatHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  chatSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  messagesContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  messagesContent: {
+    flexGrow: 1,
+  },
+  messageItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    alignItems: 'flex-end',
+  },
+  messageItemSent: {
+    justifyContent: 'flex-end',
+  },
+  messageItemReceived: {
+    justifyContent: 'flex-start',
+  },
+  messageBubble: {
+    maxWidth: '70%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  messageBubbleSent: {
+    backgroundColor: '#dcf8c6',
+    borderBottomRightRadius: 4,
+  },
+  messageBubbleReceived: {
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  messageTextSent: {
+    color: '#000',
+  },
+  messageTextReceived: {
+    color: '#1f2937',
+  },
+  messageTime: {
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  messageInputContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  messageInput: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    fontSize: 14,
+    maxHeight: 100,
+  },
+  sendButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  messageAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  messageAvatarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  messageAvatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
 });
 
