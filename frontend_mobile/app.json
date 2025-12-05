@@ -1,4 +1,7 @@
 {
   "name": "frontend_mobile",
-  "displayName": "Tracko"
+  "displayName": "Tracko",
+  "plugins": [
+    "expo-asset"
+  ]
 }

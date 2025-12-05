@@ -15,8 +15,9 @@ import SignUpScreen from './src/screens/SignUpScreen';
 import StudentDashboardScreen from './src/screens/StudentDashboardScreen';
 import CompanyDashboardScreen from './src/screens/CompanyDashboardScreen';
 import UniversityDashboardScreen from './src/screens/UniversityDashboardScreen';
+import TrainerDashboardScreen from './src/screens/TrainerDashboardScreen';
 
-type Screen = 'splash' | 'login' | 'signup' | 'studentDashboard' | 'companyDashboard' | 'universityDashboard';
+type Screen = 'splash' | 'login' | 'signup' | 'studentDashboard' | 'companyDashboard' | 'universityDashboard' | 'trainerDashboard';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('splash');
@@ -51,6 +52,10 @@ function App() {
               console.log('🎓 App.tsx: Setting screen to universityDashboard');
               setScreen('universityDashboard');
             }}
+            onTrainerLogin={(user) => {
+              setUserData(user);
+              setScreen('trainerDashboard');
+            }}
           />
         )}
         {screen === 'signup' && (
@@ -76,6 +81,15 @@ function App() {
         )}
         {screen === 'universityDashboard' && (
           <UniversityDashboardScreen 
+            userData={userData}
+            onLogout={() => {
+              setUserData(null);
+              setScreen('login');
+            }} 
+          />
+        )}
+        {screen === 'trainerDashboard' && (
+          <TrainerDashboardScreen 
             userData={userData}
             onLogout={() => {
               setUserData(null);
