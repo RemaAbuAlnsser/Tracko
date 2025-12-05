@@ -76,6 +76,19 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'calendar' },
         ];
+      case 'trainer':
+        return [
+          { key: 'dashboard', label: 'Dashboard', icon: 'grid' },
+          { key: 'profile', label: 'Profile & Edit', icon: 'user' },
+          { key: 'internships', label: 'My Internships', icon: 'briefcase' },
+          { key: 'students', label: 'My Students', icon: 'users' },
+          { key: 'reports', label: 'Student Reports', icon: 'file' },
+          { key: 'schedule', label: 'Schedule & Events', icon: 'calendar' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell' },
+          { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
+          { key: 'videocall', label: 'Video Calls', icon: 'video' },
+          { key: 'plans', label: 'Training Plans', icon: 'clipboard' },
+        ];
       default:
         return [];
     }

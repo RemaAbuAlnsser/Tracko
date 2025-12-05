@@ -13,7 +13,6 @@ class InternshipPlan {
           description TEXT,
           duration_weeks INT NOT NULL,
           start_date DATE,
-          due_date DATE,
           end_date DATE,
           status ENUM('draft', 'active', 'completed', 'cancelled') DEFAULT 'draft',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -74,20 +73,23 @@ class InternshipPlan {
         description, 
         duration_weeks,
         start_date,
-        due_date,
         end_date,
         status = 'draft'
       } = planData;
 
+      // Convert empty strings to null for date fields
+      const cleanStartDate = start_date && start_date.trim() !== '' ? start_date : null;
+      const cleanEndDate = end_date && end_date.trim() !== '' ? end_date : null;
+
       const query = `
         INSERT INTO Internship_Plans 
-        (internship_id, trainer_id, title, description, duration_weeks, start_date, due_date, end_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (internship_id, trainer_id, title, description, duration_weeks, start_date, end_date, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       db.query(
         query,
-        [internship_id, trainer_id, title, description, duration_weeks, start_date, due_date, end_date, status],
+        [internship_id, trainer_id, title, description, duration_weeks, cleanStartDate, cleanEndDate, status],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);
@@ -197,21 +199,24 @@ class InternshipPlan {
         description, 
         duration_weeks,
         start_date,
-        due_date,
         end_date,
         status
       } = planData;
 
+      // Convert empty strings to null for date fields
+      const cleanStartDate = start_date && start_date.trim() !== '' ? start_date : null;
+      const cleanEndDate = end_date && end_date.trim() !== '' ? end_date : null;
+
       const query = `
         UPDATE Internship_Plans 
         SET title = ?, description = ?, duration_weeks = ?, 
-            start_date = ?, due_date = ?, end_date = ?, status = ?
+            start_date = ?, end_date = ?, status = ?
         WHERE id = ?
       `;
 
       db.query(
         query,
-        [title, description, duration_weeks, start_date, due_date, end_date, status, id],
+        [title, description, duration_weeks, cleanStartDate, cleanEndDate, status, id],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);

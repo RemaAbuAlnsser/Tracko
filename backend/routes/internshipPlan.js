@@ -14,9 +14,11 @@ InternshipPlan.createTables().catch(err => {
 router.get("/trainer/:trainerId", async (req, res) => {
   try {
     const { trainerId } = req.params;
+    console.log(`📋 Getting plans for trainer ${trainerId}...`);
     
     const query = `
-      SELECT ip.*, i.title as internship_title, i.description as internship_description
+      SELECT ip.*, i.title as internship_title, i.description as internship_description,
+             (SELECT COUNT(*) FROM Plan_Weeks WHERE plan_id = ip.id) as weeks_count
       FROM Internship_Plans ip
       LEFT JOIN Internships i ON ip.internship_id = i.id
       WHERE ip.trainer_id = ?
@@ -29,6 +31,8 @@ router.get("/trainer/:trainerId", async (req, res) => {
         else resolve(results);
       });
     });
+    
+    console.log(`✅ Found ${plans.length} plans for trainer ${trainerId}`);
     
     res.json({
       success: true,
@@ -47,6 +51,8 @@ router.get("/trainer/:trainerId", async (req, res) => {
 // Create a new plan
 router.post("/", async (req, res) => {
   try {
+    console.log("📥 Received plan creation request:", req.body);
+    
     const { 
       internship_id, 
       trainer_id, 
@@ -59,13 +65,25 @@ router.post("/", async (req, res) => {
       weeks 
     } = req.body;
 
+    console.log("📋 Extracted data:", {
+      internship_id,
+      trainer_id,
+      title,
+      duration_weeks,
+      status,
+      weeks_count: weeks?.length
+    });
+
     // Validate required fields
     if (!internship_id || !trainer_id || !title || !duration_weeks) {
+      console.log("❌ Validation failed - missing fields");
       return res.status(400).json({
         success: false,
         message: "Missing required fields: internship_id, trainer_id, title, duration_weeks"
       });
     }
+    
+    console.log("✅ Validation passed, creating plan...");
 
     // Create the plan
     const result = await InternshipPlan.create({
@@ -80,6 +98,7 @@ router.post("/", async (req, res) => {
     });
 
     const planId = result.insertId;
+    console.log("✅ Plan created successfully with ID:", planId);
 
     // Add weeks if provided
     console.log(`🔍 Received weeks data:`, weeks);
@@ -89,7 +108,7 @@ router.post("/", async (req, res) => {
     if (weeks && Array.isArray(weeks) && weeks.length > 0) {
       console.log(`📅 Adding ${weeks.length} weeks to plan...`);
       for (const week of weeks) {
-        console.log(`  Week ${week.week_number}: due_date = ${week.due_date || 'null'}`);
+        console.log(`  Week ${week.week_number}`);
         await InternshipPlan.addWeek({
           plan_id: planId,
           week_number: week.week_number,
@@ -99,8 +118,7 @@ router.post("/", async (req, res) => {
           tasks: week.tasks,
           task_description: week.task_description,
           resources: week.resources,
-          deliverables: week.deliverables,
-          due_date: week.due_date || null
+          deliverables: week.deliverables
         });
       }
     }
@@ -151,9 +169,14 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating plan:", error);
+    console.error("Error details:", error.message);
+    console.error("Error code:", error.code);
+    console.error("Error stack:", error.stack);
     res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Server error",
+      error: error.message,
+      code: error.code
     });
   }
 });
@@ -177,25 +200,6 @@ router.get("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching plan:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
-  }
-});
-
-// Get all plans by trainer
-router.get("/trainer/:trainerId", async (req, res) => {
-  try {
-    const { trainerId } = req.params;
-    const plans = await InternshipPlan.findByTrainerId(trainerId);
-
-    res.json({
-      success: true,
-      plans
-    });
-  } catch (error) {
-    console.error("Error fetching trainer plans:", error);
     res.status(500).json({
       success: false,
       message: "Server error"
@@ -306,8 +310,7 @@ router.post("/:planId/weeks", async (req, res) => {
       tasks,
       task_description,
       resources,
-      deliverables,
-      due_date
+      deliverables
     } = req.body;
 
     // Validate required fields
@@ -336,8 +339,7 @@ router.post("/:planId/weeks", async (req, res) => {
       tasks,
       task_description,
       resources,
-      deliverables,
-      due_date
+      deliverables
     });
 
     res.status(201).json({
@@ -374,11 +376,10 @@ router.put("/weeks/:weekId", async (req, res) => {
       tasks,
       task_description,
       resources,
-      deliverables,
-      due_date
+      deliverables
     } = req.body;
 
-    console.log(`📝 Updating week ${weekId} with due_date: ${due_date}`);
+    console.log(`📝 Updating week ${weekId}`);
 
     await InternshipPlan.updateWeek(weekId, {
       title,
@@ -387,8 +388,7 @@ router.put("/weeks/:weekId", async (req, res) => {
       tasks,
       task_description,
       resources,
-      deliverables,
-      due_date
+      deliverables
     });
 
     res.json({
