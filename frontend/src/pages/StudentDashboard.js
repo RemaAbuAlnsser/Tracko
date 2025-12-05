@@ -1052,10 +1052,23 @@ function StudentDashboard() {
   const handleCVChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      console.log('Selected file:', file.name, 'Type:', file.type, 'Size:', file.size);
+      
       // Check file type
-      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (!allowedTypes.includes(file.type)) {
+      const allowedTypes = [
+        'application/pdf', 
+        'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      
+      // Also check file extension as backup
+      const fileName = file.name.toLowerCase();
+      const allowedExtensions = ['.pdf', '.doc', '.docx'];
+      const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+      
+      if (!allowedTypes.includes(file.type) && !hasValidExtension) {
         setMessage({ type: 'error', text: 'Please upload PDF, DOC, or DOCX file only' });
+        console.log('File rejected - Type:', file.type, 'Name:', file.name);
         return;
       }
       
