@@ -1066,6 +1066,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
     return (
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Photo</Text>
           <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>ID</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Name</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Email</Text>
@@ -1081,6 +1082,12 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
               styles.tableRow,
               index === students.length - 1 && styles.lastTableRow,
             ]}>
+              <View style={[styles.tableCell, { flex: 0.7 }]}>
+                <Image
+                  source={{ uri: student.profile_picture ? `${baseUrl}${student.profile_picture}` : 'https://via.placeholder.com/40?text=S' }}
+                  style={{ width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#e5e7eb' }}
+                />
+              </View>
               <View style={[styles.tableCell, { flex: 0.5 }]}>
                 <Text style={[styles.tableCellText, styles.idText]}>{student.id || 'N/A'}</Text>
               </View>
@@ -1150,6 +1157,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
     return (
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Photo</Text>
           <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>ID</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Name</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Email</Text>
@@ -1165,6 +1173,12 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
               styles.tableRow,
               index === trainers.length - 1 && styles.lastTableRow,
             ]}>
+              <View style={[styles.tableCell, { flex: 0.7 }]}>
+                <Image
+                  source={{ uri: trainer.profile_picture ? `${baseUrl}${trainer.profile_picture}` : 'https://via.placeholder.com/40?text=T' }}
+                  style={{ width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#e5e7eb' }}
+                />
+              </View>
               <View style={[styles.tableCell, { flex: 0.5 }]}>
                 <Text style={[styles.tableCellText, styles.idText]}>{trainer.id || 'N/A'}</Text>
               </View>

@@ -1540,7 +1540,14 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
               <View style={styles.internshipHeader}>
                 <View style={styles.companyLogo}>
-                  <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  {item.company_logo ? (
+                    <Image
+                      source={{ uri: `${baseUrl}${item.company_logo}` }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  )}
                 </View>
                 <View style={styles.internshipInfo}>
                   <Text style={styles.internshipTitleText}>{item.internship_title || item.title}</Text>
@@ -2290,7 +2297,14 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
               {/* Company Header */}
               <View style={styles.internshipHeader}>
                 <View style={styles.companyLogo}>
-                  <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  {item.company_logo ? (
+                    <Image
+                      source={{ uri: `${baseUrl}${item.company_logo}` }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  )}
                 </View>
                 <View style={styles.internshipInfo}>
                   <Text style={styles.companyNameText}>{item.company_name}</Text>

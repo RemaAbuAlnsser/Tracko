@@ -1941,9 +1941,16 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
             {/* Header */}
             <View style={styles.applicantHeader}>
               <View style={styles.applicantAvatar}>
-                <Text style={styles.applicantAvatarText}>
-                  {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
-                </Text>
+                {applicant.profile_picture ? (
+                  <Image
+                    source={{ uri: `${baseUrl}${applicant.profile_picture}` }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                ) : (
+                  <Text style={styles.applicantAvatarText}>
+                    {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
+                  </Text>
+                )}
               </View>
               <View style={styles.applicantInfo}>
                 <Text style={styles.applicantName}>{applicant.full_name || 'Student Name'}</Text>
@@ -2069,9 +2076,16 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
             {/* Header */}
             <View style={styles.applicantHeader}>
               <View style={styles.applicantAvatar}>
-                <Text style={styles.applicantAvatarText}>
-                  {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
-                </Text>
+                {applicant.profile_picture ? (
+                  <Image
+                    source={{ uri: `${baseUrl}${applicant.profile_picture}` }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                ) : (
+                  <Text style={styles.applicantAvatarText}>
+                    {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
+                  </Text>
+                )}
               </View>
               <View style={styles.applicantInfo}>
                 <Text style={styles.applicantName}>{applicant.full_name || 'Student Name'}</Text>

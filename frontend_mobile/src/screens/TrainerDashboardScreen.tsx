@@ -1846,8 +1846,8 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
       <View style={styles.studentCard}>
         <View style={styles.studentCardGradient}>
           <View style={styles.studentHeader}>
-            {item.student_img ? (
-              <Image source={{ uri: `${baseUrl}${item.student_img}` }} style={styles.avatarImage} />
+            {item.profile_picture || item.student_img ? (
+              <Image source={{ uri: `${baseUrl}${item.profile_picture || item.student_img}` }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{(item.full_name || 'S').charAt(0)}</Text>
