@@ -74,6 +74,7 @@ function StudentDashboard() {
   const [showHoursModal, setShowHoursModal] = useState(false);
   const [hoursPerWeek, setHoursPerWeek] = useState(20);
   const messagesEndRef = useRef(null);
+  const [imageErrors, setImageErrors] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -951,6 +952,9 @@ function StudentDashboard() {
       setMessages(chatMessages);
       setSelectedTrainer(trainer);
       
+      // Reset image errors for new conversation
+      setImageErrors({});
+      
       // Mark messages as read
       await markMessagesAsRead(trainer.user_id, user.id);
       
@@ -1021,7 +1025,13 @@ function StudentDashboard() {
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      } catch (error) {
+        console.log('Scroll to bottom skipped');
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -1860,6 +1870,8 @@ function StudentDashboard() {
                   <div className="image-preview">
                     {imagePreview ? (
                       <img src={imagePreview} alt="Student" />
+                    ) : studentData.student_img ? (
+                      <img src={`http://localhost:5050${studentData.student_img}`} alt="Student" />
                     ) : (
                       <div className="no-image">
                         <svg width="48" height="48" fill="currentColor" viewBox="0 0 20 20">
@@ -2632,28 +2644,22 @@ function StudentDashboard() {
                         onClick={() => loadMessagesWithTrainer(contact)}
                       >
                         <div className="conversation-avatar" style={contact.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
-                          {contact.type === 'university' && contact.logo ? (
+                          {contact.type === 'university' && contact.logo && !imageErrors[`conv-uni-${contact.id}`] ? (
                             <img 
                               src={`http://localhost:5050${contact.logo}`} 
                               alt={contact.name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                if (e.target && e.target.parentElement) {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.textContent = contact.name ? contact.name.charAt(0).toUpperCase() : 'U';
-                                }
+                              onError={() => {
+                                setImageErrors(prev => ({...prev, [`conv-uni-${contact.id}`]: true}));
                               }}
                             />
-                          ) : contact.type === 'trainer' && contact.profile_image ? (
+                          ) : contact.type === 'trainer' && contact.profile_image && !imageErrors[`conv-trainer-${contact.user_id || contact.id}`] ? (
                             <img 
                               src={contact.profile_image.startsWith('http') ? contact.profile_image : `http://localhost:5050${contact.profile_image}`} 
                               alt={contact.full_name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                if (e.target && e.target.parentElement) {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.textContent = contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'T';
-                                }
+                              onError={() => {
+                                setImageErrors(prev => ({...prev, [`conv-trainer-${contact.user_id || contact.id}`]: true}));
                               }}
                             />
                           ) : (
@@ -2685,28 +2691,22 @@ function StudentDashboard() {
                     {/* Chat Header */}
                     <div className="chat-header">
                       <div className="conversation-avatar" style={selectedTrainer.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
-                        {selectedTrainer.type === 'university' && selectedTrainer.logo ? (
+                        {selectedTrainer.type === 'university' && selectedTrainer.logo && !imageErrors[`header-uni-${selectedTrainer.id}`] ? (
                           <img 
                             src={`http://localhost:5050${selectedTrainer.logo}`} 
                             alt={selectedTrainer.name}
                             style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                            onError={(e) => {
-                              if (e.target && e.target.parentElement) {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
-                              }
+                            onError={() => {
+                              setImageErrors(prev => ({...prev, [`header-uni-${selectedTrainer.id}`]: true}));
                             }}
                           />
-                        ) : selectedTrainer.type === 'trainer' && selectedTrainer.profile_image ? (
+                        ) : selectedTrainer.type === 'trainer' && selectedTrainer.profile_image && !imageErrors[`header-trainer-${selectedTrainer.user_id || selectedTrainer.id}`] ? (
                           <img 
                             src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                             alt={selectedTrainer.full_name}
                             style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                            onError={(e) => {
-                              if (e.target && e.target.parentElement) {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
-                              }
+                            onError={() => {
+                              setImageErrors(prev => ({...prev, [`header-trainer-${selectedTrainer.user_id || selectedTrainer.id}`]: true}));
                             }}
                           />
                         ) : (
@@ -2726,44 +2726,37 @@ function StudentDashboard() {
                           <p>No messages yet. Start the conversation!</p>
                         </div>
                       ) : (
-                        <>
-                          {messages.map(msg => {
-                            const isSentByStudent = Number(msg.sender_id) === Number(user.id);
-                            console.log('📧 Message:', {
-                              message: msg.message,
-                              sender_id: msg.sender_id,
-                              user_id: user.id,
-                              isSent: isSentByStudent,
-                              types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
-                            });
-                            return (
-                            <div
-                              key={msg.id}
-                              className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
-                            >
+                        messages.map((msg, index) => {
+                          const isSentByStudent = Number(msg.sender_id) === Number(user.id);
+                          console.log('📧 Message:', {
+                            message: msg.message,
+                            sender_id: msg.sender_id,
+                            user_id: user.id,
+                            isSent: isSentByStudent,
+                            types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
+                          });
+                          return (
+                          <div
+                            key={`${msg.id}-${msg.created_at}-${index}`}
+                            className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
+                          >
                               {/* Show avatar for receiver (trainer/university) on left */}
                               {!isSentByStudent && selectedTrainer && (
                                 <div className="message-avatar" style={selectedTrainer.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
-                                  {selectedTrainer.type === 'university' && selectedTrainer.logo ? (
+                                  {selectedTrainer.type === 'university' && selectedTrainer.logo && !imageErrors[`uni-${selectedTrainer.id}`] ? (
                                     <img 
                                       src={`http://localhost:5050${selectedTrainer.logo}`} 
                                       alt={selectedTrainer.name}
-                                      onError={(e) => {
-                                        if (e.target && e.target.parentElement) {
-                                          e.target.style.display = 'none';
-                                          e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
-                                        }
+                                      onError={() => {
+                                        setImageErrors(prev => ({...prev, [`uni-${selectedTrainer.id}`]: true}));
                                       }}
                                     />
-                                  ) : selectedTrainer.profile_image ? (
+                                  ) : selectedTrainer.profile_image && !imageErrors[`trainer-${selectedTrainer.user_id || selectedTrainer.id}`] ? (
                                     <img 
                                       src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                                       alt={selectedTrainer.full_name}
-                                      onError={(e) => {
-                                        if (e.target && e.target.parentElement) {
-                                          e.target.style.display = 'none';
-                                          e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
-                                        }
+                                      onError={() => {
+                                        setImageErrors(prev => ({...prev, [`trainer-${selectedTrainer.user_id || selectedTrainer.id}`]: true}));
                                       }}
                                     />
                                   ) : (
@@ -2783,15 +2776,12 @@ function StudentDashboard() {
                               {/* Show avatar for sender (student) on right */}
                               {isSentByStudent && (
                                 <div className="message-avatar">
-                                  {studentData.student_img ? (
+                                  {studentData.student_img && !imageErrors['student-img'] ? (
                                     <img 
                                       src={`http://localhost:5050${studentData.student_img}`} 
                                       alt={user.full_name}
-                                      onError={(e) => {
-                                        if (e.target && e.target.parentElement) {
-                                          e.target.style.display = 'none';
-                                          e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S';
-                                        }
+                                      onError={() => {
+                                        setImageErrors(prev => ({...prev, 'student-img': true}));
                                       }}
                                     />
                                   ) : (
@@ -2801,10 +2791,9 @@ function StudentDashboard() {
                               )}
                             </div>
                             );
-                          })}
-                          <div ref={messagesEndRef} />
-                        </>
+                          })
                       )}
+                      <div ref={messagesEndRef} />
                     </div>
 
                     {/* Message Input */}

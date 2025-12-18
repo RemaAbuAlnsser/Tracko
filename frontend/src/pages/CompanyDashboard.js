@@ -75,6 +75,7 @@ function CompanyDashboard() {
   const [messagesChannel, setMessagesChannel] = useState(null);
   const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
   const messagesEndRef = useRef(null);
+  const [imageErrors, setImageErrors] = useState({});
   
   // Interviews state
   const [appliedStudents, setAppliedStudents] = useState([]);
@@ -887,6 +888,9 @@ function CompanyDashboard() {
       setSelectedTrainer(trainer);
       setSelectedConversation(trainer.id);
       
+      // Reset image errors for new conversation
+      setImageErrors({});
+      
       // Mark messages as read
       await markMessagesAsRead(trainer.user_id, user.id);
       
@@ -938,7 +942,14 @@ function CompanyDashboard() {
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      } catch (error) {
+        // Silently handle scroll errors to prevent DOM exceptions
+        console.log('Scroll to bottom skipped');
+      }
+    }
   };
 
   // Load applied students for interviews
@@ -2792,14 +2803,13 @@ function CompanyDashboard() {
                         onClick={() => loadMessages(trainer)}
                       >
                         <div className="conversation-avatar">
-                          {trainer.profile_image ? (
+                          {trainer.profile_image && !imageErrors[`conv-trainer-${trainer.user_id}`] ? (
                             <img 
                               src={trainer.profile_image.startsWith('http') ? trainer.profile_image : `http://localhost:5050${trainer.profile_image}`} 
                               alt={trainer.full_name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = trainer.full_name ? trainer.full_name.charAt(0).toUpperCase() : 'T';
+                              onError={() => {
+                                setImageErrors(prev => ({...prev, [`conv-trainer-${trainer.user_id}`]: true}));
                               }}
                             />
                           ) : (
@@ -2832,14 +2842,13 @@ function CompanyDashboard() {
                     {selectedTrainer && (
                       <div className="chat-header">
                         <div className="conversation-avatar">
-                          {selectedTrainer.profile_image ? (
+                          {selectedTrainer.profile_image && !imageErrors[`header-trainer-${selectedTrainer.user_id}`] ? (
                             <img 
                               src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                               alt={selectedTrainer.full_name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
+                              onError={() => {
+                                setImageErrors(prev => ({...prev, [`header-trainer-${selectedTrainer.user_id}`]: true}));
                               }}
                             />
                           ) : (
@@ -2860,63 +2869,59 @@ function CompanyDashboard() {
                           <p>No messages yet. Start the conversation!</p>
                         </div>
                       ) : (
-                        <>
-                          {messages.map(msg => {
-                            const isSentByCompany = Number(msg.sender_id) === Number(user.id);
-                            return (
-                            <div
-                              key={msg.id}
-                              className={`message-item ${isSentByCompany ? 'sent' : 'received'}`}
-                            >
-                              {/* Show avatar for receiver (trainer) on left */}
-                              {!isSentByCompany && selectedTrainer && (
-                                <div className="message-avatar">
-                                  {selectedTrainer.profile_image ? (
-                                    <img 
-                                      src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
-                                      alt={selectedTrainer.full_name}
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
-                                      }}
-                                    />
-                                  ) : (
-                                    selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
-                                  )}
-                                </div>
-                              )}
-                              <div className="message-bubble">
-                                <p>{msg.message}</p>
-                                <span className="message-time">
-                                  {new Date(msg.created_at).toLocaleTimeString([], { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit' 
-                                  })}
-                                </span>
+                        messages.map((msg, index) => {
+                          const isSentByCompany = Number(msg.sender_id) === Number(user.id);
+                          return (
+                          <div
+                            key={`${msg.id}-${msg.created_at}-${index}`}
+                            className={`message-item ${isSentByCompany ? 'sent' : 'received'}`}
+                          >
+                            {/* Show avatar for receiver (trainer) on left */}
+                            {!isSentByCompany && selectedTrainer && (
+                              <div className="message-avatar">
+                                {selectedTrainer.profile_image && !imageErrors[`trainer-${selectedTrainer.user_id}`] ? (
+                                  <img 
+                                    src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
+                                    alt={selectedTrainer.full_name}
+                                    onError={() => {
+                                      setImageErrors(prev => ({...prev, [`trainer-${selectedTrainer.user_id}`]: true}));
+                                    }}
+                                  />
+                                ) : (
+                                  selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T'
+                                )}
                               </div>
-                              {/* Show avatar for sender (company) on right */}
-                              {isSentByCompany && (
-                                <div className="message-avatar">
-                                  {companyData.logo ? (
-                                    <img 
-                                      src={`http://localhost:5050${companyData.logo}`} 
-                                      alt={user.full_name}
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'C';
-                                      }}
-                                    />
-                                  ) : (
-                                    user.full_name ? user.full_name.charAt(0).toUpperCase() : 'C'
-                                  )}
-                                </div>
-                              )}
+                            )}
+                            <div className="message-bubble">
+                              <p>{msg.message}</p>
+                              <span className="message-time">
+                                {new Date(msg.created_at).toLocaleTimeString([], { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </span>
                             </div>
-                            );
-                          })}
-                          <div ref={messagesEndRef} />
-                        </>
+                            {/* Show avatar for sender (company) on right */}
+                            {isSentByCompany && (
+                              <div className="message-avatar">
+                                {companyData.logo && !imageErrors['company-logo'] ? (
+                                  <img 
+                                    src={`http://localhost:5050${companyData.logo}`} 
+                                    alt={user.full_name}
+                                    onError={() => {
+                                      setImageErrors(prev => ({...prev, 'company-logo': true}));
+                                    }}
+                                  />
+                                ) : (
+                                  user.full_name ? user.full_name.charAt(0).toUpperCase() : 'C'
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          );
+                        })
                       )}
+                      <div ref={messagesEndRef} />
                     </div>
 
                     {/* Message Input */}

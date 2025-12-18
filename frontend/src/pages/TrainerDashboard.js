@@ -1252,6 +1252,8 @@ function TrainerDashboard() {
           <div className="trainer-avatar">
             {imagePreview ? (
               <img src={imagePreview} alt={user.full_name} className="avatar-image" />
+            ) : trainerData.profile_picture ? (
+              <img src={`http://localhost:5050${trainerData.profile_picture}`} alt={user.full_name} className="avatar-image" />
             ) : (
               <span className="avatar-initials">{getInitials(user.full_name)}</span>
             )}
@@ -1652,6 +1654,8 @@ function TrainerDashboard() {
               <div className="image-container">
                 {imagePreview ? (
                   <img src={imagePreview} alt="Profile" className="profile-image" />
+                ) : trainerData.profile_picture ? (
+                  <img src={`http://localhost:5050${trainerData.profile_picture}`} alt="Profile" className="profile-image" />
                 ) : (
                   <div className="no-image">
                     <span>No Profile Image</span>

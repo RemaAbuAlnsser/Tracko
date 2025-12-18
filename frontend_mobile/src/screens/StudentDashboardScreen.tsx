@@ -36,6 +36,16 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  // Helper function to get initials
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const names = name.split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
   
   // Student data
   const [studentData, setStudentData] = useState({
@@ -1938,6 +1948,23 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
             <Text style={styles.messageTextStyle}>{message.text}</Text>
           </View>
         ) : null}
+
+        {/* Profile Picture */}
+        <View style={styles.profileImageSection}>
+          <View style={styles.profileImageContainer}>
+            {studentData.student_img ? (
+              <Image
+                source={{ uri: `${baseUrl}${studentData.student_img}` }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.profileImagePlaceholder}>
+                <Text style={styles.profileImageInitials}>{getInitials(userData?.full_name || 'S')}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.profileImageText}>Profile Picture</Text>
+        </View>
 
         <View style={styles.profileSection}>
           <View style={styles.inputGroup}>
@@ -4623,6 +4650,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  profileImageSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingVertical: 20,
+  },
+  profileImageContainer: {
+    marginBottom: 12,
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  profileImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImageInitials: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  profileImageText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
   },
 });
 

@@ -1229,9 +1229,16 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
         <Text style={styles.profileCardTitle}>Company Logo</Text>
         <View style={styles.logoContainer}>
           <View style={styles.logoPreview}>
-            <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoInitials}>{getInitials(companyData.name || userData?.full_name)}</Text>
-            </View>
+            {companyData.logo ? (
+              <Image 
+                source={{ uri: `${baseUrl}${companyData.logo}` }}
+                style={styles.logoImage}
+              />
+            ) : (
+              <View style={styles.logoPlaceholder}>
+                <Text style={styles.logoInitials}>{getInitials(companyData.name || userData?.full_name)}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.logoBadges}>
             <View style={styles.verifiedBadge}>
@@ -3756,6 +3763,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
   },
   logoInitials: {
     fontSize: 28,

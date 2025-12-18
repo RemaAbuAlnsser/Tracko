@@ -529,3 +529,15 @@
   color: #6b7280;
   margin: 0;
 }
+
+/* Profile Images in Tables */
+.data-table td img {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 2px solid #ffffff;
+  transition: transform 0.2s ease;
+}
+
+.data-table td img:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}

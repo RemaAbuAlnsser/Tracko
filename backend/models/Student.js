@@ -38,7 +38,7 @@ class Student {
   // Find student by user_id
   static findByUserId(userId) {
     const query = `
-      SELECT s.*, u.full_name, u.email, u.phone 
+      SELECT s.*, u.full_name, u.email 
       FROM Students s
       JOIN Users u ON s.user_id = u.id
       WHERE s.user_id = ?
@@ -58,7 +58,7 @@ class Student {
   // Find student by id
   static findById(id) {
     const query = `
-      SELECT s.*, u.full_name, u.email, u.phone 
+      SELECT s.*, u.full_name, u.email 
       FROM Students s
       JOIN Users u ON s.user_id = u.id
       WHERE s.id = ?
@@ -78,7 +78,7 @@ class Student {
   // Find all students
   static findAll() {
     const query = `
-      SELECT s.*, u.full_name, u.email, u.phone 
+      SELECT s.*, u.full_name, u.email 
       FROM Students s
       JOIN Users u ON s.user_id = u.id
       ORDER BY s.created_at DESC
