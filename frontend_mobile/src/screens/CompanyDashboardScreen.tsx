@@ -47,6 +47,7 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
     linkedin_url: 'https://linkedin.com/company/techcorp',
     address: '123 Tech Street, Suite 400, San Francisco, CA 94105',
     description: 'TechCorp is a leading software development company.',
+    logo: '',
   });
   const [dashboardStats, setDashboardStats] = useState({
     internshipsCount: 0,
@@ -167,6 +168,7 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
             linkedin_url: data.company.linkedin_url || 'https://linkedin.com/company/techcorp',
             address: data.company.address || '123 Tech Street, Suite 400, San Francisco, CA 94105',
             description: data.company.description || 'TechCorp is a leading software development company.',
+            logo: data.company.logo || '',
           });
 
           // Load dashboard stats, trainer requests, and company trainers

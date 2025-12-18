@@ -59,6 +59,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     skills: '',
     university_id: null,
     student_img: null as string | null,
+    profile_picture: null as string | null,
   });
   
   // Dashboard stats
@@ -266,6 +267,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           skills: data.student.skills || '',
           university_id: data.student.university_id || null,
           student_img: data.student.student_img || null,
+          profile_picture: data.student.profile_picture || null,
         });
         setEditedStudentData({
           id: data.student.id,
@@ -278,6 +280,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           skills: data.student.skills || '',
           university_id: data.student.university_id || null,
           student_img: data.student.student_img || null,
+          profile_picture: data.student.profile_picture || null,
         });
         
         // Load CV analysis if exists
@@ -1851,9 +1854,9 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
                   {isFromMe && (
                     <View style={styles.messageAvatar}>
-                      {studentData.student_img ? (
+                      {studentData.profile_picture || studentData.student_img ? (
                         <Image
-                          source={{ uri: `${baseUrl}${studentData.student_img}` }}
+                          source={{ uri: `${baseUrl}${studentData.profile_picture || studentData.student_img}` }}
                           style={{ width: 32, height: 32, borderRadius: 16 }}
                         />
                       ) : (
@@ -1959,9 +1962,9 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
         {/* Profile Picture */}
         <View style={styles.profileImageSection}>
           <View style={styles.profileImageContainer}>
-            {studentData.student_img ? (
+            {studentData.profile_picture || studentData.student_img ? (
               <Image
-                source={{ uri: `${baseUrl}${studentData.student_img}` }}
+                source={{ uri: `${baseUrl}${studentData.profile_picture || studentData.student_img}` }}
                 style={styles.profileImage}
               />
             ) : (
@@ -2608,7 +2611,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           <View style={styles.drawerContainer}>
             <DrawerMenu
               userType="student"
-              userData={userData}
+              userData={studentData}
               activeMenu={activeTab}
               onMenuSelect={(tab: string) => {
                 setActiveTab(tab as TabKey);
