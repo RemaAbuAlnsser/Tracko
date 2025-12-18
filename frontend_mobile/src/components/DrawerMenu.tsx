@@ -84,7 +84,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'cv-upload', label: 'CV Upload & Analysis', icon: 'file' },
           { key: 'internships', label: 'AI-Matched Internships', icon: 'briefcase' },
           { key: 'saved', label: 'Saved Internships', icon: 'bookmark' },
-          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: unreadCount },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: notificationCount },
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'calendar' },
         ];
@@ -96,7 +96,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'students', label: 'My Students', icon: 'users' },
           { key: 'reports', label: 'Student Reports', icon: 'file' },
           { key: 'schedule', label: 'Schedule & Events', icon: 'calendar' },
-          { key: 'notifications', label: 'Notifications', icon: 'bell' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: notificationCount },
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'clipboard' },
         ];

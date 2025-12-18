@@ -119,6 +119,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   
   // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   
   // Profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -131,6 +132,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
       fetchStudentData();
       loadSavedInternships();
       loadContacts(); // Load contacts on app start to get initial unread count
+      loadNotifications(); // Load notifications to get unread count
     }
   }, [userData]);
 
@@ -636,6 +638,30 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     } catch (error) {
       console.error('Error sending message:', error);
       setNewMessage(trimmed);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!userData?.id) return;
+    
+    try {
+      console.log('🔔 Loading notifications for user:', userData.id);
+      const response = await fetch(`${baseUrl}/api/notifications/user/${userData.id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🔔 Notifications response:', data);
+        
+        if (data.success) {
+          setNotifications(data.notifications || []);
+          // Count unread notifications
+          const unreadCount = (data.notifications || []).filter((n: any) => !n.is_read).length;
+          setUnreadNotificationsCount(unreadCount);
+          console.log('📬 Unread notifications:', unreadCount);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
     }
   };
 
@@ -2619,6 +2645,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
               }}
               onLogout={onLogout || (() => {})}
               unreadCount={totalUnreadMessages}
+              notificationCount={unreadNotificationsCount}
             />
           </View>
         </TouchableOpacity>

@@ -3748,6 +3748,7 @@ const TrainerDashboardScreen: React.FC<TrainerDashboardScreenProps> = ({ userDat
                 setDrawerVisible(false);
                 onLogout?.();
               }}
+              notificationCount={notifications.filter(n => !n.is_read).length}
             />
           </View>
         </TouchableOpacity>
@@ -5870,29 +5871,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 10,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#ffffff',
-    textTransform: 'capitalize',
-  },
-  statusActive: {
-    backgroundColor: '#10b981',
-  },
-  statusDraft: {
-    backgroundColor: '#6b7280',
-  },
-  statusCompleted: {
-    backgroundColor: '#3b82f6',
-  },
-  statusCancelled: {
-    backgroundColor: '#ef4444',
-  },
   planInfo: {
     flexDirection: 'row',
     marginBottom: 8,
@@ -6174,16 +6152,6 @@ const styles = StyleSheet.create({
   messageBubbleReceived: {
     backgroundColor: '#fff',
     borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  messageTextSent: {
-    color: '#000',
-  },
-  messageTextReceived: {
-    color: '#1f2937',
   },
   messageTime: {
     fontSize: 10,
