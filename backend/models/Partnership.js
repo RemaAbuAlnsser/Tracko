@@ -43,8 +43,8 @@ class Partnership {
   static findById(id) {
     const query = `
       SELECT p.*, 
-             u.name as university_name, u.email as university_email,
-             c.name as company_name, c.email as company_email
+             u.name as university_name, u.email as university_email, u.coordinator_name as university_coordinator,
+             c.name as company_name, c.email as company_email, c.logo as company_logo, c.coordinator_name as company_coordinator
       FROM University_Company_Partnerships p
       LEFT JOIN Universities u ON p.university_id = u.id
       LEFT JOIN Company c ON p.company_id = c.id
@@ -66,8 +66,8 @@ class Partnership {
   static getAll(filters = {}) {
     let query = `
       SELECT p.*, 
-             u.name as university_name, u.email as university_email,
-             c.name as company_name, c.email as company_email, c.logo as company_logo
+             u.name as university_name, u.email as university_email, u.coordinator_name as university_coordinator,
+             c.name as company_name, c.email as company_email, c.logo as company_logo, c.coordinator_name as company_coordinator
       FROM University_Company_Partnerships p
       LEFT JOIN Universities u ON p.university_id = u.id
       LEFT JOIN Company c ON p.company_id = c.id
@@ -112,9 +112,11 @@ class Partnership {
     const query = `
       SELECT p.*, 
              c.name as company_name, c.email as company_email, 
-             c.logo as company_logo, c.industry, c.phone as company_phone
+             c.logo as company_logo, c.industry, c.phone as company_phone, c.coordinator_name as company_coordinator,
+             u.coordinator_name as university_coordinator
       FROM University_Company_Partnerships p
       LEFT JOIN Company c ON p.company_id = c.id
+      LEFT JOIN Universities u ON p.university_id = u.id
       WHERE p.university_id = ?
       ORDER BY p.agreement_date DESC
     `;
@@ -124,6 +126,12 @@ class Partnership {
         if (err) {
           reject(err);
         } else {
+          console.log('📋 Partnerships with coordinators:', results.map(r => ({
+            id: r.id,
+            company_name: r.company_name,
+            university_coordinator: r.university_coordinator,
+            company_coordinator: r.company_coordinator
+          })));
           resolve(results);
         }
       });

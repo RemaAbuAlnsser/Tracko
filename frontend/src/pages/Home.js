@@ -4,8 +4,6 @@ import '../styles/App.css';
 
 function Home() {
   const navigate = useNavigate();
-  const [currentCompanyIndex, setCurrentCompanyIndex] = useState(0);
-  const [currentUniversityIndex, setCurrentUniversityIndex] = useState(0);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [studentsCount, setStudentsCount] = useState(0);
   const [universitiesCount, setUniversitiesCount] = useState(0);
@@ -33,21 +31,6 @@ function Home() {
         '/image/alqods_univ.png'
   ];
 
-  // Auto-scroll companies ribbon
-  useEffect(() => {
-    const companyInterval = setInterval(() => {
-      setCurrentCompanyIndex((prevIndex) => (prevIndex + 1) % companies.length);
-    }, 3000);
-    return () => clearInterval(companyInterval);
-  }, []);
-
-  // Auto-scroll universities ribbon
-  useEffect(() => {
-    const universityInterval = setInterval(() => {
-      setCurrentUniversityIndex((prevIndex) => (prevIndex + 1) % universities.length);
-    }, 2500);
-    return () => clearInterval(universityInterval);
-  }, []);
 
   // Animated counter for hero stats
   useEffect(() => {
@@ -191,31 +174,18 @@ function Home() {
         <h2>Our Partner Companies</h2>
         <div className="image-carousel">
           <div className="carousel-strip">
-            {companies.concat(companies).map((company, index) => {
-              // Create a seamless loop by duplicating the array
-              const actualIndex = index % companies.length;
-              const isActive = actualIndex === currentCompanyIndex;
-
-              return (
-                <img
-                  key={`${actualIndex}-${index}`}
-                  src={company}
-                  alt="Company Logo"
-                  className="carousel-image"
-                  style={{
-                    transform: isActive ? 'scale(1.3)' : 'scale(1)',
-                    opacity: isActive ? 1 : 0.7,
-                    filter: isActive ? 'blur(0)' : 'blur(0.5px)',
-                    zIndex: isActive ? 10 : 1,
-                    transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
-                  }}
-                  onError={(e) => {
-                    console.log('Image failed to load:', company);
-                    e.target.style.display = 'none';
-                  }}
-                />
-              );
-            })}
+            {companies.concat(companies, companies).map((company, index) => (
+              <img
+                key={`company-${index}`}
+                src={company}
+                alt="Company Logo"
+                className="carousel-image"
+                onError={(e) => {
+                  console.log('Image failed to load:', company);
+                  e.target.style.display = 'none';
+                }}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -225,31 +195,18 @@ function Home() {
         <h2>Our Partner Universities</h2>
         <div className="image-carousel">
           <div className="carousel-strip">
-            {universities.concat(universities).map((university, index) => {
-              // Create a seamless loop by duplicating the array
-              const actualIndex = index % universities.length;
-              const isActive = actualIndex === currentUniversityIndex;
-
-              return (
-                <img
-                  key={`${actualIndex}-${index}`}
-                  src={university}
-                  alt="University Logo"
-                  className="carousel-image"
-                  style={{
-                    transform: isActive ? 'scale(1.3)' : 'scale(1)',
-                    opacity: isActive ? 1 : 0.7,
-                    filter: isActive ? 'blur(0)' : 'blur(0.5px)',
-                    zIndex: isActive ? 10 : 1,
-                    transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
-                  }}
-                  onError={(e) => {
-                    console.log('University image failed to load:', university);
-                    e.target.style.display = 'none';
-                  }}
-                />
-              );
-            })}
+            {universities.concat(universities, universities).map((university, index) => (
+              <img
+                key={`university-${index}`}
+                src={university}
+                alt="University Logo"
+                className="carousel-image"
+                onError={(e) => {
+                  console.log('University image failed to load:', university);
+                  e.target.style.display = 'none';
+                }}
+              />
+            ))}
           </div>
         </div>
       </section>

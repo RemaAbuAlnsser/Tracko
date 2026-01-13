@@ -96,7 +96,7 @@ router.get("/university/:universityId", async (req, res) => {
         s.skills,
         s.status as student_status,
         s.student_img,
-        s.cv_file,
+        s.cv_id,
         im.id as match_id,
         im.status as match_status,
         im.applied_at,
@@ -159,7 +159,7 @@ router.get("/university/:universityId", async (req, res) => {
             skills: row.skills,
             status: row.student_status,
             student_img: row.student_img,
-            cv_file: row.cv_file,
+            cv_id: row.cv_id,
             internships: [],
             final_report: null
           });
@@ -318,7 +318,7 @@ router.put("/:id", async (req, res) => {
       major,
       academic_year,
       gpa,
-      cv_file,
+      cv_id,
       student_img,
       skills,
       status
@@ -342,7 +342,7 @@ router.put("/:id", async (req, res) => {
       major: major !== undefined ? (major === '' ? null : major) : existingStudent.major,
       academic_year: academic_year !== undefined ? (academic_year === '' ? null : academic_year) : existingStudent.academic_year,
       gpa: gpa !== undefined ? (gpa === '' || gpa === null ? null : gpa) : existingStudent.gpa,
-      cv_file: cv_file !== undefined ? (cv_file === '' ? null : cv_file) : existingStudent.cv_file,
+      cv_id: cv_id !== undefined ? (cv_id === '' || cv_id === null ? null : cv_id) : existingStudent.cv_id,
       student_img: student_img !== undefined ? (student_img === '' ? null : student_img) : existingStudent.student_img,
       skills: skills !== undefined ? (skills === '' ? null : skills) : existingStudent.skills,
       status: status !== undefined ? status : existingStudent.status

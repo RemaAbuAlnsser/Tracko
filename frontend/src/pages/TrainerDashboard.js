@@ -69,6 +69,9 @@ function TrainerDashboard() {
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [plans, setPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [editPlanData, setEditPlanData] = useState(null);
+  const [editPlanWeeks, setEditPlanWeeks] = useState([]);
   const [newPlan, setNewPlan] = useState({
     internship_id: '',
     title: '',
@@ -324,10 +327,10 @@ function TrainerDashboard() {
   const loadDashboardStats = async () => {
     if (!trainerId) return;
     try {
-      // Get internship plans count for this trainer
-      const plansResponse = await fetch(`http://localhost:5050/api/internship-plans/trainer/${trainerId}`);
-      const plansData = await plansResponse.json();
-      const internshipsCount = plansData.success ? (plansData.plans || []).length : 0;
+      // Get internships count for this trainer
+      const internshipsResponse = await fetch(`http://localhost:5050/api/internships/trainer/${trainerId}`);
+      const internshipsData = await internshipsResponse.json();
+      const internshipsCount = internshipsData.success ? (internshipsData.internships || []).length : 0;
 
       // Get students count
       const studentsResponse = await fetch(`http://localhost:5050/api/trainers/${trainerId}/students`);
@@ -341,6 +344,12 @@ function TrainerDashboard() {
         (notifData.notifications || []).filter(n => !n.is_read).length : 0;
 
       setDashboardStats({
+        internshipsCount,
+        studentsCount,
+        unreadNotificationsCount: unreadCount
+      });
+      
+      console.log('📊 Dashboard stats loaded:', {
         internshipsCount,
         studentsCount,
         unreadNotificationsCount: unreadCount
@@ -955,7 +964,8 @@ function TrainerDashboard() {
       tasks: '',
       task_description: '',
       resources: '',
-      deliverables: ''
+      deliverables: '',
+      due_date: ''
     }]);
   };
 
@@ -972,6 +982,98 @@ function TrainerDashboard() {
       week.week_number = i + 1;
     });
     setPlanWeeks(updatedWeeks);
+  };
+
+  // Edit Plan Functions
+  const handleEditPlan = () => {
+    setIsEditingPlan(true);
+    setEditPlanData({
+      title: selectedPlan.title,
+      description: selectedPlan.description,
+      duration_weeks: selectedPlan.duration_weeks,
+      start_date: selectedPlan.start_date ? selectedPlan.start_date.split('T')[0] : '',
+      end_date: selectedPlan.end_date ? selectedPlan.end_date.split('T')[0] : '',
+      status: selectedPlan.status
+    });
+    setEditPlanWeeks(selectedPlan.weeks || []);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingPlan(false);
+    setEditPlanData(null);
+    setEditPlanWeeks([]);
+  };
+
+  const handleEditPlanInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditPlanData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAddWeekToEditPlan = () => {
+    const weekNumber = editPlanWeeks.length + 1;
+    setEditPlanWeeks([...editPlanWeeks, {
+      week_number: weekNumber,
+      title: `Week ${weekNumber}`,
+      description: '',
+      objectives: '',
+      tasks: '',
+      task_description: '',
+      resources: '',
+      deliverables: '',
+      due_date: ''
+    }]);
+  };
+
+  const handleUpdateEditWeek = (index, field, value) => {
+    const updatedWeeks = [...editPlanWeeks];
+    updatedWeeks[index][field] = value;
+    setEditPlanWeeks(updatedWeeks);
+  };
+
+  const handleRemoveEditWeek = (index) => {
+    const updatedWeeks = editPlanWeeks.filter((_, i) => i !== index);
+    // Renumber weeks
+    updatedWeeks.forEach((week, i) => {
+      week.week_number = i + 1;
+    });
+    setEditPlanWeeks(updatedWeeks);
+  };
+
+  const handleSaveEditedPlan = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5050/api/plans/${selectedPlan.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editPlanData,
+          weeks: editPlanWeeks
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Plan updated successfully!' });
+        setIsEditingPlan(false);
+        setEditPlanData(null);
+        setEditPlanWeeks([]);
+        // Reload plan details
+        await loadPlanDetails(selectedPlan.id);
+        // Reload plans list
+        loadPlans();
+        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to update plan' });
+      }
+    } catch (error) {
+      console.error('Error updating plan:', error);
+      setMessage({ type: 'error', text: 'Server error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewStudentTasks = async (student) => {
@@ -2921,6 +3023,16 @@ function TrainerDashboard() {
                               placeholder="Expected deliverables from students..."
                             />
                           </div>
+
+                          <div className="form-group">
+                            <label>Submission Deadline</label>
+                            <input
+                              type="datetime-local"
+                              value={week.due_date}
+                              onChange={(e) => handleUpdateWeek(index, 'due_date', e.target.value)}
+                              placeholder="Due date for task submission"
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -3027,72 +3139,301 @@ function TrainerDashboard() {
 
             {/* Plan Details Modal */}
             {selectedPlan && (
-              <div className="modal-overlay" onClick={() => setSelectedPlan(null)}>
-                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-overlay" onClick={() => { setSelectedPlan(null); setIsEditingPlan(false); }}>
+                <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
                   <div className="modal-header">
-                    <h2>{selectedPlan.title}</h2>
-                    <button className="close-btn" onClick={() => setSelectedPlan(null)}>×</button>
+                    <h2>{isEditingPlan ? 'Edit Training Plan' : selectedPlan.title}</h2>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {!isEditingPlan && (
+                        <button 
+                          className="btn-secondary-small" 
+                          onClick={handleEditPlan}
+                          style={{ marginRight: '10px' }}
+                        >
+                          ✏️ Edit
+                        </button>
+                      )}
+                      <button className="close-btn" onClick={() => { setSelectedPlan(null); setIsEditingPlan(false); }}>×</button>
+                    </div>
                   </div>
 
                   <div className="modal-body">
-                    <div className="plan-detail-info">
-                      <p><strong>Internship:</strong> {selectedPlan.internship_title}</p>
-                      <p><strong>Company:</strong> {selectedPlan.company_name}</p>
-                      <p><strong>Duration:</strong> {selectedPlan.duration_weeks} weeks</p>
-                      <p><strong>Status:</strong> <span className={`status-badge status-${selectedPlan.status}`}>{selectedPlan.status}</span></p>
-                      {selectedPlan.description && (
-                        <p><strong>Description:</strong> {selectedPlan.description}</p>
-                      )}
-                    </div>
+                    {!isEditingPlan ? (
+                      <>
+                        <div className="plan-detail-info">
+                          <p><strong>Internship:</strong> {selectedPlan.internship_title}</p>
+                          <p><strong>Company:</strong> {selectedPlan.company_name}</p>
+                          <p><strong>Duration:</strong> {selectedPlan.duration_weeks} weeks</p>
+                          {selectedPlan.start_date && (
+                            <p><strong>Start Date:</strong> {new Date(selectedPlan.start_date).toLocaleDateString()}</p>
+                          )}
+                          {selectedPlan.end_date && (
+                            <p><strong>End Date:</strong> {new Date(selectedPlan.end_date).toLocaleDateString()}</p>
+                          )}
+                          <p><strong>Status:</strong> <span className={`status-badge status-${selectedPlan.status}`}>{selectedPlan.status}</span></p>
+                          {selectedPlan.description && (
+                            <p><strong>Description:</strong> {selectedPlan.description}</p>
+                          )}
+                        </div>
 
-                    <div className="weeks-timeline">
-                      <h3>Weekly Breakdown</h3>
-                      {selectedPlan.weeks && selectedPlan.weeks.length > 0 ? (
-                        selectedPlan.weeks.map(week => (
-                          <div key={week.id} className="week-detail-card">
-                            <h4>Week {week.week_number}: {week.title}</h4>
-                            {week.description && <p className="week-desc">{week.description}</p>}
-                            
-                            {week.objectives && (
-                              <div className="week-section">
-                                <strong>Objectives:</strong>
-                                <p>{week.objectives}</p>
+                        <div className="weeks-timeline">
+                          <h3>Weekly Breakdown</h3>
+                          {selectedPlan.weeks && selectedPlan.weeks.length > 0 ? (
+                            selectedPlan.weeks.map(week => (
+                              <div key={week.id} className="week-detail-card">
+                                <h4>Week {week.week_number}: {week.title}</h4>
+                                {week.description && <p className="week-desc">{week.description}</p>}
+                                
+                                {week.objectives && (
+                                  <div className="week-section">
+                                    <strong>Objectives:</strong>
+                                    <p>{week.objectives}</p>
+                                  </div>
+                                )}
+                                
+                                {week.tasks && (
+                                  <div className="week-section">
+                                    <strong>Tasks:</strong>
+                                    <p>{week.tasks}</p>
+                                  </div>
+                                )}
+                                
+                                {week.task_description && (
+                                  <div className="week-section">
+                                    <strong>Task Description:</strong>
+                                    <p>{week.task_description}</p>
+                                  </div>
+                                )}
+                                
+                                {week.resources && (
+                                  <div className="week-section">
+                                    <strong>Resources:</strong>
+                                    <p>{week.resources}</p>
+                                  </div>
+                                )}
+                                
+                                {week.deliverables && (
+                                  <div className="week-section">
+                                    <strong>Deliverables:</strong>
+                                    <p>{week.deliverables}</p>
+                                  </div>
+                                )}
+
+                                {week.due_date && (
+                                  <div className="week-section">
+                                    <strong>Deadline:</strong>
+                                    <p>{new Date(week.due_date).toLocaleString()}</p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            
-                            {week.tasks && (
-                              <div className="week-section">
-                                <strong>Tasks:</strong>
-                                <p>{week.tasks}</p>
-                              </div>
-                            )}
-                            
-                            {week.task_description && (
-                              <div className="week-section">
-                                <strong>Task Description:</strong>
-                                <p>{week.task_description}</p>
-                              </div>
-                            )}
-                            
-                            {week.resources && (
-                              <div className="week-section">
-                                <strong>Resources:</strong>
-                                <p>{week.resources}</p>
-                              </div>
-                            )}
-                            
-                            {week.deliverables && (
-                              <div className="week-section">
-                                <strong>Deliverables:</strong>
-                                <p>{week.deliverables}</p>
-                              </div>
-                            )}
+                            ))
+                          ) : (
+                            <p>No weekly breakdown available for this plan.</p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* Edit Mode */}
+                        <div className="form-group">
+                          <label>Plan Title</label>
+                          <input
+                            type="text"
+                            name="title"
+                            value={editPlanData?.title || ''}
+                            onChange={handleEditPlanInputChange}
+                            placeholder="Plan title"
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label>Description</label>
+                          <textarea
+                            name="description"
+                            value={editPlanData?.description || ''}
+                            onChange={handleEditPlanInputChange}
+                            rows="3"
+                            placeholder="Plan description"
+                          />
+                        </div>
+
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Duration (weeks)</label>
+                            <input
+                              type="number"
+                              name="duration_weeks"
+                              value={editPlanData?.duration_weeks || 0}
+                              onChange={handleEditPlanInputChange}
+                              min="1"
+                            />
                           </div>
-                        ))
-                      ) : (
-                        <p>No weekly breakdown available for this plan.</p>
-                      )}
-                    </div>
+                          <div className="form-group">
+                            <label>Status</label>
+                            <select
+                              name="status"
+                              value={editPlanData?.status || 'draft'}
+                              onChange={handleEditPlanInputChange}
+                            >
+                              <option value="draft">Draft</option>
+                              <option value="active">Active</option>
+                              <option value="completed">Completed</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Start Date</label>
+                            <input
+                              type="date"
+                              name="start_date"
+                              value={editPlanData?.start_date || ''}
+                              onChange={handleEditPlanInputChange}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>End Date</label>
+                            <input
+                              type="date"
+                              name="end_date"
+                              value={editPlanData?.end_date || ''}
+                              onChange={handleEditPlanInputChange}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Edit Weeks */}
+                        <div className="weeks-section" style={{ marginTop: '20px' }}>
+                          <div className="weeks-header">
+                            <h4>Weekly Plan</h4>
+                            <button type="button" className="btn-secondary" onClick={handleAddWeekToEditPlan}>
+                              + Add Week
+                            </button>
+                          </div>
+
+                          {editPlanWeeks.map((week, index) => (
+                            <div key={index} className="week-card" style={{ marginBottom: '15px', padding: '15px', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <h5 style={{ margin: 0 }}>Week {week.week_number}</h5>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveEditWeek(index)}
+                                  className="btn-danger-small"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              <div className="form-group">
+                                <label>Week Title</label>
+                                <input
+                                  type="text"
+                                  value={week.title}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'title', e.target.value)}
+                                  placeholder="Week title"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Description</label>
+                                <textarea
+                                  value={week.description}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'description', e.target.value)}
+                                  rows="2"
+                                  placeholder="Week description"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Objectives</label>
+                                <textarea
+                                  value={week.objectives}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'objectives', e.target.value)}
+                                  rows="2"
+                                  placeholder="Learning objectives"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Tasks</label>
+                                <textarea
+                                  value={week.tasks}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'tasks', e.target.value)}
+                                  rows="2"
+                                  placeholder="Tasks for this week"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Task Description</label>
+                                <textarea
+                                  value={week.task_description}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'task_description', e.target.value)}
+                                  rows="2"
+                                  placeholder="Detailed task description"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Resources</label>
+                                <textarea
+                                  value={week.resources}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'resources', e.target.value)}
+                                  rows="2"
+                                  placeholder="Learning resources"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Deliverables</label>
+                                <textarea
+                                  value={week.deliverables}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'deliverables', e.target.value)}
+                                  rows="2"
+                                  placeholder="Expected deliverables"
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Submission Deadline</label>
+                                <input
+                                  type="datetime-local"
+                                  value={week.due_date ? week.due_date.slice(0, 16) : ''}
+                                  onChange={(e) => handleUpdateEditWeek(index, 'due_date', e.target.value)}
+                                  placeholder="Due date for task submission"
+                                />
+                              </div>
+                            </div>
+                          ))}
+
+                          {editPlanWeeks.length === 0 && (
+                            <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>
+                              No weeks added yet. Click "Add Week" to start.
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="form-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={handleCancelEdit}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={handleSaveEditedPlan}
+                            disabled={loading}
+                          >
+                            {loading ? 'Saving...' : 'Save Changes'}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,10 +1,29 @@
 import db from "../config/database.js";
 
+const normalizeWorkMode = (value) => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim().toLowerCase();
+
+  if (normalized === "") return null;
+  if (normalized === "onsite" || normalized === "on site" || normalized === "on-site") return "on-site";
+  if (normalized === "remote") return "remote";
+  if (normalized === "hybrid") return "hybrid";
+  if (normalized === "online") return "online";
+
+  return undefined;
+};
+
 class Internship {
   // Create new internship
   static create(internshipData) {
     return new Promise((resolve, reject) => {
       const { company_id, title, description, requirements, specialization, capacity, status, min_gpa, work_mode } = internshipData;
+
+      const normalizedWorkMode = normalizeWorkMode(work_mode);
+      if (normalizedWorkMode === undefined) {
+        reject(new Error("Invalid work_mode. Allowed: remote, on-site, hybrid, online"));
+        return;
+      }
       
       const query = `
         INSERT INTO Internships (company_id, title, description, requirements, specialization, capacity, status, min_gpa, work_mode)
@@ -13,7 +32,7 @@ class Internship {
       
       db.query(
         query,
-        [company_id, title, description, requirements, specialization, capacity || 1, status || 'open', min_gpa || null, work_mode || null],
+        [company_id, title, description, requirements, specialization, capacity || 1, status || 'open', min_gpa || null, normalizedWorkMode],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);
@@ -83,6 +102,12 @@ class Internship {
   static update(id, internshipData) {
     return new Promise((resolve, reject) => {
       const { title, description, requirements, specialization, capacity, status, min_gpa, work_mode } = internshipData;
+
+      const normalizedWorkMode = normalizeWorkMode(work_mode);
+      if (normalizedWorkMode === undefined) {
+        reject(new Error("Invalid work_mode. Allowed: remote, on-site, hybrid, online"));
+        return;
+      }
       
       const query = `
         UPDATE Internships
@@ -92,7 +117,7 @@ class Internship {
       
       db.query(
         query,
-        [title, description, requirements, specialization, capacity, status, min_gpa || null, work_mode || null, id],
+        [title, description, requirements, specialization, capacity, status, min_gpa || null, normalizedWorkMode, id],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);

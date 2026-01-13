@@ -126,12 +126,12 @@ function StudentDashboard() {
 
   // Load training plans when studentId is available
   useEffect(() => {
-    if (studentId) {
+    if (studentId && user) {
       loadTrainingPlans();
-      // loadDashboardStats(); // Temporarily disabled to avoid conflicts
+      loadDashboardStats();
       loadWeeklyReports();
     }
-  }, [studentId]);
+  }, [studentId, user]);
 
   // Setup real-time message subscription for student
   useEffect(() => {
@@ -214,13 +214,21 @@ function StudentDashboard() {
               const uniResponse = await fetch(`http://localhost:5050/api/universities/${data.student.university_id}`);
               if (uniResponse.ok) {
                 const uniData = await uniResponse.json();
-                if (uniData.success && uniData.university) {
-                  universityName = uniData.university.name;
+                console.log('🎓 University API response:', uniData);
+                if (uniData.success && uniData.data) {
+                  universityName = uniData.data.name;
+                  console.log('✅ University name loaded:', universityName);
+                } else {
+                  console.warn('⚠️ University data not found in response');
                 }
+              } else {
+                console.error('❌ University API error:', uniResponse.status);
               }
             } catch (err) {
-              console.error('Error loading university:', err);
+              console.error('❌ Error loading university:', err);
             }
+          } else {
+            console.log('ℹ️ No university_id for this student');
           }
           
           setStudentData({
@@ -704,8 +712,22 @@ function StudentDashboard() {
       
       if (internshipsData.success) {
         setRecommendedInternships(internshipsData.data || []);
-        setMatchedInternshipsCount(internshipsData.data?.length || 0); // Also update the count
+        setMatchedInternshipsCount(internshipsData.data?.length || 0);
         console.log('✅ Set internships:', internshipsData.data?.length || 0);
+        
+        // Count interviews scheduled
+        const interviewsScheduled = (internshipsData.data || []).filter(m => m.status === 'interview_scheduled').length;
+        setInterviewsCount(interviewsScheduled);
+        console.log('📅 Interviews scheduled:', interviewsScheduled);
+      }
+      
+      // Get unread notifications count
+      const notifResponse = await fetch(`http://localhost:5050/api/notifications/user/${userData.id}`);
+      const notifData = await notifResponse.json();
+      if (notifData.success) {
+        const unreadCount = (notifData.notifications || []).filter(n => !n.is_read).length;
+        setUnreadNotificationsCount(unreadCount);
+        console.log('🔔 Unread notifications:', unreadCount);
       }
       
     } catch (error) {
@@ -801,28 +823,41 @@ function StudentDashboard() {
 
   // Load dashboard stats
   const loadDashboardStats = async () => {
-    if (!studentId) {
-      console.log('⚠️ Cannot load dashboard stats: studentId is missing');
+    if (!user?.id) {
+      console.log('⚠️ Cannot load dashboard stats: user ID is missing');
       return;
     }
     
-    console.log('📊 Loading dashboard stats for student:', studentId);
+    console.log('📊 Loading dashboard stats for user:', user.id);
     
     try {
-      // Get matched internships count
-      const matchesResponse = await fetch(`http://localhost:5050/api/matching/student/${studentId}`);
+      // Get matched internships count using user.id
+      const matchesResponse = await fetch(`http://localhost:5050/api/matching/student/${user.id}`);
       const matchesData = await matchesResponse.json();
       if (matchesData.success) {
         setMatchedInternshipsCount(matchesData.data.length);
-        setRecommendedInternships(matchesData.data || []); // Also update recommendedInternships
-        console.log('🎯 Updated recommendedInternships from loadDashboardStats:', matchesData.data?.length || 0);
-        // Count interviews (you can adjust this based on your interview status)
+        setRecommendedInternships(matchesData.data || []);
+        console.log('🎯 Matched internships count:', matchesData.data?.length || 0);
+        
+        // Count interviews scheduled
         const interviewsScheduled = matchesData.data.filter(m => m.status === 'interview_scheduled').length;
         setInterviewsCount(interviewsScheduled);
+        console.log('📅 Interviews scheduled:', interviewsScheduled);
+      }
+      
+      // Get unread notifications count
+      const notifResponse = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      const notifData = await notifResponse.json();
+      if (notifData.success) {
+        const unreadCount = (notifData.notifications || []).filter(n => !n.is_read).length;
+        setUnreadNotificationsCount(unreadCount);
+        console.log('🔔 Unread notifications:', unreadCount);
       }
 
       // Load certificate
       await loadCertificate();
+      
+      console.log('✅ Dashboard stats loaded successfully');
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     }

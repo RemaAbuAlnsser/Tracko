@@ -150,7 +150,8 @@ router.put("/email/:email", async (req, res) => {
       address, 
       description, 
       website, 
-      logo
+      logo,
+      coordinator_name
     } = req.body;
 
     // Find company by old email
@@ -192,7 +193,7 @@ router.put("/email/:email", async (req, res) => {
     const companyQuery = `
       UPDATE Company 
       SET name = ?, email = ?, phone = ?, industry = ?, address = ?, 
-          description = ?, website = ?, logo = ?
+          description = ?, website = ?, logo = ?, coordinator_name = ?
       WHERE email = ?
     `;
 
@@ -205,6 +206,7 @@ router.put("/email/:email", async (req, res) => {
       description || existingCompany.description,
       website || existingCompany.website,
       logo !== undefined ? logo : existingCompany.logo,
+      coordinator_name !== undefined ? coordinator_name : existingCompany.coordinator_name,
       oldEmail // WHERE condition
     ];
 

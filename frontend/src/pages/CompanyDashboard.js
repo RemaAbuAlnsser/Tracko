@@ -29,7 +29,8 @@ function CompanyDashboard() {
     website: 'https://www.techcorp.com',
     linkedin_url: 'https://linkedin.com/company/techcorp',
     address: '123 Tech Street, Suite 400, San Francisco, CA 94105',
-    description: 'TechCorp is a leading software development company specializing in cloud computing solutions and enterprise applications.'
+    description: 'TechCorp is a leading software development company specializing in cloud computing solutions and enterprise applications.',
+    coordinator_name: ''
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -1915,6 +1916,20 @@ function CompanyDashboard() {
                     value={companyData.address} 
                     onChange={handleInputChange}
                     placeholder="Full address" 
+                  />
+                </div>
+              </div>
+
+              <div className="profile-form-card">
+                <h3>Training Coordinator Information</h3>
+                <div className="form-group">
+                  <label>Coordinator Name</label>
+                  <input 
+                    type="text" 
+                    name="coordinator_name"
+                    value={companyData.coordinator_name} 
+                    onChange={handleInputChange}
+                    placeholder="Training Coordinator Name" 
                   />
                 </div>
               </div>

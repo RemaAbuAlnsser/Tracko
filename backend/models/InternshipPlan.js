@@ -36,6 +36,7 @@ class InternshipPlan {
           task_description TEXT,
           resources TEXT,
           deliverables TEXT,
+          due_date DATETIME,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (plan_id) REFERENCES Internship_Plans(id) ON DELETE CASCADE,
@@ -237,6 +238,19 @@ class InternshipPlan {
     });
   }
 
+  // Helper function to convert ISO datetime to MySQL format
+  static formatDateForMySQL(dateString) {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
   // Add week to plan
   static addWeek(weekData) {
     return new Promise((resolve, reject) => {
@@ -249,18 +263,21 @@ class InternshipPlan {
         tasks,
         task_description,
         resources,
-        deliverables
+        deliverables,
+        due_date
       } = weekData;
+
+      const formattedDueDate = this.formatDateForMySQL(due_date);
 
       const query = `
         INSERT INTO Plan_Weeks 
-        (plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables, due_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       db.query(
         query,
-        [plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables],
+        [plan_id, week_number, title, description, objectives, tasks, task_description, resources, deliverables, formattedDueDate],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);
@@ -279,19 +296,22 @@ class InternshipPlan {
         tasks,
         task_description,
         resources,
-        deliverables
+        deliverables,
+        due_date
       } = weekData;
+
+      const formattedDueDate = this.formatDateForMySQL(due_date);
 
       const query = `
         UPDATE Plan_Weeks 
         SET title = ?, description = ?, objectives = ?, 
-            tasks = ?, task_description = ?, resources = ?, deliverables = ?
+            tasks = ?, task_description = ?, resources = ?, deliverables = ?, due_date = ?
         WHERE id = ?
       `;
 
       db.query(
         query,
-        [title, description, objectives, tasks, task_description, resources, deliverables, weekId],
+        [title, description, objectives, tasks, task_description, resources, deliverables, formattedDueDate, weekId],
         (err, result) => {
           if (err) reject(err);
           else resolve(result);

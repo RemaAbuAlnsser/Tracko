@@ -118,7 +118,8 @@ router.post("/", async (req, res) => {
           tasks: week.tasks,
           task_description: week.task_description,
           resources: week.resources,
-          deliverables: week.deliverables
+          deliverables: week.deliverables,
+          due_date: week.due_date
         });
       }
     }
@@ -236,8 +237,12 @@ router.put("/:id", async (req, res) => {
       duration_weeks,
       start_date,
       end_date,
-      status
+      status,
+      weeks
     } = req.body;
+
+    console.log(`📝 Updating plan ${id}...`);
+    console.log(`📋 Received weeks:`, weeks?.length || 0);
 
     // Check if plan exists
     const existingPlan = await InternshipPlan.findById(id);
@@ -248,6 +253,7 @@ router.put("/:id", async (req, res) => {
       });
     }
 
+    // Update plan basic info
     await InternshipPlan.update(id, {
       title,
       description,
@@ -257,6 +263,41 @@ router.put("/:id", async (req, res) => {
       status
     });
 
+    // Update weeks if provided
+    if (weeks && Array.isArray(weeks)) {
+      console.log(`🔄 Updating weeks for plan ${id}...`);
+      
+      // Delete all existing weeks for this plan
+      await new Promise((resolve, reject) => {
+        db.query('DELETE FROM Plan_Weeks WHERE plan_id = ?', [id], (err, result) => {
+          if (err) reject(err);
+          else {
+            console.log(`🗑️ Deleted ${result.affectedRows} old weeks`);
+            resolve(result);
+          }
+        });
+      });
+
+      // Insert new weeks
+      for (const week of weeks) {
+        console.log(`  ➕ Adding week ${week.week_number}`);
+        await InternshipPlan.addWeek({
+          plan_id: id,
+          week_number: week.week_number,
+          title: week.title,
+          description: week.description,
+          objectives: week.objectives,
+          tasks: week.tasks,
+          task_description: week.task_description,
+          resources: week.resources,
+          deliverables: week.deliverables,
+          due_date: week.due_date
+        });
+      }
+      
+      console.log(`✅ Added ${weeks.length} new weeks`);
+    }
+
     res.json({
       success: true,
       message: "Plan updated successfully"
@@ -265,7 +306,8 @@ router.put("/:id", async (req, res) => {
     console.error("Error updating plan:", error);
     res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Server error",
+      error: error.message
     });
   }
 });

@@ -9,10 +9,31 @@ import db from "../config/database.js";
 
 const router = express.Router();
 
+ const normalizeWorkMode = (value) => {
+   if (value === undefined || value === null) return null;
+   const normalized = String(value).trim().toLowerCase();
+ 
+   if (normalized === "") return null;
+   if (normalized === "onsite" || normalized === "on site" || normalized === "on-site") return "on-site";
+   if (normalized === "remote") return "remote";
+   if (normalized === "hybrid") return "hybrid";
+   if (normalized === "online") return "online";
+ 
+   return undefined;
+ };
+
 // Create new internship
 router.post("/", async (req, res) => {
   try {
     const { company_email, title, description, requirements, specialization, capacity, status, trainer_ids, min_gpa, work_mode } = req.body;
+
+     const normalizedWorkMode = normalizeWorkMode(work_mode);
+     if (normalizedWorkMode === undefined) {
+       return res.status(400).json({
+         success: false,
+         message: "Invalid work_mode. Allowed: remote, on-site, hybrid, online"
+       });
+     }
 
     // Validate required fields
     if (!company_email || !title) {
@@ -41,7 +62,7 @@ router.post("/", async (req, res) => {
       capacity: capacity || 1,
       status: status || 'open',
       min_gpa: min_gpa || null,
-      work_mode: work_mode || null
+      work_mode: normalizedWorkMode
     });
 
     const internshipId = result.insertId;
@@ -71,7 +92,7 @@ router.post("/", async (req, res) => {
       requirements,
       specialization,
       min_gpa,
-      work_mode
+      work_mode: normalizedWorkMode
     }).catch(err => {
       console.error('⚠️  Error sending notifications:', err);
     });
@@ -171,6 +192,14 @@ router.put("/:id", async (req, res) => {
     const { id } = req.params;
     const { title, description, requirements, specialization, capacity, status, trainer_ids, min_gpa, work_mode } = req.body;
 
+     const normalizedWorkMode = work_mode !== undefined ? normalizeWorkMode(work_mode) : undefined;
+     if (normalizedWorkMode === undefined && work_mode !== undefined) {
+       return res.status(400).json({
+         success: false,
+         message: "Invalid work_mode. Allowed: remote, on-site, hybrid, online"
+       });
+     }
+
     // Check if internship exists
     const existingInternship = await Internship.findById(id);
     if (!existingInternship) {
@@ -189,7 +218,7 @@ router.put("/:id", async (req, res) => {
       capacity: capacity || existingInternship.capacity,
       status: status || existingInternship.status,
       min_gpa: min_gpa !== undefined ? min_gpa : existingInternship.min_gpa,
-      work_mode: work_mode !== undefined ? work_mode : existingInternship.work_mode
+      work_mode: normalizedWorkMode !== undefined ? normalizedWorkMode : existingInternship.work_mode
     });
 
     // Update trainer assignments if provided
