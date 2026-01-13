@@ -118,29 +118,28 @@ router.post("/", async (req, res) => {
       });
     }
     
-    // Check if CV already exists for this student with the same file
-    const existingCV = await CV.findByStudentIdAndFile(student.id, cv_file);
-    if (existingCV) {
-      return res.status(200).json({
-        success: true,
-        message: "CV already exists in database",
-        cv_id: existingCV.id,
-        isDuplicate: true
-      });
-    }
-    
-    // Create CV record
-    const result = await CV.create({
+    // Upsert CV record (update if exists, insert if not)
+    const result = await CV.upsert({
       student_id: student.id,
       cv_file: cv_file,
       analysis_data: analysis_data
     });
     
+    // Get the CV ID (either from insert or existing record)
+    let cvId;
+    if (result.insertId) {
+      cvId = result.insertId;
+    } else {
+      // If it was an update, find the CV
+      const existingCV = await CV.findByStudentId(student.id);
+      cvId = existingCV ? existingCV.id : null;
+    }
+    
     res.json({
       success: true,
-      message: "CV record created successfully",
-      cv_id: result.insertId,
-      isDuplicate: false
+      message: result.insertId ? "CV uploaded successfully" : "CV updated successfully",
+      cv_id: cvId,
+      isUpdate: !result.insertId
     });
   } catch (error) {
     console.error("Error creating CV record:", error);

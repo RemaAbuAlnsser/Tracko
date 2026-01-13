@@ -74,6 +74,7 @@ function StudentDashboard() {
   const [showHoursModal, setShowHoursModal] = useState(false);
   const [hoursPerWeek, setHoursPerWeek] = useState(20);
   const messagesEndRef = useRef(null);
+  const [imageErrors, setImageErrors] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -125,12 +126,12 @@ function StudentDashboard() {
 
   // Load training plans when studentId is available
   useEffect(() => {
-    if (studentId) {
+    if (studentId && user) {
       loadTrainingPlans();
-      // loadDashboardStats(); // Temporarily disabled to avoid conflicts
+      loadDashboardStats();
       loadWeeklyReports();
     }
-  }, [studentId]);
+  }, [studentId, user]);
 
   // Setup real-time message subscription for student
   useEffect(() => {
@@ -213,13 +214,21 @@ function StudentDashboard() {
               const uniResponse = await fetch(`http://localhost:5050/api/universities/${data.student.university_id}`);
               if (uniResponse.ok) {
                 const uniData = await uniResponse.json();
-                if (uniData.success && uniData.university) {
-                  universityName = uniData.university.name;
+                console.log('🎓 University API response:', uniData);
+                if (uniData.success && uniData.data) {
+                  universityName = uniData.data.name;
+                  console.log('✅ University name loaded:', universityName);
+                } else {
+                  console.warn('⚠️ University data not found in response');
                 }
+              } else {
+                console.error('❌ University API error:', uniResponse.status);
               }
             } catch (err) {
-              console.error('Error loading university:', err);
+              console.error('❌ Error loading university:', err);
             }
+          } else {
+            console.log('ℹ️ No university_id for this student');
           }
           
           setStudentData({
@@ -703,8 +712,22 @@ function StudentDashboard() {
       
       if (internshipsData.success) {
         setRecommendedInternships(internshipsData.data || []);
-        setMatchedInternshipsCount(internshipsData.data?.length || 0); // Also update the count
+        setMatchedInternshipsCount(internshipsData.data?.length || 0);
         console.log('✅ Set internships:', internshipsData.data?.length || 0);
+        
+        // Count interviews scheduled
+        const interviewsScheduled = (internshipsData.data || []).filter(m => m.status === 'interview_scheduled').length;
+        setInterviewsCount(interviewsScheduled);
+        console.log('📅 Interviews scheduled:', interviewsScheduled);
+      }
+      
+      // Get unread notifications count
+      const notifResponse = await fetch(`http://localhost:5050/api/notifications/user/${userData.id}`);
+      const notifData = await notifResponse.json();
+      if (notifData.success) {
+        const unreadCount = (notifData.notifications || []).filter(n => !n.is_read).length;
+        setUnreadNotificationsCount(unreadCount);
+        console.log('🔔 Unread notifications:', unreadCount);
       }
       
     } catch (error) {
@@ -800,28 +823,41 @@ function StudentDashboard() {
 
   // Load dashboard stats
   const loadDashboardStats = async () => {
-    if (!studentId) {
-      console.log('⚠️ Cannot load dashboard stats: studentId is missing');
+    if (!user?.id) {
+      console.log('⚠️ Cannot load dashboard stats: user ID is missing');
       return;
     }
     
-    console.log('📊 Loading dashboard stats for student:', studentId);
+    console.log('📊 Loading dashboard stats for user:', user.id);
     
     try {
-      // Get matched internships count
-      const matchesResponse = await fetch(`http://localhost:5050/api/matching/student/${studentId}`);
+      // Get matched internships count using user.id
+      const matchesResponse = await fetch(`http://localhost:5050/api/matching/student/${user.id}`);
       const matchesData = await matchesResponse.json();
       if (matchesData.success) {
         setMatchedInternshipsCount(matchesData.data.length);
-        setRecommendedInternships(matchesData.data || []); // Also update recommendedInternships
-        console.log('🎯 Updated recommendedInternships from loadDashboardStats:', matchesData.data?.length || 0);
-        // Count interviews (you can adjust this based on your interview status)
+        setRecommendedInternships(matchesData.data || []);
+        console.log('🎯 Matched internships count:', matchesData.data?.length || 0);
+        
+        // Count interviews scheduled
         const interviewsScheduled = matchesData.data.filter(m => m.status === 'interview_scheduled').length;
         setInterviewsCount(interviewsScheduled);
+        console.log('📅 Interviews scheduled:', interviewsScheduled);
+      }
+      
+      // Get unread notifications count
+      const notifResponse = await fetch(`http://localhost:5050/api/notifications/user/${user.id}`);
+      const notifData = await notifResponse.json();
+      if (notifData.success) {
+        const unreadCount = (notifData.notifications || []).filter(n => !n.is_read).length;
+        setUnreadNotificationsCount(unreadCount);
+        console.log('🔔 Unread notifications:', unreadCount);
       }
 
       // Load certificate
       await loadCertificate();
+      
+      console.log('✅ Dashboard stats loaded successfully');
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     }
@@ -951,6 +987,9 @@ function StudentDashboard() {
       setMessages(chatMessages);
       setSelectedTrainer(trainer);
       
+      // Reset image errors for new conversation
+      setImageErrors({});
+      
       // Mark messages as read
       await markMessagesAsRead(trainer.user_id, user.id);
       
@@ -1021,7 +1060,13 @@ function StudentDashboard() {
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      } catch (error) {
+        console.log('Scroll to bottom skipped');
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -1860,6 +1905,8 @@ function StudentDashboard() {
                   <div className="image-preview">
                     {imagePreview ? (
                       <img src={imagePreview} alt="Student" />
+                    ) : studentData.student_img ? (
+                      <img src={`http://localhost:5050${studentData.student_img}`} alt="Student" />
                     ) : (
                       <div className="no-image">
                         <svg width="48" height="48" fill="currentColor" viewBox="0 0 20 20">
@@ -2632,28 +2679,22 @@ function StudentDashboard() {
                         onClick={() => loadMessagesWithTrainer(contact)}
                       >
                         <div className="conversation-avatar" style={contact.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
-                          {contact.type === 'university' && contact.logo ? (
+                          {contact.type === 'university' && contact.logo && !imageErrors[`conv-uni-${contact.id}`] ? (
                             <img 
                               src={`http://localhost:5050${contact.logo}`} 
                               alt={contact.name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                if (e.target && e.target.parentElement) {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.textContent = contact.name ? contact.name.charAt(0).toUpperCase() : 'U';
-                                }
+                              onError={() => {
+                                setImageErrors(prev => ({...prev, [`conv-uni-${contact.id}`]: true}));
                               }}
                             />
-                          ) : contact.type === 'trainer' && contact.profile_image ? (
+                          ) : contact.type === 'trainer' && contact.profile_image && !imageErrors[`conv-trainer-${contact.user_id || contact.id}`] ? (
                             <img 
                               src={contact.profile_image.startsWith('http') ? contact.profile_image : `http://localhost:5050${contact.profile_image}`} 
                               alt={contact.full_name}
                               style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                              onError={(e) => {
-                                if (e.target && e.target.parentElement) {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.textContent = contact.full_name ? contact.full_name.charAt(0).toUpperCase() : 'T';
-                                }
+                              onError={() => {
+                                setImageErrors(prev => ({...prev, [`conv-trainer-${contact.user_id || contact.id}`]: true}));
                               }}
                             />
                           ) : (
@@ -2685,28 +2726,22 @@ function StudentDashboard() {
                     {/* Chat Header */}
                     <div className="chat-header">
                       <div className="conversation-avatar" style={selectedTrainer.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
-                        {selectedTrainer.type === 'university' && selectedTrainer.logo ? (
+                        {selectedTrainer.type === 'university' && selectedTrainer.logo && !imageErrors[`header-uni-${selectedTrainer.id}`] ? (
                           <img 
                             src={`http://localhost:5050${selectedTrainer.logo}`} 
                             alt={selectedTrainer.name}
                             style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                            onError={(e) => {
-                              if (e.target && e.target.parentElement) {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
-                              }
+                            onError={() => {
+                              setImageErrors(prev => ({...prev, [`header-uni-${selectedTrainer.id}`]: true}));
                             }}
                           />
-                        ) : selectedTrainer.type === 'trainer' && selectedTrainer.profile_image ? (
+                        ) : selectedTrainer.type === 'trainer' && selectedTrainer.profile_image && !imageErrors[`header-trainer-${selectedTrainer.user_id || selectedTrainer.id}`] ? (
                           <img 
                             src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                             alt={selectedTrainer.full_name}
                             style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%'}}
-                            onError={(e) => {
-                              if (e.target && e.target.parentElement) {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
-                              }
+                            onError={() => {
+                              setImageErrors(prev => ({...prev, [`header-trainer-${selectedTrainer.user_id || selectedTrainer.id}`]: true}));
                             }}
                           />
                         ) : (
@@ -2726,44 +2761,37 @@ function StudentDashboard() {
                           <p>No messages yet. Start the conversation!</p>
                         </div>
                       ) : (
-                        <>
-                          {messages.map(msg => {
-                            const isSentByStudent = Number(msg.sender_id) === Number(user.id);
-                            console.log('📧 Message:', {
-                              message: msg.message,
-                              sender_id: msg.sender_id,
-                              user_id: user.id,
-                              isSent: isSentByStudent,
-                              types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
-                            });
-                            return (
-                            <div
-                              key={msg.id}
-                              className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
-                            >
+                        messages.map((msg, index) => {
+                          const isSentByStudent = Number(msg.sender_id) === Number(user.id);
+                          console.log('📧 Message:', {
+                            message: msg.message,
+                            sender_id: msg.sender_id,
+                            user_id: user.id,
+                            isSent: isSentByStudent,
+                            types: `sender: ${typeof msg.sender_id}, user: ${typeof user.id}`
+                          });
+                          return (
+                          <div
+                            key={`${msg.id}-${msg.created_at}-${index}`}
+                            className={`message-item ${isSentByStudent ? 'sent' : 'received'}`}
+                          >
                               {/* Show avatar for receiver (trainer/university) on left */}
                               {!isSentByStudent && selectedTrainer && (
                                 <div className="message-avatar" style={selectedTrainer.type === 'university' ? {background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'} : {}}>
-                                  {selectedTrainer.type === 'university' && selectedTrainer.logo ? (
+                                  {selectedTrainer.type === 'university' && selectedTrainer.logo && !imageErrors[`uni-${selectedTrainer.id}`] ? (
                                     <img 
                                       src={`http://localhost:5050${selectedTrainer.logo}`} 
                                       alt={selectedTrainer.name}
-                                      onError={(e) => {
-                                        if (e.target && e.target.parentElement) {
-                                          e.target.style.display = 'none';
-                                          e.target.parentElement.textContent = selectedTrainer.name ? selectedTrainer.name.charAt(0).toUpperCase() : 'U';
-                                        }
+                                      onError={() => {
+                                        setImageErrors(prev => ({...prev, [`uni-${selectedTrainer.id}`]: true}));
                                       }}
                                     />
-                                  ) : selectedTrainer.profile_image ? (
+                                  ) : selectedTrainer.profile_image && !imageErrors[`trainer-${selectedTrainer.user_id || selectedTrainer.id}`] ? (
                                     <img 
                                       src={selectedTrainer.profile_image.startsWith('http') ? selectedTrainer.profile_image : `http://localhost:5050${selectedTrainer.profile_image}`} 
                                       alt={selectedTrainer.full_name}
-                                      onError={(e) => {
-                                        if (e.target && e.target.parentElement) {
-                                          e.target.style.display = 'none';
-                                          e.target.parentElement.textContent = selectedTrainer.full_name ? selectedTrainer.full_name.charAt(0).toUpperCase() : 'T';
-                                        }
+                                      onError={() => {
+                                        setImageErrors(prev => ({...prev, [`trainer-${selectedTrainer.user_id || selectedTrainer.id}`]: true}));
                                       }}
                                     />
                                   ) : (
@@ -2783,15 +2811,12 @@ function StudentDashboard() {
                               {/* Show avatar for sender (student) on right */}
                               {isSentByStudent && (
                                 <div className="message-avatar">
-                                  {studentData.student_img ? (
+                                  {studentData.student_img && !imageErrors['student-img'] ? (
                                     <img 
                                       src={`http://localhost:5050${studentData.student_img}`} 
                                       alt={user.full_name}
-                                      onError={(e) => {
-                                        if (e.target && e.target.parentElement) {
-                                          e.target.style.display = 'none';
-                                          e.target.parentElement.textContent = user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S';
-                                        }
+                                      onError={() => {
+                                        setImageErrors(prev => ({...prev, 'student-img': true}));
                                       }}
                                     />
                                   ) : (
@@ -2801,10 +2826,9 @@ function StudentDashboard() {
                               )}
                             </div>
                             );
-                          })}
-                          <div ref={messagesEndRef} />
-                        </>
+                          })
                       )}
+                      <div ref={messagesEndRef} />
                     </div>
 
                     {/* Message Input */}

@@ -47,6 +47,7 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
     linkedin_url: 'https://linkedin.com/company/techcorp',
     address: '123 Tech Street, Suite 400, San Francisco, CA 94105',
     description: 'TechCorp is a leading software development company.',
+    logo: '',
   });
   const [dashboardStats, setDashboardStats] = useState({
     internshipsCount: 0,
@@ -167,6 +168,7 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
             linkedin_url: data.company.linkedin_url || 'https://linkedin.com/company/techcorp',
             address: data.company.address || '123 Tech Street, Suite 400, San Francisco, CA 94105',
             description: data.company.description || 'TechCorp is a leading software development company.',
+            logo: data.company.logo || '',
           });
 
           // Load dashboard stats, trainer requests, and company trainers
@@ -1229,9 +1231,16 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
         <Text style={styles.profileCardTitle}>Company Logo</Text>
         <View style={styles.logoContainer}>
           <View style={styles.logoPreview}>
-            <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoInitials}>{getInitials(companyData.name || userData?.full_name)}</Text>
-            </View>
+            {companyData.logo ? (
+              <Image 
+                source={{ uri: `${baseUrl}${companyData.logo}` }}
+                style={styles.logoImage}
+              />
+            ) : (
+              <View style={styles.logoPlaceholder}>
+                <Text style={styles.logoInitials}>{getInitials(companyData.name || userData?.full_name)}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.logoBadges}>
             <View style={styles.verifiedBadge}>
@@ -1934,9 +1943,16 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
             {/* Header */}
             <View style={styles.applicantHeader}>
               <View style={styles.applicantAvatar}>
-                <Text style={styles.applicantAvatarText}>
-                  {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
-                </Text>
+                {applicant.profile_picture ? (
+                  <Image
+                    source={{ uri: `${baseUrl}${applicant.profile_picture}` }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                ) : (
+                  <Text style={styles.applicantAvatarText}>
+                    {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
+                  </Text>
+                )}
               </View>
               <View style={styles.applicantInfo}>
                 <Text style={styles.applicantName}>{applicant.full_name || 'Student Name'}</Text>
@@ -2062,9 +2078,16 @@ const CompanyDashboardScreen: React.FC<CompanyDashboardScreenProps> = ({ userDat
             {/* Header */}
             <View style={styles.applicantHeader}>
               <View style={styles.applicantAvatar}>
-                <Text style={styles.applicantAvatarText}>
-                  {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
-                </Text>
+                {applicant.profile_picture ? (
+                  <Image
+                    source={{ uri: `${baseUrl}${applicant.profile_picture}` }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                ) : (
+                  <Text style={styles.applicantAvatarText}>
+                    {applicant.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) || 'ST'}
+                  </Text>
+                )}
               </View>
               <View style={styles.applicantInfo}>
                 <Text style={styles.applicantName}>{applicant.full_name || 'Student Name'}</Text>
@@ -3756,6 +3779,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
   },
   logoInitials: {
     fontSize: 28,

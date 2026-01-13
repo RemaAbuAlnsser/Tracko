@@ -63,6 +63,10 @@ function UniversityDashboard() {
   const [selectedWeeklyReport, setSelectedWeeklyReport] = useState(null);
   const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
   const [weeklyReportComment, setWeeklyReportComment] = useState('');
+  const [showPartnershipViewModal, setShowPartnershipViewModal] = useState(false);
+  const [showPartnershipEditModal, setShowPartnershipEditModal] = useState(false);
+  const [selectedPartnership, setSelectedPartnership] = useState(null);
+  const [editPartnershipData, setEditPartnershipData] = useState({});
   
   // Messages/Chat state
   const [conversations, setConversations] = useState([]);
@@ -399,6 +403,20 @@ function UniversityDashboard() {
     }
   };
 
+  // Auto-populate coordinator names when company is selected
+  useEffect(() => {
+    if (selectedCompany && companies.length > 0) {
+      const company = companies.find(c => c.id === parseInt(selectedCompany));
+      if (company) {
+        setPartnershipData(prev => ({
+          ...prev,
+          contact_person_university: universityData.coordinator_name || prev.contact_person_university,
+          contact_person_company: company.coordinator_name || prev.contact_person_company
+        }));
+      }
+    }
+  }, [selectedCompany, companies, universityData.coordinator_name]);
+
   const loadCompanies = async () => {
     try {
       const response = await fetch('http://localhost:5050/api/companies');
@@ -462,6 +480,76 @@ function UniversityDashboard() {
     } catch (error) {
       console.error('Create partnership error:', error);
       setMessage({ type: 'error', text: 'Failed to create partnership' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewPartnership = (partnership) => {
+    setSelectedPartnership(partnership);
+    setShowPartnershipViewModal(true);
+  };
+
+  const handleEditPartnership = (partnership) => {
+    console.log('🔍 Partnership data:', partnership);
+    console.log('👥 University Coordinator:', partnership.university_coordinator);
+    console.log('👥 Company Coordinator:', partnership.company_coordinator);
+    
+    setSelectedPartnership(partnership);
+    setEditPartnershipData({
+      agreement_date: partnership.agreement_date ? partnership.agreement_date.split('T')[0] : '',
+      agreement_end_date: partnership.agreement_end_date ? partnership.agreement_end_date.split('T')[0] : '',
+      agreement_duration: partnership.agreement_duration || '',
+      contact_person_university: partnership.university_coordinator || partnership.contact_person_university || '',
+      contact_person_company: partnership.company_coordinator || partnership.contact_person_company || '',
+      terms_and_conditions: partnership.terms_and_conditions || '',
+      training_hours: partnership.training_hours || '',
+      status: partnership.status || 'pending'
+    });
+    setShowPartnershipEditModal(true);
+  };
+
+  const handleEditPartnershipInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditPartnershipData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSavePartnershipEdit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/partnerships/${selectedPartnership.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          university_id: universityData.id,
+          company_id: selectedPartnership.company_id,
+          ...editPartnershipData
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Partnership updated successfully!' });
+        setShowPartnershipEditModal(false);
+        loadPartnerships();
+        setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to update partnership' });
+      }
+    } catch (error) {
+      console.error('Update partnership error:', error);
+      setMessage({ type: 'error', text: 'Failed to update partnership' });
     } finally {
       setLoading(false);
     }
@@ -1820,29 +1908,63 @@ function UniversityDashboard() {
                           <td>{partnership.contact_person_company || 'N/A'}</td>
                           <td>
                             <div className="actions-cell">
-                              <select 
-                                className="status-select"
-                                value={partnership.status}
-                                onChange={(e) => handleUpdatePartnershipStatus(partnership.id, e.target.value)}
+                              <button 
+                                className="action-btn view-btn" 
+                                title="View Details"
+                                onClick={() => handleViewPartnership(partnership)}
                                 style={{ 
-                                  padding: '4px 8px', 
-                                  borderRadius: '4px', 
-                                  border: '1px solid #ddd',
-                                  fontSize: '12px',
-                                  marginRight: '8px'
+                                  marginRight: '8px', 
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                  color: '#3b82f6',
+                                  padding: '6px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
                                 }}
                               >
-                                <option value="pending">Pending</option>
-                                <option value="active">Active</option>
-                                <option value="expired">Expired</option>
-                                <option value="terminated">Terminated</option>
-                              </select>
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                              <button 
+                                className="action-btn edit-btn" 
+                                title="Edit"
+                                onClick={() => handleEditPartnership(partnership)}
+                                style={{ 
+                                  marginRight: '8px', 
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                  color: '#f59e0b',
+                                  padding: '6px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
                               <button 
                                 className="action-btn delete-btn" 
                                 title="Delete"
                                 onClick={() => handleDeletePartnership(partnership.id)}
+                                style={{ 
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  padding: '6px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
                               >
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                               </button>
@@ -3202,6 +3324,217 @@ function UniversityDashboard() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Partnership Modal */}
+        {showPartnershipViewModal && selectedPartnership && (
+          <div className="modal-overlay" onClick={() => setShowPartnershipViewModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+              <div className="modal-header">
+                <h2>Partnership Details</h2>
+                <button className="modal-close" onClick={() => setShowPartnershipViewModal(false)}>×</button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gap: '16px' }}>
+                  <div>
+                    <strong style={{ color: '#6b7280', fontSize: '13px' }}>Company Name:</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '15px' }}>{selectedPartnership.company_name}</p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#6b7280', fontSize: '13px' }}>Company Email:</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '15px' }}>{selectedPartnership.company_email}</p>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <strong style={{ color: '#6b7280', fontSize: '13px' }}>Agreement Date:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                        {selectedPartnership.agreement_date ? new Date(selectedPartnership.agreement_date).toLocaleDateString('en-GB') : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <strong style={{ color: '#6b7280', fontSize: '13px' }}>End Date:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                        {selectedPartnership.agreement_end_date ? new Date(selectedPartnership.agreement_end_date).toLocaleDateString('en-GB') : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <strong style={{ color: '#6b7280', fontSize: '13px' }}>Duration:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                        {selectedPartnership.agreement_duration ? `${selectedPartnership.agreement_duration} months` : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <strong style={{ color: '#6b7280', fontSize: '13px' }}>Training Hours:</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                        {selectedPartnership.training_hours ? `${selectedPartnership.training_hours} hours` : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#6b7280', fontSize: '13px' }}>Status:</strong>
+                    <p style={{ margin: '4px 0 0' }}>
+                      <span className={`status-badge status-${selectedPartnership.status}`}>
+                        {selectedPartnership.status}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#6b7280', fontSize: '13px' }}>University Contact Person:</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '15px' }}>{selectedPartnership.contact_person_university || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#6b7280', fontSize: '13px' }}>Company Contact Person:</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '15px' }}>{selectedPartnership.contact_person_company || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#6b7280', fontSize: '13px' }}>Terms and Conditions:</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '15px', whiteSpace: 'pre-wrap' }}>
+                      {selectedPartnership.terms_and_conditions || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowPartnershipViewModal(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Partnership Modal */}
+        {showPartnershipEditModal && selectedPartnership && (
+          <div className="modal-overlay" onClick={() => setShowPartnershipEditModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+              <div className="modal-header">
+                <h2>Edit Partnership</h2>
+                <button className="modal-close" onClick={() => setShowPartnershipEditModal(false)}>×</button>
+              </div>
+              <form onSubmit={handleSavePartnershipEdit}>
+                <div className="modal-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Company Name</label>
+                      <input
+                        type="text"
+                        value={selectedPartnership.company_name}
+                        disabled
+                        style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Agreement Date</label>
+                      <input
+                        type="date"
+                        name="agreement_date"
+                        value={editPartnershipData.agreement_date}
+                        onChange={handleEditPartnershipInputChange}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Agreement End Date</label>
+                      <input
+                        type="date"
+                        name="agreement_end_date"
+                        value={editPartnershipData.agreement_end_date}
+                        onChange={handleEditPartnershipInputChange}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Duration (months)</label>
+                      <input
+                        type="number"
+                        name="agreement_duration"
+                        value={editPartnershipData.agreement_duration}
+                        onChange={handleEditPartnershipInputChange}
+                        placeholder="e.g., 12"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Training Hours</label>
+                      <input
+                        type="number"
+                        name="training_hours"
+                        value={editPartnershipData.training_hours}
+                        onChange={handleEditPartnershipInputChange}
+                        placeholder="e.g., 240"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Status</label>
+                      <select
+                        name="status"
+                        value={editPartnershipData.status}
+                        onChange={handleEditPartnershipInputChange}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="active">Active</option>
+                        <option value="expired">Expired</option>
+                        <option value="terminated">Terminated</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>University Contact Person</label>
+                      <input
+                        type="text"
+                        name="contact_person_university"
+                        value={editPartnershipData.contact_person_university}
+                        onChange={handleEditPartnershipInputChange}
+                        placeholder="Name of university representative"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Company Contact Person</label>
+                      <input
+                        type="text"
+                        name="contact_person_company"
+                        value={editPartnershipData.contact_person_company}
+                        onChange={handleEditPartnershipInputChange}
+                        placeholder="Name of company representative"
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Terms and Conditions</label>
+                      <textarea
+                        name="terms_and_conditions"
+                        value={editPartnershipData.terms_and_conditions}
+                        onChange={handleEditPartnershipInputChange}
+                        rows="4"
+                        placeholder="Enter terms and conditions..."
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowPartnershipEditModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

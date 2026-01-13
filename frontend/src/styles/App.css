@@ -362,9 +362,9 @@ section h2::after {
   height: 300px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   border-radius: 10px;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
   padding: 1rem;
   box-sizing: border-box;
@@ -373,16 +373,17 @@ section h2::after {
 
 .carousel-strip {
   display: flex;
-  animation: scroll-left 15s linear infinite;
+  animation: scroll-left 30s linear infinite;
   width: max-content;
+  gap: 20px;
 }
 
 .companies-section .carousel-strip {
-  animation-duration: 15s;
+  animation-duration: 30s;
 }
 
 .universities-section .carousel-strip {
-  animation-duration: 12s;
+  animation-duration: 25s;
 }
 
 @keyframes scroll-left {
@@ -390,27 +391,28 @@ section h2::after {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(-50%);
+    transform: translateX(-33.333%);
   }
 }
 
 .carousel-image {
-  width: 300px;
-  height: 220px;
+  width: 250px;
+  height: 180px;
   object-fit: contain;
-  margin: 0 10px;
   flex-shrink: 0;
-  opacity: 0.7;
-  transform: scale(1);
-  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  filter: blur(0.5px);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  opacity: 0.85;
+  transition: all 0.3s ease;
+  border-radius: 12px;
+  padding: 20px;
+  background: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
 .carousel-image:hover {
-  transform: scale(1.05);
-  opacity: 0.9;
+  transform: scale(1.1);
+  opacity: 1;
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+  z-index: 10;
 }
 
 /* About Section */
@@ -832,7 +834,13 @@ section h2::after {
   }
 
   .image-carousel {
-    height: 350px;
+    height: 250px;
+  }
+
+  .carousel-image {
+    width: 200px;
+    height: 150px;
+    padding: 15px;
   }
 
   .stat-card {

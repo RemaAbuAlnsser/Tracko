@@ -36,6 +36,16 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  // Helper function to get initials
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const names = name.split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
   
   // Student data
   const [studentData, setStudentData] = useState({
@@ -49,6 +59,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     skills: '',
     university_id: null,
     student_img: null as string | null,
+    profile_picture: null as string | null,
   });
   
   // Dashboard stats
@@ -108,6 +119,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
   
   // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   
   // Profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -120,6 +132,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
       fetchStudentData();
       loadSavedInternships();
       loadContacts(); // Load contacts on app start to get initial unread count
+      loadNotifications(); // Load notifications to get unread count
     }
   }, [userData]);
 
@@ -256,6 +269,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           skills: data.student.skills || '',
           university_id: data.student.university_id || null,
           student_img: data.student.student_img || null,
+          profile_picture: data.student.profile_picture || null,
         });
         setEditedStudentData({
           id: data.student.id,
@@ -268,6 +282,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           skills: data.student.skills || '',
           university_id: data.student.university_id || null,
           student_img: data.student.student_img || null,
+          profile_picture: data.student.profile_picture || null,
         });
         
         // Load CV analysis if exists
@@ -623,6 +638,30 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
     } catch (error) {
       console.error('Error sending message:', error);
       setNewMessage(trimmed);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!userData?.id) return;
+    
+    try {
+      console.log('🔔 Loading notifications for user:', userData.id);
+      const response = await fetch(`${baseUrl}/api/notifications/user/${userData.id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🔔 Notifications response:', data);
+        
+        if (data.success) {
+          setNotifications(data.notifications || []);
+          // Count unread notifications
+          const unreadCount = (data.notifications || []).filter((n: any) => !n.is_read).length;
+          setUnreadNotificationsCount(unreadCount);
+          console.log('📬 Unread notifications:', unreadCount);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
     }
   };
 
@@ -1530,7 +1569,14 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
               <View style={styles.internshipHeader}>
                 <View style={styles.companyLogo}>
-                  <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  {item.company_logo ? (
+                    <Image
+                      source={{ uri: `${baseUrl}${item.company_logo}` }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  )}
                 </View>
                 <View style={styles.internshipInfo}>
                   <Text style={styles.internshipTitleText}>{item.internship_title || item.title}</Text>
@@ -1834,9 +1880,9 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
 
                   {isFromMe && (
                     <View style={styles.messageAvatar}>
-                      {studentData.student_img ? (
+                      {studentData.profile_picture || studentData.student_img ? (
                         <Image
-                          source={{ uri: `${baseUrl}${studentData.student_img}` }}
+                          source={{ uri: `${baseUrl}${studentData.profile_picture || studentData.student_img}` }}
                           style={{ width: 32, height: 32, borderRadius: 16 }}
                         />
                       ) : (
@@ -1938,6 +1984,23 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
             <Text style={styles.messageTextStyle}>{message.text}</Text>
           </View>
         ) : null}
+
+        {/* Profile Picture */}
+        <View style={styles.profileImageSection}>
+          <View style={styles.profileImageContainer}>
+            {studentData.profile_picture || studentData.student_img ? (
+              <Image
+                source={{ uri: `${baseUrl}${studentData.profile_picture || studentData.student_img}` }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.profileImagePlaceholder}>
+                <Text style={styles.profileImageInitials}>{getInitials(userData?.full_name || 'S')}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.profileImageText}>Profile Picture</Text>
+        </View>
 
         <View style={styles.profileSection}>
           <View style={styles.inputGroup}>
@@ -2263,7 +2326,14 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
               {/* Company Header */}
               <View style={styles.internshipHeader}>
                 <View style={styles.companyLogo}>
-                  <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  {item.company_logo ? (
+                    <Image
+                      source={{ uri: `${baseUrl}${item.company_logo}` }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{item.company_name?.charAt(0) || 'C'}</Text>
+                  )}
                 </View>
                 <View style={styles.internshipInfo}>
                   <Text style={styles.companyNameText}>{item.company_name}</Text>
@@ -2567,7 +2637,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
           <View style={styles.drawerContainer}>
             <DrawerMenu
               userType="student"
-              userData={userData}
+              userData={studentData}
               activeMenu={activeTab}
               onMenuSelect={(tab: string) => {
                 setActiveTab(tab as TabKey);
@@ -2575,6 +2645,7 @@ const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({ userDat
               }}
               onLogout={onLogout || (() => {})}
               unreadCount={totalUnreadMessages}
+              notificationCount={unreadNotificationsCount}
             />
           </View>
         </TouchableOpacity>
@@ -4623,6 +4694,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  profileImageSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingVertical: 20,
+  },
+  profileImageContainer: {
+    marginBottom: 12,
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  profileImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImageInitials: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  profileImageText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
   },
 });
 

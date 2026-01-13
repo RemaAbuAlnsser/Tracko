@@ -84,7 +84,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'cv-upload', label: 'CV Upload & Analysis', icon: 'file' },
           { key: 'internships', label: 'AI-Matched Internships', icon: 'briefcase' },
           { key: 'saved', label: 'Saved Internships', icon: 'bookmark' },
-          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: unreadCount },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: notificationCount },
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'calendar' },
         ];
@@ -96,7 +96,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
           { key: 'students', label: 'My Students', icon: 'users' },
           { key: 'reports', label: 'Student Reports', icon: 'file' },
           { key: 'schedule', label: 'Schedule & Events', icon: 'calendar' },
-          { key: 'notifications', label: 'Notifications', icon: 'bell' },
+          { key: 'notifications', label: 'Notifications', icon: 'bell', badge: notificationCount },
           { key: 'messages', label: 'Messages', icon: 'message', badge: unreadCount },
           { key: 'plans', label: 'Training Plans', icon: 'clipboard' },
         ];
@@ -138,15 +138,36 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({
 
   const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5050' : 'http://localhost:5050';
 
+  // Get user image based on user type
+  const getUserImage = () => {
+    if (!userData) return null;
+    
+    switch (userType) {
+      case 'company':
+      case 'university':
+        return userData.logo;
+      case 'student':
+        return userData.profile_picture || userData.student_img;
+      case 'trainer':
+        return userData.profile_image;
+      case 'admin':
+        return userData.profile_picture;
+      default:
+        return null;
+    }
+  };
+
+  const userImage = getUserImage();
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
         {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.avatar}>
-            {userData?.logo ? (
+            {userImage ? (
               <Image
-                source={{ uri: `${baseUrl}${userData.logo}` }}
+                source={{ uri: `${baseUrl}${userImage}` }}
                 style={styles.avatarImage}
               />
             ) : (

@@ -29,6 +29,38 @@ class CV {
     });
   }
 
+  // Upsert CV record (update if exists, insert if not)
+  static upsert(cvData) {
+    const { 
+      student_id,
+      cv_file,
+      analysis_data = null
+    } = cvData;
+    
+    const query = `
+      INSERT INTO CVs (student_id, cv_file, analysis_data) 
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE 
+        cv_file = VALUES(cv_file),
+        analysis_data = VALUES(analysis_data),
+        uploaded_at = CURRENT_TIMESTAMP
+    `;
+    
+    return new Promise((resolve, reject) => {
+      db.query(
+        query, 
+        [student_id, cv_file, JSON.stringify(analysis_data)], 
+        (err, result) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result);
+          }
+        }
+      );
+    });
+  }
+
   // Find CV by student ID
   static findByStudentId(studentId) {
     const query = "SELECT * FROM CVs WHERE student_id = ? ORDER BY uploaded_at DESC LIMIT 1";

@@ -218,37 +218,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`${baseUrl}/api/admin/companies/delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  userId: userData?.id,
-                  companyId: companyId 
-                }),
+              const response = await fetch(`${baseUrl}/api/companies/${companyId}`, {
+                method: 'DELETE'
               });
-
-              // Check if response is JSON
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('API endpoint not found or server error');
-              }
 
               const data = await response.json();
               if (data.success) {
                 setMessage({ text: 'Company deleted successfully', type: 'success' });
-                fetchCompanies(); // Refresh the list
+                fetchCompanies();
+                fetchStats();
               } else {
                 setMessage({ text: data.message || 'Failed to delete company', type: 'error' });
               }
             } catch (error) {
               console.error('Error deleting company:', error);
-              if (error instanceof Error && error.message?.includes('API endpoint not found')) {
-                setMessage({ text: 'Delete company feature not yet implemented in backend', type: 'error' });
-              } else {
-                setMessage({ text: 'Failed to delete company', type: 'error' });
-              }
+              setMessage({ text: 'Failed to delete company', type: 'error' });
             }
           }
         },
@@ -292,37 +276,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`${baseUrl}/api/admin/universities/delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  userId: userData?.id,
-                  universityId: universityId 
-                }),
+              const response = await fetch(`${baseUrl}/api/universities/${universityId}`, {
+                method: 'DELETE'
               });
-
-              // Check if response is JSON
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('API endpoint not found or server error');
-              }
 
               const data = await response.json();
               if (data.success) {
                 setMessage({ text: 'University deleted successfully', type: 'success' });
-                fetchUniversities(); // Refresh the list
+                fetchUniversities();
+                fetchStats();
               } else {
                 setMessage({ text: data.message || 'Failed to delete university', type: 'error' });
               }
             } catch (error) {
               console.error('Error deleting university:', error);
-              if (error instanceof Error && error.message?.includes('API endpoint not found')) {
-                setMessage({ text: 'Delete university feature not yet implemented in backend', type: 'error' });
-              } else {
-                setMessage({ text: 'Failed to delete university', type: 'error' });
-              }
+              setMessage({ text: 'Failed to delete university', type: 'error' });
             }
           }
         },
@@ -366,37 +334,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`${baseUrl}/api/admin/students/delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  userId: userData?.id,
-                  studentId: studentId 
-                }),
+              const response = await fetch(`${baseUrl}/api/students/${studentId}`, {
+                method: 'DELETE'
               });
-
-              // Check if response is JSON
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('API endpoint not found or server error');
-              }
 
               const data = await response.json();
               if (data.success) {
                 setMessage({ text: 'Student deleted successfully', type: 'success' });
-                fetchStudents(); // Refresh the list
+                fetchStudents();
+                fetchStats();
               } else {
                 setMessage({ text: data.message || 'Failed to delete student', type: 'error' });
               }
             } catch (error) {
               console.error('Error deleting student:', error);
-              if (error instanceof Error && error.message?.includes('API endpoint not found')) {
-                setMessage({ text: 'Delete student feature not yet implemented in backend', type: 'error' });
-              } else {
-                setMessage({ text: 'Failed to delete student', type: 'error' });
-              }
+              setMessage({ text: 'Failed to delete student', type: 'error' });
             }
           }
         },
@@ -440,37 +392,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`${baseUrl}/api/admin/trainers/delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  userId: userData?.id,
-                  trainerId: trainerId 
-                }),
+              const response = await fetch(`${baseUrl}/api/trainers/${trainerId}`, {
+                method: 'DELETE'
               });
-
-              // Check if response is JSON
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('API endpoint not found or server error');
-              }
 
               const data = await response.json();
               if (data.success) {
                 setMessage({ text: 'Trainer deleted successfully', type: 'success' });
-                fetchTrainers(); // Refresh the list
+                fetchTrainers();
+                fetchStats();
               } else {
                 setMessage({ text: data.message || 'Failed to delete trainer', type: 'error' });
               }
             } catch (error) {
               console.error('Error deleting trainer:', error);
-              if (error instanceof Error && error.message?.includes('API endpoint not found')) {
-                setMessage({ text: 'Delete trainer feature not yet implemented in backend', type: 'error' });
-              } else {
-                setMessage({ text: 'Failed to delete trainer', type: 'error' });
-              }
+              setMessage({ text: 'Failed to delete trainer', type: 'error' });
             }
           }
         },
@@ -514,37 +450,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`${baseUrl}/api/admin/internships/delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  userId: userData?.id,
-                  internshipId: internshipId 
-                }),
+              const response = await fetch(`${baseUrl}/api/internships/${internshipId}`, {
+                method: 'DELETE'
               });
-
-              // Check if response is JSON
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('API endpoint not found or server error');
-              }
 
               const data = await response.json();
               if (data.success) {
                 setMessage({ text: 'Internship deleted successfully', type: 'success' });
-                fetchInternships(); // Refresh the list
+                fetchInternships();
+                fetchStats();
               } else {
                 setMessage({ text: data.message || 'Failed to delete internship', type: 'error' });
               }
             } catch (error) {
               console.error('Error deleting internship:', error);
-              if (error instanceof Error && error.message?.includes('API endpoint not found')) {
-                setMessage({ text: 'Delete internship feature not yet implemented in backend', type: 'error' });
-              } else {
-                setMessage({ text: 'Failed to delete internship', type: 'error' });
-              }
+              setMessage({ text: 'Failed to delete internship', type: 'error' });
             }
           }
         },
@@ -613,36 +533,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`${baseUrl}/api/admin/partnerships/delete`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  userId: userData?.id,
-                  partnershipId: partnershipId 
-                }),
+              const response = await fetch(`${baseUrl}/api/partnerships/${partnershipId}`, {
+                method: 'DELETE'
               });
-
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('API endpoint not found or server error');
-              }
 
               const data = await response.json();
               if (data.success) {
                 setMessage({ text: 'Partnership deleted successfully', type: 'success' });
                 fetchPartnerships();
+                fetchStats();
               } else {
                 setMessage({ text: data.message || 'Failed to delete partnership', type: 'error' });
               }
             } catch (error) {
               console.error('Error deleting partnership:', error);
-              if (error instanceof Error && error.message?.includes('API endpoint not found')) {
-                setMessage({ text: 'Delete partnership feature not yet implemented in backend', type: 'error' });
-              } else {
-                setMessage({ text: 'Failed to delete partnership', type: 'error' });
-              }
+              setMessage({ text: 'Failed to delete partnership', type: 'error' });
             }
           }
         },
@@ -997,11 +902,12 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
     return (
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, { flex: 0.6 }]}>ID</Text>
-          <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>Company Name</Text>
-          <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>Email</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>Status</Text>
-          <Text style={[styles.tableHeaderText, { flex: 0.8 }]}>Action</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Logo</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>ID</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Company Name</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Email</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Status</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Action</Text>
         </View>
         
         {companies.map((company, index) => (
@@ -1009,10 +915,16 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
             styles.tableRow,
             index === companies.length - 1 && styles.lastTableRow,
           ]}>
-            <View style={[styles.tableCell, { flex: 0.6 }]}>
+            <View style={[styles.tableCell, { flex: 0.7 }]}>
+              <Image
+                source={{ uri: company.logo ? `${baseUrl}${company.logo}` : 'https://via.placeholder.com/40?text=C' }}
+                style={{ width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#e5e7eb' }}
+              />
+            </View>
+            <View style={[styles.tableCell, { flex: 0.5 }]}>
               <Text style={[styles.tableCellText, styles.idText]}>{company.id}</Text>
             </View>
-            <View style={[styles.tableCell, { flex: 2.5, alignItems: 'flex-start', paddingLeft: 8 }]}>
+            <View style={[styles.tableCell, { flex: 2, alignItems: 'flex-start', paddingLeft: 8 }]}>
               <Text style={[styles.tableCellText, styles.nameText]} numberOfLines={1}>
                 {company.company_name || company.name || 'N/A'}
               </Text>
@@ -1072,11 +984,12 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
     return (
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, { flex: 0.6 }]}>ID</Text>
-          <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>University Name</Text>
-          <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>Email</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1.2 }]}>Status</Text>
-          <Text style={[styles.tableHeaderText, { flex: 0.8 }]}>Action</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Logo</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>ID</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>University Name</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Email</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Status</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Action</Text>
         </View>
         
         {universities.map((university, index) => (
@@ -1084,7 +997,13 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
             styles.tableRow,
             index === universities.length - 1 && styles.lastTableRow,
           ]}>
-            <View style={[styles.tableCell, { flex: 0.6 }]}>
+            <View style={[styles.tableCell, { flex: 0.7 }]}>
+              <Image
+                source={{ uri: university.logo ? `${baseUrl}${university.logo}` : 'https://via.placeholder.com/35?text=U' }}
+                style={{ width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#e5e7eb' }}
+              />
+            </View>
+            <View style={[styles.tableCell, { flex: 0.5 }]}>
               <Text style={[styles.tableCellText, styles.idText]}>{university.id}</Text>
             </View>
             <View style={[styles.tableCell, { flex: 2.5, alignItems: 'flex-start', paddingLeft: 8 }]}>
@@ -1147,6 +1066,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
     return (
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Photo</Text>
           <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>ID</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Name</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Email</Text>
@@ -1162,6 +1082,12 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
               styles.tableRow,
               index === students.length - 1 && styles.lastTableRow,
             ]}>
+              <View style={[styles.tableCell, { flex: 0.7 }]}>
+                <Image
+                  source={{ uri: student.profile_picture ? `${baseUrl}${student.profile_picture}` : 'https://via.placeholder.com/40?text=S' }}
+                  style={{ width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#e5e7eb' }}
+                />
+              </View>
               <View style={[styles.tableCell, { flex: 0.5 }]}>
                 <Text style={[styles.tableCellText, styles.idText]}>{student.id || 'N/A'}</Text>
               </View>
@@ -1231,6 +1157,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
     return (
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Photo</Text>
           <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>ID</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Name</Text>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Email</Text>
@@ -1246,6 +1173,12 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ userData, o
               styles.tableRow,
               index === trainers.length - 1 && styles.lastTableRow,
             ]}>
+              <View style={[styles.tableCell, { flex: 0.7 }]}>
+                <Image
+                  source={{ uri: trainer.profile_picture ? `${baseUrl}${trainer.profile_picture}` : 'https://via.placeholder.com/40?text=T' }}
+                  style={{ width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#e5e7eb' }}
+                />
+              </View>
               <View style={[styles.tableCell, { flex: 0.5 }]}>
                 <Text style={[styles.tableCellText, styles.idText]}>{trainer.id || 'N/A'}</Text>
               </View>

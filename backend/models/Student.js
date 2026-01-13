@@ -9,21 +9,21 @@ class Student {
       major = null,
       academic_year = null,
       gpa = null,
-      cv_file = null,
+      cv_id = null,
       student_img = null,
       skills = null,
       status = 'not_started'
     } = studentData;
     
     const query = `
-      INSERT INTO Students (user_id, university_id, major, academic_year, gpa, cv_file, student_img, skills, status) 
+      INSERT INTO Students (user_id, university_id, major, academic_year, gpa, cv_id, student_img, skills, status) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [user_id, university_id, major, academic_year, gpa, cv_file, student_img, skills, status], 
+        [user_id, university_id, major, academic_year, gpa, cv_id, student_img, skills, status], 
         (err, result) => {
           if (err) {
             reject(err);
@@ -38,7 +38,7 @@ class Student {
   // Find student by user_id
   static findByUserId(userId) {
     const query = `
-      SELECT s.*, u.full_name, u.email, u.phone 
+      SELECT s.*, u.full_name, u.email 
       FROM Students s
       JOIN Users u ON s.user_id = u.id
       WHERE s.user_id = ?
@@ -58,7 +58,7 @@ class Student {
   // Find student by id
   static findById(id) {
     const query = `
-      SELECT s.*, u.full_name, u.email, u.phone 
+      SELECT s.*, u.full_name, u.email 
       FROM Students s
       JOIN Users u ON s.user_id = u.id
       WHERE s.id = ?
@@ -78,7 +78,7 @@ class Student {
   // Find all students
   static findAll() {
     const query = `
-      SELECT s.*, u.full_name, u.email, u.phone 
+      SELECT s.*, u.full_name, u.email 
       FROM Students s
       JOIN Users u ON s.user_id = u.id
       ORDER BY s.created_at DESC
@@ -102,7 +102,7 @@ class Student {
       major,
       academic_year,
       gpa,
-      cv_file,
+      cv_id,
       student_img,
       skills,
       status
@@ -121,7 +121,7 @@ class Student {
     const query = `
       UPDATE Students 
       SET university_id = ?, major = ?, 
-          academic_year = ?, gpa = ?, cv_file = ?, 
+          academic_year = ?, gpa = ?, cv_id = ?, 
           student_img = ?, skills = ?, status = ?
       WHERE id = ?
     `;
@@ -129,7 +129,7 @@ class Student {
     return new Promise((resolve, reject) => {
       db.query(
         query, 
-        [university_id, major, academic_year, gpa, cv_file, student_img, skills, updatedStatus, id], 
+        [university_id, major, academic_year, gpa, cv_id, student_img, skills, updatedStatus, id], 
         (err, result) => {
           if (err) {
             reject(err);

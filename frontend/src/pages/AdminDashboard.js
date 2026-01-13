@@ -282,6 +282,150 @@ function AdminDashboard() {
     }
   };
 
+  const handleDeleteCompany = async (companyId) => {
+    if (!window.confirm('Are you sure you want to delete this company? This will also delete all related data.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/companies/${companyId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Company deleted successfully');
+        fetchCompanies();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to delete company');
+      }
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      alert('Failed to delete company');
+    }
+  };
+
+  const handleDeleteUniversity = async (universityId) => {
+    if (!window.confirm('Are you sure you want to delete this university? This will also delete all related data.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/universities/${universityId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('University deleted successfully');
+        fetchUniversities();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to delete university');
+      }
+    } catch (error) {
+      console.error('Error deleting university:', error);
+      alert('Failed to delete university');
+    }
+  };
+
+  const handleDeleteStudent = async (studentId) => {
+    if (!window.confirm('Are you sure you want to delete this student? This will also delete all related data.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/students/${studentId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Student deleted successfully');
+        fetchStudents();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to delete student');
+      }
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      alert('Failed to delete student');
+    }
+  };
+
+  const handleDeleteTrainer = async (trainerId) => {
+    if (!window.confirm('Are you sure you want to delete this trainer? This will also delete all related data.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/trainers/${trainerId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Trainer deleted successfully');
+        fetchTrainers();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to delete trainer');
+      }
+    } catch (error) {
+      console.error('Error deleting trainer:', error);
+      alert('Failed to delete trainer');
+    }
+  };
+
+  const handleDeleteInternship = async (internshipId) => {
+    if (!window.confirm('Are you sure you want to delete this internship? This will also delete all related applications.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/internships/${internshipId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Internship deleted successfully');
+        fetchInternships();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to delete internship');
+      }
+    } catch (error) {
+      console.error('Error deleting internship:', error);
+      alert('Failed to delete internship');
+    }
+  };
+
+  const handleDeletePartnership = async (partnershipId) => {
+    if (!window.confirm('Are you sure you want to delete this partnership?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5050/api/partnerships/${partnershipId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Partnership deleted successfully');
+        fetchPartnerships();
+        fetchStats();
+      } else {
+        alert(data.message || 'Failed to delete partnership');
+      }
+    } catch (error) {
+      console.error('Error deleting partnership:', error);
+      alert('Failed to delete partnership');
+    }
+  };
+
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -714,6 +858,7 @@ function AdminDashboard() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>Logo</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
@@ -724,11 +869,20 @@ function AdminDashboard() {
                   <th>Description</th>
                   <th>Status</th>
                   <th>Created At</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {companies.map((company) => (
                   <tr key={company.id}>
+                    <td>
+                      <img 
+                        src={company.logo ? `http://localhost:5050${company.logo}` : 'https://via.placeholder.com/40?text=C'} 
+                        alt={company.name}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/40?text=C'; }}
+                      />
+                    </td>
                     <td>{company.name}</td>
                     <td>{company.email}</td>
                     <td>{company.phone || 'N/A'}</td>
@@ -751,6 +905,23 @@ function AdminDashboard() {
                       </span>
                     </td>
                     <td>{new Date(company.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeleteCompany(company.id)}
+                        className="delete-btn"
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -771,6 +942,7 @@ function AdminDashboard() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>Logo</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
@@ -779,11 +951,20 @@ function AdminDashboard() {
                   <th>Domain</th>
                   <th>Coordinator Name</th>
                   <th>Coordinator Phone</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {universities.map((uni) => (
                   <tr key={uni.id}>
+                    <td>
+                      <img 
+                        src={uni.logo ? `http://localhost:5050${uni.logo}` : 'https://via.placeholder.com/40?text=U'} 
+                        alt={uni.name}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/40?text=U'; }}
+                      />
+                    </td>
                     <td>{uni.name}</td>
                     <td>{uni.email}</td>
                     <td>{uni.phone || 'N/A'}</td>
@@ -798,6 +979,23 @@ function AdminDashboard() {
                     <td>{uni.domain || 'N/A'}</td>
                     <td>{uni.coordinator_name || 'N/A'}</td>
                     <td>{uni.coordinator_phone || 'N/A'}</td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeleteUniversity(uni.id)}
+                        className="delete-btn"
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -818,6 +1016,7 @@ function AdminDashboard() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>Photo</th>
                   <th>Student ID</th>
                   <th>Full Name</th>
                   <th>Email</th>
@@ -827,11 +1026,20 @@ function AdminDashboard() {
                   <th>GPA</th>
                   <th>Skills</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((student) => (
                   <tr key={student.id}>
+                    <td>
+                      <img 
+                        src={student.profile_picture ? `http://localhost:5050${student.profile_picture}` : 'https://via.placeholder.com/40?text=S'} 
+                        alt={student.full_name}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/40?text=S'; }}
+                      />
+                    </td>
                     <td>{student.id}</td>
                     <td>{student.full_name}</td>
                     <td>{student.email}</td>
@@ -846,6 +1054,23 @@ function AdminDashboard() {
                       <span className={`badge badge-${student.status}`}>
                         {student.status}
                       </span>
+                    </td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeleteStudent(student.id)}
+                        className="delete-btn"
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -869,6 +1094,7 @@ function AdminDashboard() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>Photo</th>
                   <th>Trainer ID</th>
                   <th>Full Name</th>
                   <th>Email</th>
@@ -881,11 +1107,20 @@ function AdminDashboard() {
                   <th>Hourly Rate</th>
                   <th>Max Trainees</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {trainers.map((trainer) => (
                   <tr key={trainer.id}>
+                    <td>
+                      <img 
+                        src={trainer.profile_picture ? `http://localhost:5050${trainer.profile_picture}` : 'https://via.placeholder.com/40?text=T'} 
+                        alt={trainer.full_name}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/40?text=T'; }}
+                      />
+                    </td>
                     <td>{trainer.id}</td>
                     <td>{trainer.full_name}</td>
                     <td>{trainer.email}</td>
@@ -915,6 +1150,23 @@ function AdminDashboard() {
                       <span className={`badge badge-${trainer.status}`}>
                         {trainer.status}
                       </span>
+                    </td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeleteTrainer(trainer.id)}
+                        className="delete-btn"
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -947,6 +1199,7 @@ function AdminDashboard() {
                   <th>Capacity</th>
                   <th>Status</th>
                   <th>Created At</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -969,6 +1222,23 @@ function AdminDashboard() {
                       </span>
                     </td>
                     <td>{internship.created_at ? new Date(internship.created_at).toLocaleDateString() : 'N/A'}</td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeleteInternship(internship.id)}
+                        className="delete-btn"
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1001,6 +1271,7 @@ function AdminDashboard() {
                   <th>University Contact</th>
                   <th>Company Contact</th>
                   <th>Terms & Conditions</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1021,6 +1292,23 @@ function AdminDashboard() {
                     <td>{partnership.contact_person_company || 'N/A'}</td>
                     <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {partnership.terms_and_conditions || 'N/A'}
+                    </td>
+                    <td>
+                      <button 
+                        onClick={() => handleDeletePartnership(partnership.id)}
+                        className="delete-btn"
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
