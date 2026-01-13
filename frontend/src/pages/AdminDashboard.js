@@ -1034,7 +1034,7 @@ function AdminDashboard() {
                   <tr key={student.id}>
                     <td>
                       <img 
-                        src={student.profile_picture ? `http://localhost:5050${student.profile_picture}` : 'https://via.placeholder.com/40?text=S'} 
+                        src={student.student_img ? `http://localhost:5050${student.student_img}` : 'https://via.placeholder.com/40?text=S'} 
                         alt={student.full_name}
                         style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
                         onError={(e) => { e.target.src = 'https://via.placeholder.com/40?text=S'; }}
@@ -1115,7 +1115,7 @@ function AdminDashboard() {
                   <tr key={trainer.id}>
                     <td>
                       <img 
-                        src={trainer.profile_picture ? `http://localhost:5050${trainer.profile_picture}` : 'https://via.placeholder.com/40?text=T'} 
+                        src={trainer.profile_image ? `http://localhost:5050${trainer.profile_image}` : 'https://via.placeholder.com/40?text=T'} 
                         alt={trainer.full_name}
                         style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
                         onError={(e) => { e.target.src = 'https://via.placeholder.com/40?text=T'; }}

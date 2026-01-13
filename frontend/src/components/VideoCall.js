@@ -28,8 +28,8 @@ const VideoCall = ({ roomID, userName, onClose }) => {
       if (!containerRef.current) return;
 
       // ZEGOCLOUD credentials
-      const appID = 1157513066;
-      const serverSecret = "9c6df6b74a544dd002fb60d233dc08c9";
+      const appID = 1848332705;
+      const serverSecret = "e2236f6f8c7b6162beeabac0cc9b75d1";
       
       // Get user info from localStorage to get unique user ID
       const userData = localStorage.getItem('user');
