@@ -28,7 +28,6 @@
 #### Backend (الخادم)
 - **Node.js** + **Express.js** - إطار عمل الخادم
 - **MySQL** - قاعدة البيانات الرئيسية
-- **MongoDB** - قاعدة بيانات للبيانات غير المنظمة
 - **Socket.io** - الاتصال الفوري
 - **Bcrypt** - تشفير كلمات المرور
 - **Multer** - رفع الملفات
@@ -96,7 +95,6 @@ Tracko_Gp_noor/
 
 - **Node.js** (الإصدار 16 أو أحدث)
 - **MySQL** (الإصدار 8 أو أحدث)
-- **MongoDB** (الإصدار 5 أو أحدث)
 - **npm** أو **yarn**
 
 ### 1️⃣ إعداد قاعدة البيانات
@@ -144,7 +142,6 @@ DB_PASSWORD=your_password
 DB_NAME=trackoDB
 
 # إعدادات MongoDB
-MONGODB_URI=mongodb://localhost:27017/tracko
 
 # إعدادات الخادم
 PORT=5050
